@@ -11,10 +11,17 @@ endif()
 
 project ("CrossHatchEditor")
 
+set(SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+
 # Add source to this project's executable.
 add_executable (CrossHatchEditor 
 "CrossHatchEditor.cpp" 
-"CrossHatchEditor.h")
+"CrossHatchEditor.h"
+"Camera.h"
+"InputManager.cpp"
+"InputManager.h" 
+"ObjLoader.cpp"
+"ObjLoader.h" "PrimitiveObjects.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET CrossHatchEditor PROPERTY CXX_STANDARD 20)
@@ -25,6 +32,10 @@ add_subdirectory(./bgfx.cmake)
 add_subdirectory(./glfw)
 target_link_libraries(CrossHatchEditor PRIVATE bgfx bx bimg glfw imgui)
 target_include_directories(CrossHatchEditor PRIVATE bgfx)
+
+file(COPY ${SHADERS_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${SHADERS_DIR})
+
 
 set(IMGUI_PATH ${CMAKE_CURRENT_LIST_DIR}/imgui)
 file(GLOB IMGUI_GLOB
@@ -46,7 +57,7 @@ file(GLOB IMGUI_GLOB
     ${IMGUI_PATH}/backends/imgui_impl_opengl3.h
     ${IMGUI_PATH}/backends/imgui_impl_opengl3.cpp
     ${IMGUI_PATH}/backends/imgui_impl_opengl3_loader.cpp)
-add_library("imgui" STATIC ${IMGUI_GLOB})
+add_library("imgui" STATIC ${IMGUI_GLOB} "PrimitiveObjects.h")
 target_include_directories("imgui" PUBLIC ${IMGUI_PATH})
 target_link_libraries("imgui" PRIVATE glfw)
 
