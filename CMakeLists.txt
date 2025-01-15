@@ -21,7 +21,8 @@ add_executable (CrossHatchEditor
 "InputManager.cpp"
 "InputManager.h" 
 "ObjLoader.cpp"
-"ObjLoader.h" "PrimitiveObjects.h")
+"ObjLoader.h" 
+"PrimitiveObjects.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET CrossHatchEditor PROPERTY CXX_STANDARD 20)
@@ -57,7 +58,7 @@ file(GLOB IMGUI_GLOB
     ${IMGUI_PATH}/backends/imgui_impl_opengl3.h
     ${IMGUI_PATH}/backends/imgui_impl_opengl3.cpp
     ${IMGUI_PATH}/backends/imgui_impl_opengl3_loader.cpp)
-add_library("imgui" STATIC ${IMGUI_GLOB} "PrimitiveObjects.h")
+add_library("imgui" STATIC ${IMGUI_GLOB})
 target_include_directories("imgui" PUBLIC ${IMGUI_PATH})
 target_link_libraries("imgui" PRIVATE glfw)
 
