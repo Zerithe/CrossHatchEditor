@@ -197,6 +197,16 @@ int main(void)
 		bgfx::makeRef(sphereIndices.data(), sizeof(uint16_t) * sphereIndices.size())
 	);
 
+    // Load OBJ file
+    std::vector<ObjLoader::Vertex> suzanneVertices;
+    std::vector<uint16_t> suzanneIndices;
+    if (!ObjLoader::loadObj("suzanne.obj", suzanneVertices, suzanneIndices)) {
+        std::cerr << "Failed to load OBJ file" << std::endl;
+        return -1;
+    }
+
+    bgfx::VertexBufferHandle suzanneVbh = ObjLoader::createVertexBuffer(suzanneVertices);
+    bgfx::IndexBufferHandle suzanneIbh = ObjLoader::createIndexBuffer(suzanneIndices);
 
     //Enable debug output
     bgfx::setDebug(BGFX_DEBUG_TEXT); // <-- Add this line here
@@ -248,6 +258,10 @@ int main(void)
 		{
 			spawnPrimitive = 4;
 		}
+		if (InputManager::isKeyToggled(GLFW_KEY_6))
+		{
+			spawnPrimitive = 5;
+		}
 
         if (InputManager::isKeyToggled(GLFW_KEY_M))
         {
@@ -283,6 +297,11 @@ int main(void)
 				spawnInstance(camera, vbh_plane, ibh_plane, instances);
 				std::cout << "Plane spawned" << std::endl;
 			}
+            else if (spawnPrimitive == 5)
+            {
+				spawnInstance(camera, suzanneVbh, suzanneIbh, instances);
+				std::cout << "Suzanne spawned" << std::endl;
+            }
 		}
 
         if (InputManager::isKeyToggled(GLFW_KEY_BACKSPACE) && !instances.empty())

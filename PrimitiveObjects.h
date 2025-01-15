@@ -57,6 +57,22 @@ static const uint16_t cubeIndices[] =
     6, 3, 7,
 };
 
+static const uint16_t s_cubeTriStrip[] =
+{
+    0, 1, 2,
+    3,
+    7,
+    1,
+    5,
+    0,
+    4,
+    2,
+    6,
+    7,
+    4,
+    5,
+};
+
 // Capsule top and bottom hemisphere vertices with body vertices
 static const PosColorVertex capsuleVertices[] = {
     {  0.0f,  1.5f,  0.0f, 0xffff0000 }, // Top-center
