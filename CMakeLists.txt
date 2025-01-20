@@ -63,3 +63,13 @@ target_include_directories("imgui" PUBLIC ${IMGUI_PATH})
 target_link_libraries("imgui" PRIVATE glfw)
 
 target_include_directories(CrossHatchEditor PUBLIC imgui)
+
+# Set the path where Assimp was built
+set(ASSIMP_ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/assimp)
+
+# Include Assimp headers
+target_include_directories(CrossHatchEditor PRIVATE ${ASSIMP_ROOT_DIR}/include)
+
+# Link Assimp library
+target_link_directories(CrossHatchEditor PRIVATE ${ASSIMP_ROOT_DIR}/lib)
+target_link_libraries(CrossHatchEditor PRIVATE assimp)

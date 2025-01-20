@@ -9,6 +9,9 @@
 #include "Camera.h"
 #include "PrimitiveObjects.h"
 #include "ObjLoader.h"
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 #include <bgfx/bgfx.h>
 #include <bx/uint32_t.h>
