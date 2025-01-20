@@ -33,3 +33,13 @@ cmake --build cmake-build
 ```
 git clone https://github.com/ocornut/imgui
 ```
+
+### assimp
+
+- inside the root directory input the following commands:
+```
+git clone https://github.com/assimp/assimp.git
+cd assimp
+cmake CMakeLists.txt
+cmake --build .
+```
