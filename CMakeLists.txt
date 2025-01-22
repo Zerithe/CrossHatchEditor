@@ -12,6 +12,7 @@ endif()
 project ("CrossHatchEditor")
 
 set(SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+set(MESHES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/meshes")
 
 # Generate Shaders
 
@@ -53,10 +54,11 @@ target_include_directories(shaderLib INTERFACE ${CMAKE_BINARY_DIR}/include/gener
 target_link_libraries(${PROJECT_NAME}  PRIVATE bgfx bx bimg glfw imgui shaderLib)
 target_include_directories(${PROJECT_NAME}  PRIVATE bgfx)
 
-
-
 file(COPY ${SHADERS_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${SHADERS_DIR})
+
+file(COPY ${MESHES_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${MESHES_DIR})
 
 
 set(IMGUI_PATH ${CMAKE_CURRENT_LIST_DIR}/imgui)
@@ -92,10 +94,10 @@ set(ASSIMP_ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/assimp)
 target_include_directories(CrossHatchEditor PRIVATE ${ASSIMP_ROOT_DIR}/include)
 
 # Link Assimp library
-target_link_directories(CrossHatchEditor PRIVATE ${ASSIMP_ROOT_DIR}/lib/Debug)
+target_link_directories(CrossHatchEditor PRIVATE ${ASSIMP_ROOT_DIR}/lib)
 target_link_libraries(CrossHatchEditor PRIVATE assimp-vc143-mtd)
 
 add_custom_command(TARGET CrossHatchEditor POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${ASSIMP_ROOT_DIR}/bin/Debug/assimp-vc143-mtd.dll"  # Replace with the actual path to assimp.dll
+        "${ASSIMP_ROOT_DIR}/bin/assimp-vc143-mtd.dll"  # Replace with the actual path to assimp.dll
         $<TARGET_FILE_DIR:CrossHatchEditor>)

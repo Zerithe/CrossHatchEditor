@@ -3,6 +3,7 @@
 #include "CrossHatchEditor.h"
 #include <iostream>
 #include <vector>
+#include <sstream>
 #include <fstream>
 #include <random>
 #include "InputManager.h"
@@ -66,6 +67,71 @@ struct MeshData {
     std::vector<uint16_t> indices;
 };
 
+struct Vec3 {
+    float x, y, z;
+};
+
+//transfer to ObjLoader.cpp
+void computeNormals(std::vector<PosColorVertex>& vertices, const std::vector<uint16_t>& indices) {
+
+    // Reset all normals to zero
+    for (auto& vertex : vertices) {
+        vertex.nx = 0.0f;
+        vertex.ny = 0.0f;
+        vertex.nz = 0.0f;
+    }
+    // Create an array to accumulate normals
+    std::vector<Vec3> accumulatedNormals(vertices.size(), { 0.0f, 0.0f, 0.0f });
+
+    for (size_t i = 0; i < indices.size(); i += 3) {
+        uint16_t i0 = indices[i];
+        uint16_t i1 = indices[i + 1];
+        uint16_t i2 = indices[i + 2];
+
+        Vec3 v0 = { vertices[i0].x, vertices[i0].y, vertices[i0].z };
+        Vec3 v1 = { vertices[i1].x, vertices[i1].y, vertices[i1].z };
+        Vec3 v2 = { vertices[i2].x, vertices[i2].y, vertices[i2].z };
+
+        Vec3 edge1 = { v1.x - v0.x, v1.y - v0.y, v1.z - v0.z };
+        Vec3 edge2 = { v2.x - v0.x, v2.y - v0.y, v2.z - v0.z };
+
+        Vec3 normal = {
+            edge1.y * edge2.z - edge1.z * edge2.y,
+            edge1.z * edge2.x - edge1.x * edge2.z,
+            edge1.x * edge2.y - edge1.y * edge2.x
+        };
+
+        float length = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+        if (length > 0.0f) {
+            normal.x /= length;
+            normal.y /= length;
+            normal.z /= length;
+        }
+
+
+        // Accumulate the normal for each vertex in the face
+        accumulatedNormals[i0].x += normal.x; accumulatedNormals[i0].y += normal.y; accumulatedNormals[i0].z += normal.z;
+        accumulatedNormals[i1].x += normal.x; accumulatedNormals[i1].y += normal.y; accumulatedNormals[i1].z += normal.z;
+        accumulatedNormals[i2].x += normal.x; accumulatedNormals[i2].y += normal.y; accumulatedNormals[i2].z += normal.z;
+    }
+
+    // Normalize the accumulated normals for each vertex
+    for (size_t i = 0; i < vertices.size(); i++) {
+        Vec3& normal = accumulatedNormals[i];
+        float length = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+        if (length > 0.0f) {
+            normal.x /= length;
+            normal.y /= length;
+            normal.z /= length;
+        }
+
+        // Assign the normalized normal to the vertex
+        vertices[i].nx = normal.x;
+        vertices[i].ny = normal.y;
+        vertices[i].nz = normal.z;
+    }
+}
+
 MeshData loadMesh(const std::string& filePath) {
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(filePath, aiProcess_Triangulate | aiProcess_FlipUVs);
@@ -79,11 +145,25 @@ MeshData loadMesh(const std::string& filePath) {
     std::vector<uint16_t> indices;
 
     aiMesh* mesh = scene->mMeshes[0];  // Assuming single mesh for simplicity
+
+    std::unordered_map<std::string, uint16_t> uniqueVertices;
+
     for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
         PosColorVertex vertex;
         vertex.x = mesh->mVertices[i].x;
         vertex.y = mesh->mVertices[i].y;
         vertex.z = mesh->mVertices[i].z;
+
+        // Retrieve normals if available
+        if (mesh->HasNormals()) {
+            vertex.nx = mesh->mNormals[i].x;
+            vertex.ny = mesh->mNormals[i].y;
+            vertex.nz = mesh->mNormals[i].z;
+        } else {
+            vertex.nx = 0.0f;
+            vertex.ny = 0.0f;
+            vertex.nz = 0.0f; // Default to zero, will recompute later
+        }
 
         if (mesh->HasVertexColors(0)) {
             vertex.abgr = ((uint8_t)(mesh->mColors[0][i].r * 255) << 24) |
@@ -95,14 +175,30 @@ MeshData loadMesh(const std::string& filePath) {
             vertex.abgr = 0xffffffff; // Default color
         }
 
+        /*std::ostringstream key;
+
+        key << vertex.x << "," << vertex.y << "," << vertex.z;
+
+        if (uniqueVertices.count(key.str()) == 0) {
+            uniqueVertices[key.str()] = static_cast<uint16_t>(vertices.size());
+            vertices.push_back(vertex);
+        }*/
+
         vertices.push_back(vertex);
     }
 
+
     for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
         aiFace face = mesh->mFaces[i];
-        for (unsigned int j = 0; j < face.mNumIndices; j++) {
+        // Reverse the winding order
+        for (int j = face.mNumIndices - 1; j >= 0; j--) {
             indices.push_back(face.mIndices[j]);
         }
+    }
+
+    // Compute normals if the mesh does not have them
+    if (!mesh->HasNormals()) {
+        computeNormals(vertices, indices);
     }
 
     return { vertices, indices };
@@ -112,6 +208,7 @@ void createMeshBuffers(const MeshData& meshData, bgfx::VertexBufferHandle& vbh, 
     bgfx::VertexLayout layout;
     layout.begin()
         .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+        .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
         .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true, true)
         .end();
 
@@ -219,6 +316,7 @@ int main(void)
     bgfx::VertexLayout layout;
     layout.begin()
         .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+        .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
         .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true, true)
         .end();
 
@@ -277,20 +375,20 @@ int main(void)
 	);
 
     //mesh generation
-    MeshData meshData = loadMesh("suzanne.obj");
+    MeshData meshData = loadMesh("meshes/sponza.obj");
     bgfx::VertexBufferHandle vbh_mesh;
     bgfx::IndexBufferHandle ibh_mesh;
     createMeshBuffers(meshData, vbh_mesh, ibh_mesh);
-    //// Load OBJ file
-    //std::vector<ObjLoader::Vertex> suzanneVertices;
-    //std::vector<uint16_t> suzanneIndices;
-    //if (!ObjLoader::loadObj("suzanne.obj", suzanneVertices, suzanneIndices)) {
-    //    std::cerr << "Failed to load OBJ file" << std::endl;
-    //    return -1;
-    //}
+    //Load OBJ file
+ /*   std::vector<ObjLoader::Vertex> suzanneVertices;
+    std::vector<uint16_t> suzanneIndices;
+    if (!ObjLoader::loadObj("suzanne.obj", suzanneVertices, suzanneIndices)) {
+        std::cerr << "Failed to load OBJ file" << std::endl;
+        return -1;
+    }
 
-    //bgfx::VertexBufferHandle suzanneVbh = ObjLoader::createVertexBuffer(suzanneVertices);
-    //bgfx::IndexBufferHandle suzanneIbh = ObjLoader::createIndexBuffer(suzanneIndices);
+    bgfx::VertexBufferHandle vbh_mesh = ObjLoader::createVertexBuffer(suzanneVertices);
+    bgfx::IndexBufferHandle ibh_mesh = ObjLoader::createIndexBuffer(suzanneIndices);*/
 
     //Enable debug output
     bgfx::setDebug(BGFX_DEBUG_TEXT); // <-- Add this line here
