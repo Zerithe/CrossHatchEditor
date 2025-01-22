@@ -19,10 +19,13 @@
 #include <bx/readerwriter.h>
 #include <bx/string.h>
 
+//include embedded shaders
+
 #include <bgfx/defines.h>
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
-
+#include <backends/imgui_impl_dx11.h>
+#include "bgfx-imgui/imgui_impl_bgfx.h"
 
 #include <GLFW/glfw3.h>
 #if defined(_WIN32)
@@ -135,6 +138,16 @@ int main(void)
         return -1;
     }
 
+    //Initialize ImGui
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    //io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+	
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_Implbgfx_Init(255);
+
     // Load shaders
 
     bgfx::VertexLayout layout;
@@ -234,6 +247,12 @@ int main(void)
 	while (!glfwWindowShouldClose(window))
 	{
         glfwPollEvents();
+        
+        //imgui loop
+		ImGui_ImplGlfw_NewFrame();
+		ImGui_Implbgfx_NewFrame();
+		ImGui::NewFrame();
+		ImGui::ShowDemoWindow();
 
         //handle inputs
         InputManager::update(camera, 0.016f);
@@ -368,6 +387,14 @@ int main(void)
         u_lightColor = bgfx::createUniform("u_lightColor", bgfx::UniformType::Vec4);
         u_viewPos = bgfx::createUniform("u_viewPos", bgfx::UniformType::Vec4);
 
+        bgfx::UniformHandle u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
+
+        // Example parameter values
+        float params[4] = { 0.02f, 15.0f, 0.0f, 0.0f }; // e = 0.02 (tolerance), scale = 15.0
+        bgfx::setUniform(u_params, params);
+
+
+
         bgfx::ShaderHandle vsh = loadShader("shaders\\vs_cel.bin");
         bgfx::ShaderHandle fsh = loadShader("shaders\\crosshatching_frag_variant1.bin");
         bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
@@ -461,6 +488,8 @@ int main(void)
 
 
         // End frame
+		ImGui::Render();
+		ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
         bgfx::frame();
 	}
     for (const auto& instance : instances)
@@ -483,6 +512,8 @@ int main(void)
 	bgfx::destroy(vbh_cylinder);
 	bgfx::destroy(ibh_cylinder);
 	//bgfx::destroy(defaultProgram);
+    ImGui_ImplGlfw_Shutdown();
+	
     bgfx::shutdown();
     glfwDestroyWindow(window);
 	glfwTerminate();

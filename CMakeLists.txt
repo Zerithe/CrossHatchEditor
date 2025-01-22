@@ -13,8 +13,17 @@ project ("CrossHatchEditor")
 
 set(SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
 
+# Generate Shaders
+
 # Add source to this project's executable.
-add_executable (CrossHatchEditor 
+add_executable (${PROJECT_NAME})
+
+if (CMAKE_VERSION VERSION_GREATER 3.12)
+  set_property(TARGET ${PROJECT_NAME}  PROPERTY CXX_STANDARD 20)
+endif()
+
+# TODO: Add tests and install targets if needed.
+target_sources(${PROJECT_NAME} PRIVATE 
 "CrossHatchEditor.cpp" 
 "CrossHatchEditor.h"
 "Camera.h"
@@ -22,17 +31,29 @@ add_executable (CrossHatchEditor
 "InputManager.h" 
 "ObjLoader.cpp"
 "ObjLoader.h" 
-"PrimitiveObjects.h")
+"PrimitiveObjects.h"
+"bgfx-imgui/imgui_impl_bgfx.cpp")
 
-if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET CrossHatchEditor PROPERTY CXX_STANDARD 20)
-endif()
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 
-# TODO: Add tests and install targets if needed.
 add_subdirectory(./bgfx.cmake)
 add_subdirectory(./glfw)
-target_link_libraries(CrossHatchEditor PRIVATE bgfx bx bimg glfw imgui)
-target_include_directories(CrossHatchEditor PRIVATE bgfx)
+
+BGFX_COMPILE_SHADERS(
+    TYPE FRAGMENT
+    SHADERS ${CMAKE_SOURCE_DIR}/baseshaders/crosshatching_frag_variant1.sc
+    VARYING_DEF ${CMAKE_SOURCE_DIR}/baseshaders/varying.def.sc
+    OUTPUT_DIR ${CMAKE_BINARY_DIR}/include/generated/shaders
+    AS_HEADERS
+)
+
+add_library(shaderLib INTERFACE)
+target_include_directories(shaderLib INTERFACE ${CMAKE_BINARY_DIR}/include/generated/shaders)
+
+target_link_libraries(${PROJECT_NAME}  PRIVATE bgfx bx bimg glfw imgui shaderLib)
+target_include_directories(${PROJECT_NAME}  PRIVATE bgfx)
+
+
 
 file(COPY ${SHADERS_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${SHADERS_DIR})
