@@ -375,7 +375,7 @@ int main(void)
 	);
 
     //mesh generation
-    MeshData meshData = loadMesh("meshes/sponza.obj");
+    MeshData meshData = loadMesh("meshes/suzanne.obj");
     bgfx::VertexBufferHandle vbh_mesh;
     bgfx::IndexBufferHandle ibh_mesh;
     createMeshBuffers(meshData, vbh_mesh, ibh_mesh);
@@ -571,7 +571,7 @@ int main(void)
 
 
         bgfx::ShaderHandle vsh = loadShader("shaders\\vs_cel.bin");
-        bgfx::ShaderHandle fsh = loadShader("shaders\\crosshatching_frag_variant1.bin");
+        bgfx::ShaderHandle fsh = loadShader("shaders\\f_out10.bin");
         bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
 
 
