@@ -6,6 +6,7 @@ uniform vec4 u_lightDir;        // Light direction
 uniform vec4 u_lightColor;      // Light color
 uniform sampler2D u_hatchTex;   // Hatching texture
 uniform vec3 u_inkColor;
+//fix scale and epsilon for shaders to display lines correctly
 uniform float u_scale;
 uniform float u_epsilon;
 
@@ -73,11 +74,11 @@ void main() {
         crossHatchIntensity = 0.2;
     }
 
-    vec3 coords = v_pos.xyz;
+    vec3 coords = v_pos.xyz * u_scale;
     vec3 eye = normalize(-v_pos);
-    vec3 ref = reflect(normalize(v_normal), eye);
+    vec3 ref = reflect(normal, eye);
 
-    float l = 0.5; // Replace paper texture intensity with a constant
+    float l = intensity; // Replace paper texture intensity with a constant
     float darks = 1.0 - 2.0 * l;
 
     float line = texcube(coords + 0.0 * ref, normalize(v_normal), l * 5.0, TAU / 8.0);

@@ -45,6 +45,7 @@ static bool s_showStats = false;
 bgfx::UniformHandle u_lightDir;
 bgfx::UniformHandle u_lightColor;
 bgfx::UniformHandle u_viewPos;
+//bgfx::UniformHandle u_scale;
 
 
 struct Instance
@@ -409,6 +410,7 @@ int main(void)
 
     float lightColor[4] = { 0.5f, 0.5f, 0.5f, 1.0f };
     float lightDir[4] = { 0.0f, 1.0f, 1.0f, 0.0f };
+    float scale[4] = {1.0f, 0.0f, 0.0f, 0.0f};
 
     int spawnPrimitive = 0;
 
@@ -556,11 +558,13 @@ int main(void)
         bgfx::setUniform(u_lightDir, lightDir);
         bgfx::setUniform(u_lightColor, lightColor);
         bgfx::setUniform(u_viewPos, viewPos);
+        //bgfx::setUniform(u_scale, scale);
 
         // Create uniform handles for the light direction and color
         u_lightDir = bgfx::createUniform("u_lightDir", bgfx::UniformType::Vec4);
         u_lightColor = bgfx::createUniform("u_lightColor", bgfx::UniformType::Vec4);
         u_viewPos = bgfx::createUniform("u_viewPos", bgfx::UniformType::Vec4);
+		//u_scale = bgfx::createUniform("u_scale", bgfx::UniformType::Vec4);
 
         bgfx::UniformHandle u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
 
