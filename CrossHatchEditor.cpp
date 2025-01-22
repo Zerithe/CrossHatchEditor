@@ -9,6 +9,9 @@
 #include "Camera.h"
 #include "PrimitiveObjects.h"
 #include "ObjLoader.h"
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 #include <bgfx/bgfx.h>
 #include <bx/uint32_t.h>
@@ -58,6 +61,69 @@ struct Instance
     }
 };
 
+struct MeshData {
+    std::vector<PosColorVertex> vertices;
+    std::vector<uint16_t> indices;
+};
+
+MeshData loadMesh(const std::string& filePath) {
+    Assimp::Importer importer;
+    const aiScene* scene = importer.ReadFile(filePath, aiProcess_Triangulate | aiProcess_FlipUVs);
+
+    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
+        std::cerr << "Error: Assimp - " << importer.GetErrorString() << std::endl;
+        return {};
+    }
+
+    std::vector<PosColorVertex> vertices;
+    std::vector<uint16_t> indices;
+
+    aiMesh* mesh = scene->mMeshes[0];  // Assuming single mesh for simplicity
+    for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
+        PosColorVertex vertex;
+        vertex.x = mesh->mVertices[i].x;
+        vertex.y = mesh->mVertices[i].y;
+        vertex.z = mesh->mVertices[i].z;
+
+        if (mesh->HasVertexColors(0)) {
+            vertex.abgr = ((uint8_t)(mesh->mColors[0][i].r * 255) << 24) |
+                ((uint8_t)(mesh->mColors[0][i].g * 255) << 16) |
+                ((uint8_t)(mesh->mColors[0][i].b * 255) << 8) |
+                (uint8_t)(mesh->mColors[0][i].a * 255);
+        }
+        else {
+            vertex.abgr = 0xffffffff; // Default color
+        }
+
+        vertices.push_back(vertex);
+    }
+
+    for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
+        aiFace face = mesh->mFaces[i];
+        for (unsigned int j = 0; j < face.mNumIndices; j++) {
+            indices.push_back(face.mIndices[j]);
+        }
+    }
+
+    return { vertices, indices };
+}
+
+void createMeshBuffers(const MeshData& meshData, bgfx::VertexBufferHandle& vbh, bgfx::IndexBufferHandle& ibh) {
+    bgfx::VertexLayout layout;
+    layout.begin()
+        .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+        .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true, true)
+        .end();
+
+    vbh = bgfx::createVertexBuffer(
+        bgfx::makeRef(meshData.vertices.data(), sizeof(PosColorVertex) * meshData.vertices.size()),
+        layout
+    );
+
+    ibh = bgfx::createIndexBuffer(
+        bgfx::makeRef(meshData.indices.data(), sizeof(uint16_t) * meshData.indices.size())
+    );
+}
 static void glfw_keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if (key == GLFW_KEY_F1 && action == GLFW_RELEASE)
@@ -210,16 +276,21 @@ int main(void)
 		bgfx::makeRef(sphereIndices.data(), sizeof(uint16_t) * sphereIndices.size())
 	);
 
-    // Load OBJ file
-    std::vector<ObjLoader::Vertex> suzanneVertices;
-    std::vector<uint16_t> suzanneIndices;
-    if (!ObjLoader::loadObj("suzanne.obj", suzanneVertices, suzanneIndices)) {
-        std::cerr << "Failed to load OBJ file" << std::endl;
-        return -1;
-    }
+    //mesh generation
+    MeshData meshData = loadMesh("suzanne.obj");
+    bgfx::VertexBufferHandle vbh_mesh;
+    bgfx::IndexBufferHandle ibh_mesh;
+    createMeshBuffers(meshData, vbh_mesh, ibh_mesh);
+    //// Load OBJ file
+    //std::vector<ObjLoader::Vertex> suzanneVertices;
+    //std::vector<uint16_t> suzanneIndices;
+    //if (!ObjLoader::loadObj("suzanne.obj", suzanneVertices, suzanneIndices)) {
+    //    std::cerr << "Failed to load OBJ file" << std::endl;
+    //    return -1;
+    //}
 
-    bgfx::VertexBufferHandle suzanneVbh = ObjLoader::createVertexBuffer(suzanneVertices);
-    bgfx::IndexBufferHandle suzanneIbh = ObjLoader::createIndexBuffer(suzanneIndices);
+    //bgfx::VertexBufferHandle suzanneVbh = ObjLoader::createVertexBuffer(suzanneVertices);
+    //bgfx::IndexBufferHandle suzanneIbh = ObjLoader::createIndexBuffer(suzanneIndices);
 
     //Enable debug output
     bgfx::setDebug(BGFX_DEBUG_TEXT); // <-- Add this line here
@@ -277,10 +348,11 @@ int main(void)
 		{
 			spawnPrimitive = 4;
 		}
-		if (InputManager::isKeyToggled(GLFW_KEY_6))
-		{
-			spawnPrimitive = 5;
-		}
+        if (InputManager::isKeyToggled(GLFW_KEY_6))
+        {
+            spawnPrimitive = 5;
+        }
+		
 
         if (InputManager::isKeyToggled(GLFW_KEY_M))
         {
@@ -318,9 +390,14 @@ int main(void)
 			}
             else if (spawnPrimitive == 5)
             {
+                spawnInstance(camera, vbh_mesh, ibh_mesh, instances);
+                std::cout << "Mesh spawned" << std::endl;
+            }
+            /*else if (spawnPrimitive == 5)
+            {
 				spawnInstance(camera, suzanneVbh, suzanneIbh, instances);
 				std::cout << "Suzanne spawned" << std::endl;
-            }
+            }*/
 		}
 
         if (InputManager::isKeyToggled(GLFW_KEY_BACKSPACE) && !instances.empty())
@@ -511,6 +588,8 @@ int main(void)
 	bgfx::destroy(ibh_capsule);
 	bgfx::destroy(vbh_cylinder);
 	bgfx::destroy(ibh_cylinder);
+    bgfx::destroy(vbh_mesh);
+    bgfx::destroy(ibh_mesh);
 	//bgfx::destroy(defaultProgram);
     ImGui_ImplGlfw_Shutdown();
 	
