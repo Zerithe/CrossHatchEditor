@@ -43,22 +43,134 @@ static const uint16_t cubeIndices[] = {
     2, 3, 6, 6, 3, 7
 };
 
-static PosColorVertex capsuleVertices[] = {
-    {  0.0f,  1.5f,  0.0f,  0.0f,  1.0f,  0.0f, 0xffff0000},
-    { -0.5f,  1.0f,  0.0f, -0.707f, 0.707f,  0.0f, 0xff00ff00},
-    {  0.5f,  1.0f,  0.0f,  0.707f, 0.707f,  0.0f, 0xff0000ff},
-    {  0.0f, -1.0f,  0.0f,  0.0f, -1.0f,  0.0f, 0xffffff00},
-    { -0.5f, -1.0f,  0.0f, -0.707f, -0.707f,  0.0f, 0xff00ffff},
-    {  0.5f, -1.0f,  0.0f,  0.707f, -0.707f,  0.0f, 0xff888888}
-};
+void generateCapsule(float radius, float halfHeight, int stacks, int sectors,
+    std::vector<PosColorVertex>& vertices,
+    std::vector<uint16_t>& indices)
+{
+    const float PI = 3.14159265359f;
 
-static const uint16_t capsuleIndices[] = {
-    0, 1, 2,
-    1, 4, 2,
-    2, 4, 5,
-    3, 4, 5
-};
+    // Top hemisphere
+    for (int i = 0; i <= stacks; ++i) {
+        float stackAngle = (PI / 2) - (i * PI / stacks);
+        float xy = radius * cosf(stackAngle);
+        float z = radius * sinf(stackAngle) + halfHeight;
 
+        for (int j = 0; j <= sectors; ++j) {
+            float sectorAngle = j * (2 * PI / sectors);
+            float x = xy * cosf(sectorAngle);
+            float y = xy * sinf(sectorAngle);
+
+            // Calculate normal
+            float nx = x / radius;
+            float ny = y / radius;
+            float nz = z / radius;
+
+            uint32_t color = 0xffff0000; // Red for top hemisphere
+            vertices.push_back({ x, y, z, nx, ny, nz, color });
+        }
+    }
+
+    // Cylinder
+    for (int i = 0; i <= 1; ++i) {
+        float z = (i == 0) ? halfHeight : -halfHeight;
+
+        for (int j = 0; j <= sectors; ++j) {
+            float sectorAngle = j * (2 * PI / sectors);
+            float x = radius * cosf(sectorAngle);
+            float y = radius * sinf(sectorAngle);
+
+            // Normal same as position for cylinder
+            float nx = x / radius;
+            float ny = y / radius;
+            float nz = 0.0f;
+
+            uint32_t color = (i == 0) ? 0xff00ff00 : 0xff0000ff; // Green for top, Blue for bottom
+            vertices.push_back({ x, y, z, nx, ny, nz, color });
+        }
+    }
+
+    // Bottom hemisphere
+    for (int i = 0; i <= stacks; ++i) {
+        float stackAngle = (-PI / 2) + (i * PI / stacks);
+        float xy = radius * cosf(stackAngle);
+        float z = radius * sinf(stackAngle) - halfHeight;
+
+        for (int j = 0; j <= sectors; ++j) {
+            float sectorAngle = j * (2 * PI / sectors);
+            float x = xy * cosf(sectorAngle);
+            float y = xy * sinf(sectorAngle);
+
+            // Calculate normal
+            float nx = x / radius;
+            float ny = y / radius;
+            float nz = z / radius;
+
+            uint32_t color = 0xffffff00; // Yellow for bottom hemisphere
+            vertices.push_back({ x, y, z, nx, ny, nz, color });
+        }
+    }
+
+    // Generate indices
+    int k1, k2;
+
+    // Top hemisphere indices
+    for (int i = 0; i < stacks; ++i) {
+        k1 = i * (sectors + 1);
+        k2 = k1 + sectors + 1;
+
+        for (int j = 0; j < sectors; ++j, ++k1, ++k2) {
+            if (i != 0) { // Skip first stack (pole vertex)
+                indices.push_back(k1);
+                indices.push_back(k1 + 1);
+                indices.push_back(k2); // Reverse: k2 comes last
+            }
+
+            if (i != (stacks - 1)) { // Skip last stack (pole vertex)
+                indices.push_back(k1 + 1);
+                indices.push_back(k2 + 1);
+                indices.push_back(k2); // Reverse: k2 comes last
+            }
+        }
+    }
+
+    // Cylinder indices
+    int offset = (stacks + 1) * (sectors + 1);
+    for (int i = 0; i < 1; ++i) {
+        k1 = offset + i * (sectors + 1);
+        k2 = k1 + sectors + 1;
+
+        for (int j = 0; j < sectors; ++j, ++k1, ++k2) {
+            indices.push_back(k1);
+            indices.push_back(k1 + 1);
+            indices.push_back(k2); // Reverse: k2 comes last
+
+            indices.push_back(k1 + 1);
+            indices.push_back(k2 + 1);
+            indices.push_back(k2); // Reverse: k2 comes last
+        }
+    }
+
+    // Bottom hemisphere indices
+    offset += 2 * (sectors + 1);
+    for (int i = 0; i < stacks; ++i) {
+        k1 = offset + i * (sectors + 1);
+        k2 = k1 + sectors + 1;
+
+        for (int j = 0; j < sectors; ++j, ++k1, ++k2) {
+            if (i != 0) {
+                indices.push_back(k1);
+                indices.push_back(k1 + 1);
+                indices.push_back(k2); // Reverse: k2 comes last
+            }
+
+            if (i != (stacks - 1)) {
+                indices.push_back(k1 + 1);
+                indices.push_back(k2 + 1);
+                indices.push_back(k2); // Reverse: k2 comes last
+            }
+        }
+    }
+}
 static PosColorVertex cylinderVertices[] = {
     {  0.0f,  1.0f,  0.0f,  0.0f,  1.0f,  0.0f, 0xffff0000},
     {  1.0f,  1.0f,  0.0f,  0.707f, 0.707f,  0.0f, 0xff00ff00},
@@ -108,12 +220,12 @@ void generateSphere(float radius, int stacks, int sectors,
             int second = first + sectors + 1;
 
             indices.push_back(first);
-            indices.push_back(second);
             indices.push_back(first + 1);
+            indices.push_back(second);
 
             indices.push_back(second);
-            indices.push_back(second + 1);
             indices.push_back(first + 1);
+            indices.push_back(second + 1);
         }
     }
 }

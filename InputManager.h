@@ -17,6 +17,8 @@ public:
 	static bool isMouseClicked(int key);
 	static void getMouseMovement(double* x, double* y);
 
+	static bool getCursorDisabled() { return isCursorDisabled; }
+
 private:
 	InputManager() = default;
 	~InputManager() = default;

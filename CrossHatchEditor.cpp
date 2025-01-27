@@ -341,12 +341,18 @@ int main(void)
 	);
 
     //capsule generation
+	std::vector<PosColorVertex> capsuleVertices;
+	std::vector<uint16_t> capsuleIndices;
+
+	generateCapsule(1.0f, 1.5f, 20, 20, capsuleVertices, capsuleIndices);
+
 	bgfx::VertexBufferHandle vbh_capsule = bgfx::createVertexBuffer(
-		bgfx::makeRef(capsuleVertices, sizeof(capsuleVertices)),
+		bgfx::makeRef(capsuleVertices.data(), sizeof(PosColorVertex) * capsuleVertices.size()),
 		layout
 	);
+
 	bgfx::IndexBufferHandle ibh_capsule = bgfx::createIndexBuffer(
-		bgfx::makeRef(capsuleIndices, sizeof(capsuleIndices))
+		bgfx::makeRef(capsuleIndices.data(), sizeof(uint16_t) * capsuleIndices.size())
 	);
 
     
@@ -406,13 +412,15 @@ int main(void)
 
     std::vector<Instance> instances;
 
-    bool modelMovement = true;
+    bool modelMovement = false;
 
     float lightColor[4] = { 0.5f, 0.5f, 0.5f, 1.0f };
     float lightDir[4] = { 0.0f, 1.0f, 1.0f, 0.0f };
     float scale[4] = {1.0f, 0.0f, 0.0f, 0.0f};
 
     int spawnPrimitive = 0;
+
+	bool* p_open = NULL;
 
     //MAIN LOOP
 	while (!glfwWindowShouldClose(window))
@@ -423,37 +431,120 @@ int main(void)
 		ImGui_ImplGlfw_NewFrame();
 		ImGui_Implbgfx_NewFrame();
 		ImGui::NewFrame();
-		ImGui::ShowDemoWindow();
+		//ImGui::ShowDemoWindow();
+
+        /*bgfx::dbgTextClear();
+        bgfx::dbgTextPrintf(0, 1, 0x4f, "Crosshatching Editor Ver 0.1");
+        bgfx::dbgTextPrintf(0, 2, 0x4f, "Nothing here yet...");
+        bgfx::dbgTextPrintf(0, 3, 0x0f, "Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
+        bgfx::dbgTextPrintf(0, 4, 0x0f, "M - Toggle Object Movement");
+        bgfx::dbgTextPrintf(0, 5, 0x0f, "C - Randomize Light Color");
+        bgfx::dbgTextPrintf(0, 6, 0x0f, "X - Reset Light Color");
+        bgfx::dbgTextPrintf(0, 7, 0x0f, "V - Randomize Light Direction");
+        bgfx::dbgTextPrintf(0, 8, 0x0f, "Z - Reset Light Direction");
+        bgfx::dbgTextPrintf(0, 9, 0x0f, "F1 - Toggle stats");*/
+
+
+        //IMGUI WINDOW FOR CONTROLS
+        //FOR REFERENCE USE THIS: https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html
+		ImGui::Begin("CrossHatchEditor", p_open, ImGuiWindowFlags_MenuBar);
+        if (ImGui::BeginMenuBar())
+        {
+            if (ImGui::BeginMenu("File"))
+            {
+                if (ImGui::MenuItem("Open..")) { /* Do stuff */ }
+                if (ImGui::MenuItem("Save", "Ctrl+S")) { /* Do stuff */ }
+                if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
+                ImGui::EndMenu();
+            }
+			ImGui::EndMenuBar();
+		}
+		ImGui::Text("Crosshatch Editor Ver 0.2");
+		ImGui::Text("Some things here and there...");
+		ImGui::Text("Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
+		ImGui::Text("M - Toggle Object Movement");
+		ImGui::Text("C - Randomize Light Color");
+		ImGui::Text("X - Reset Light Color");
+		ImGui::Text("V - Randomize Light Direction");
+		ImGui::Text("Z - Reset Light Direction");
+		ImGui::Text("F1 - Toggle stats");
+
+		ImGui::Checkbox("Toggle Object Movement", &modelMovement);
+        
+        if (ImGui::CollapsingHeader("Spawn Objects"))
+        {
+			ImGui::RadioButton("Cube", &spawnPrimitive, 0);
+			ImGui::RadioButton("Capsule", &spawnPrimitive, 1);
+			ImGui::RadioButton("Cylinder", &spawnPrimitive, 2);
+			ImGui::RadioButton("Sphere", &spawnPrimitive, 3);
+			ImGui::RadioButton("Plane", &spawnPrimitive, 4);
+			ImGui::RadioButton("Test Import", &spawnPrimitive, 5);
+			if (ImGui::Button("Spawn Object"))
+			{
+				if (spawnPrimitive == 0)
+				{
+					spawnInstance(camera, vbh_cube, ibh_cube, instances);
+					std::cout << "Cube spawned" << std::endl;
+				}
+				else if (spawnPrimitive == 1)
+				{
+					spawnInstance(camera, vbh_capsule, ibh_capsule, instances);
+					std::cout << "Capsule spawned" << std::endl;
+				}
+				else if (spawnPrimitive == 2)
+				{
+					spawnInstance(camera, vbh_cylinder, ibh_cylinder, instances);
+					std::cout << "Cylinder spawned" << std::endl;
+				}
+				else if (spawnPrimitive == 3)
+				{
+					spawnInstance(camera, vbh_sphere, ibh_sphere, instances);
+					std::cout << "Sphere spawned" << std::endl;
+				}
+				else if (spawnPrimitive == 4)
+				{
+					spawnInstance(camera, vbh_plane, ibh_plane, instances);
+					std::cout << "Plane spawned" << std::endl;
+				}
+				else if (spawnPrimitive == 5)
+				{
+					spawnInstance(camera, vbh_mesh, ibh_mesh, instances);
+					std::cout << "Test Import spawned" << std::endl;
+				}
+			}
+			if (ImGui::Button("Remove Last Instance"))
+			{
+				instances.pop_back();
+				std::cout << "Last Instance removed" << std::endl;
+			}
+        }
+		if (ImGui::CollapsingHeader("Lighting"))
+		{
+			ImGui::ColorEdit3("Light Color", lightColor);
+            if (ImGui::Button("Randomize Light Color"))
+            {
+                lightColor[0] = getRandomFloat(); // Random red
+                lightColor[1] = getRandomFloat(); // Random green
+                lightColor[2] = getRandomFloat(); // Random blue
+                lightColor[3] = 1.0f;
+            }
+			//lightdir is drag float3
+			ImGui::DragFloat3("Light Direction", lightDir, 0.01f, 0.0f, 0.0f);
+			//randomize light direction
+			if (ImGui::Button("Randomize Light Direction"))
+			{
+				lightDir[0] = getRandomFloat();
+				lightDir[1] = getRandomFloat();
+				lightDir[2] = getRandomFloat();
+				lightDir[3] = 0.0f;
+			}
+		}
+
+		ImGui::End();
 
         //handle inputs
         InputManager::update(camera, 0.016f);
-
-		if (InputManager::isKeyToggled(GLFW_KEY_1))
-		{
-			spawnPrimitive = 0;
-		}
-        if (InputManager::isKeyToggled(GLFW_KEY_2))
-        {
-            spawnPrimitive = 1;
-        }
-		if (InputManager::isKeyToggled(GLFW_KEY_3))
-		{
-			spawnPrimitive = 2;
-		}
-		if (InputManager::isKeyToggled(GLFW_KEY_4))
-		{
-			spawnPrimitive = 3;
-		}
-		if (InputManager::isKeyToggled(GLFW_KEY_5))
-		{
-			spawnPrimitive = 4;
-		}
-        if (InputManager::isKeyToggled(GLFW_KEY_6))
-        {
-            spawnPrimitive = 5;
-        }
 		
-
         if (InputManager::isKeyToggled(GLFW_KEY_M))
         {
             modelMovement = !modelMovement;
@@ -461,7 +552,7 @@ int main(void)
         }
 
         //call spawnInstance when key is pressed based on spawnPrimitive value
-		if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT))
+		if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && InputManager::getCursorDisabled())
 		{
 			if (spawnPrimitive == 0)
 			{
@@ -491,13 +582,8 @@ int main(void)
             else if (spawnPrimitive == 5)
             {
                 spawnInstance(camera, vbh_mesh, ibh_mesh, instances);
-                std::cout << "Mesh spawned" << std::endl;
+                std::cout << "Test Import spawned" << std::endl;
             }
-            /*else if (spawnPrimitive == 5)
-            {
-				spawnInstance(camera, suzanneVbh, suzanneIbh, instances);
-				std::cout << "Suzanne spawned" << std::endl;
-            }*/
 		}
 
         if (InputManager::isKeyToggled(GLFW_KEY_BACKSPACE) && !instances.empty())
@@ -575,11 +661,11 @@ int main(void)
 
 
         bgfx::ShaderHandle vsh = loadShader("shaders\\vs_cel.bin");
-        bgfx::ShaderHandle fsh = loadShader("shaders\\f_out10.bin");
+        bgfx::ShaderHandle fsh = loadShader("shaders\\crosshatching_frag_variant1.bin");
         bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
 
 
-        bgfx::dbgTextClear();
+        /*bgfx::dbgTextClear();
         bgfx::dbgTextPrintf(0, 1, 0x4f, "Crosshatching Editor Ver 0.1");
         bgfx::dbgTextPrintf(0, 2, 0x4f, "Nothing here yet...");
         bgfx::dbgTextPrintf(0, 3, 0x0f, "Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
@@ -588,7 +674,7 @@ int main(void)
         bgfx::dbgTextPrintf(0, 6, 0x0f, "X - Reset Light Color");
         bgfx::dbgTextPrintf(0, 7, 0x0f, "V - Randomize Light Direction");
         bgfx::dbgTextPrintf(0, 8, 0x0f, "Z - Reset Light Direction");
-        bgfx::dbgTextPrintf(0, 9, 0x0f, "F1 - Toggle stats");
+        bgfx::dbgTextPrintf(0, 9, 0x0f, "F1 - Toggle stats");*/
 
         // Enable stats or debug text
         bgfx::setDebug(s_showStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
