@@ -145,61 +145,65 @@ MeshData loadMesh(const std::string& filePath) {
     std::vector<PosColorVertex> vertices;
     std::vector<uint16_t> indices;
 
-    aiMesh* mesh = scene->mMeshes[0];  // Assuming single mesh for simplicity
+    // Iterate through all meshes in the scene
+    for (unsigned int meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex) {
+        aiMesh* mesh = scene->mMeshes[meshIndex];
+        size_t baseIndex = vertices.size();
+        std::unordered_map<std::string, uint16_t> uniqueVertices;
 
-    std::unordered_map<std::string, uint16_t> uniqueVertices;
+        for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
+            PosColorVertex vertex;
+            vertex.x = mesh->mVertices[i].x;
+            vertex.y = mesh->mVertices[i].y;
+            vertex.z = mesh->mVertices[i].z;
 
-    for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
-        PosColorVertex vertex;
-        vertex.x = mesh->mVertices[i].x;
-        vertex.y = mesh->mVertices[i].y;
-        vertex.z = mesh->mVertices[i].z;
+            // Retrieve normals if available
+            if (mesh->HasNormals()) {
+                vertex.nx = mesh->mNormals[i].x;
+                vertex.ny = mesh->mNormals[i].y;
+                vertex.nz = mesh->mNormals[i].z;
+            }
+            else {
+                vertex.nx = 0.0f;
+                vertex.ny = 0.0f;
+                vertex.nz = 0.0f; // Default to zero, will recompute later
+            }
 
-        // Retrieve normals if available
-        if (mesh->HasNormals()) {
-            vertex.nx = mesh->mNormals[i].x;
-            vertex.ny = mesh->mNormals[i].y;
-            vertex.nz = mesh->mNormals[i].z;
-        } else {
-            vertex.nx = 0.0f;
-            vertex.ny = 0.0f;
-            vertex.nz = 0.0f; // Default to zero, will recompute later
-        }
+            if (mesh->HasVertexColors(0)) {
+                vertex.abgr = ((uint8_t)(mesh->mColors[0][i].r * 255) << 24) |
+                    ((uint8_t)(mesh->mColors[0][i].g * 255) << 16) |
+                    ((uint8_t)(mesh->mColors[0][i].b * 255) << 8) |
+                    (uint8_t)(mesh->mColors[0][i].a * 255);
+            }
+            else {
+                vertex.abgr = 0xffffffff; // Default color
+            }
 
-        if (mesh->HasVertexColors(0)) {
-            vertex.abgr = ((uint8_t)(mesh->mColors[0][i].r * 255) << 24) |
-                ((uint8_t)(mesh->mColors[0][i].g * 255) << 16) |
-                ((uint8_t)(mesh->mColors[0][i].b * 255) << 8) |
-                (uint8_t)(mesh->mColors[0][i].a * 255);
-        }
-        else {
-            vertex.abgr = 0xffffffff; // Default color
-        }
+            /*std::ostringstream key;
 
-        /*std::ostringstream key;
+            key << vertex.x << "," << vertex.y << "," << vertex.z;
 
-        key << vertex.x << "," << vertex.y << "," << vertex.z;
+            if (uniqueVertices.count(key.str()) == 0) {
+                uniqueVertices[key.str()] = static_cast<uint16_t>(vertices.size());
+                vertices.push_back(vertex);
+            }*/
 
-        if (uniqueVertices.count(key.str()) == 0) {
-            uniqueVertices[key.str()] = static_cast<uint16_t>(vertices.size());
             vertices.push_back(vertex);
-        }*/
-
-        vertices.push_back(vertex);
-    }
-
-
-    for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
-        aiFace face = mesh->mFaces[i];
-        // Reverse the winding order
-        for (int j = face.mNumIndices - 1; j >= 0; j--) {
-            indices.push_back(face.mIndices[j]);
         }
-    }
 
-    // Compute normals if the mesh does not have them
-    if (!mesh->HasNormals()) {
-        computeNormals(vertices, indices);
+
+        for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
+            aiFace face = mesh->mFaces[i];
+            // Reverse the winding order
+            for (int j = face.mNumIndices - 1; j >= 0; j--) {
+                indices.push_back(baseIndex + face.mIndices[j]);
+            }
+        }
+
+        // Compute normals if the mesh does not have them
+        if (!mesh->HasNormals()) {
+            computeNormals(vertices, indices);
+        }
     }
 
     return { vertices, indices };
@@ -382,7 +386,7 @@ int main(void)
 	);
 
     //mesh generation
-    MeshData meshData = loadMesh("meshes/suzanne.obj");
+    MeshData meshData = loadMesh("meshes/cornell-box.obj");
     bgfx::VertexBufferHandle vbh_mesh;
     bgfx::IndexBufferHandle ibh_mesh;
     createMeshBuffers(meshData, vbh_mesh, ibh_mesh);
