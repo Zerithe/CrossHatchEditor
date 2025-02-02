@@ -424,14 +424,15 @@ int main(void)
 	);
 
     //mesh generation
-    MeshData meshData = loadMesh("meshes/cornell-box.obj");
+    MeshData meshData = loadMesh("meshes/helicopter.obj");
     bgfx::VertexBufferHandle vbh_mesh;
     bgfx::IndexBufferHandle ibh_mesh;
     createMeshBuffers(meshData, vbh_mesh, ibh_mesh);
+
     //Load OBJ file
- /*   std::vector<ObjLoader::Vertex> suzanneVertices;
+    /*std::vector<ObjLoader::Vertex> suzanneVertices;
     std::vector<uint16_t> suzanneIndices;
-    if (!ObjLoader::loadObj("suzanne.obj", suzanneVertices, suzanneIndices)) {
+    if (!ObjLoader::loadObj("meshes/helicopter.obj", suzanneVertices, suzanneIndices)) {
         std::cerr << "Failed to load OBJ file" << std::endl;
         return -1;
     }
@@ -583,43 +584,60 @@ int main(void)
 				lightDir[3] = 0.0f;
 			}
 		}
-		if (ImGui::CollapsingHeader("Hierarchy"))
+        static int selectedInstanceIndex = -1;
+		if (ImGui::CollapsingHeader("Object List"))
 		{
-			for (auto& instance : instances)
-			{
-				const char* instanceName = instance.name.c_str();
-				if (ImGui::Selectable(instanceName, instance.selected))
+            // List all instances so the user can select one
+            for (int i = 0; i < instances.size(); i++)
+            {
+                char label[32];
+                sprintf(label, "Instance %d", i);
+                if (ImGui::Selectable(label, selectedInstanceIndex == i))
+                {
+                    selectedInstanceIndex = i;
+                }
+            }
+
+            // If an instance is selected, show drag controls for its transform
+            if (selectedInstanceIndex >= 0 && selectedInstanceIndex < instances.size())
+            {
+                Instance& inst = instances[selectedInstanceIndex];
+                ImGui::DragFloat3("Translation", inst.position, 0.1f);
+                ImGui::DragFloat3("Rotation (radians)", inst.rotation, 0.1f);
+                ImGui::DragFloat3("Scale", inst.scale, 0.1f);
+				if (ImGui::Button("Remove Instance"))
 				{
-					instance.selected = !instance.selected;
+					instances.erase(instances.begin() + selectedInstanceIndex);
+					selectedInstanceIndex = -1;
 				}
-			}
+            }
 		}
 		ImGui::End();
 
-        // A simple panel to select an instance and modify its transform
-        static int selectedInstanceIndex = -1;
-        ImGui::Begin("Transform Controls");
+        //// A simple panel to select an instance and modify its transform
+        //static int selectedInstanceIndex = -1;
+        //ImGui::Begin("Transform Controls");
 
-        // List all instances so the user can select one
-        for (int i = 0; i < instances.size(); i++)
-        {
-            char label[32];
-            sprintf(label, "Instance %d", i);
-            if (ImGui::Selectable(label, selectedInstanceIndex == i))
-            {
-                selectedInstanceIndex = i;
-            }
-        }
+        //// List all instances so the user can select one
+        //for (int i = 0; i < instances.size(); i++)
+        //{
+        //    char label[32];
+        //    sprintf(label, "Instance %d", i);
+        //    if (ImGui::Selectable(label, selectedInstanceIndex == i))
+        //    {
+        //        selectedInstanceIndex = i;
+        //    }
+        //}
 
-        // If an instance is selected, show drag controls for its transform
-        if (selectedInstanceIndex >= 0 && selectedInstanceIndex < instances.size())
-        {
-            Instance& inst = instances[selectedInstanceIndex];
-            ImGui::DragFloat3("Translation", inst.position, 0.1f);
-            ImGui::DragFloat3("Rotation (radians)", inst.rotation, 0.1f);
-            ImGui::DragFloat3("Scale", inst.scale, 0.1f);
-        }
-        ImGui::End();
+        //// If an instance is selected, show drag controls for its transform
+        //if (selectedInstanceIndex >= 0 && selectedInstanceIndex < instances.size())
+        //{
+        //    Instance& inst = instances[selectedInstanceIndex];
+        //    ImGui::DragFloat3("Translation", inst.position, 0.1f);
+        //    ImGui::DragFloat3("Rotation (radians)", inst.rotation, 0.1f);
+        //    ImGui::DragFloat3("Scale", inst.scale, 0.1f);
+        //}
+        //ImGui::End();
 
         //handle inputs
         InputManager::update(camera, 0.016f);
