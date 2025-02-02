@@ -50,12 +50,15 @@ bgfx::UniformHandle u_viewPos;
 
 struct Instance
 {
+    int id;
+    std::string name;
     float position[3];
     bgfx::VertexBufferHandle vertexBuffer;
     bgfx::IndexBufferHandle indexBuffer;
+    bool selected = false;
 
-    Instance(float x, float y, float z, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh)
-        : vertexBuffer(vbh), indexBuffer(ibh)
+    Instance(int instanceId, const std::string& instanceName, float x, float y, float z, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh)
+        : id(instanceId), name(instanceName), vertexBuffer(vbh), indexBuffer(ibh)
     {
         position[0] = x;
         position[1] = y;
@@ -262,7 +265,9 @@ bgfx::ShaderHandle loadShader(const char* shaderPath)
     return bgfx::createShader(mem);
 }
 
-static void spawnInstance(Camera camera, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh, std::vector<Instance>& instances)
+static int instanceCounter = 0;
+
+static void spawnInstance(Camera camera, const std::string& instanceName, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh, std::vector<Instance>& instances)
 {
 
     float spawnDistance = 5.0f;
@@ -271,8 +276,10 @@ static void spawnInstance(Camera camera, bgfx::VertexBufferHandle vbh, bgfx::Ind
     float y = camera.position.y + camera.front.y * spawnDistance;
     float z = camera.position.z + camera.front.z * spawnDistance;
 
+	std::string fullName = instanceName + std::to_string(instanceCounter);
+
     // Create a new instance with the current vertex and index buffers
-    instances.emplace_back(x, y, z, vbh, ibh);
+    instances.emplace_back(instanceCounter++, fullName, x, y, z, vbh, ibh);
     std::cout << "New instance created at (" << x << ", " << y << ", " << z << ")" << std::endl;
 }
 
@@ -311,6 +318,8 @@ int main(void)
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+	/*ImGuiWindowFlags window_flags = 0;
+	window_flags |= ImGuiWindowFlags_MenuBar;*/
     //io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 	
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
@@ -466,6 +475,7 @@ int main(void)
 		ImGui::Text("Crosshatch Editor Ver 0.2");
 		ImGui::Text("Some things here and there...");
 		ImGui::Text("Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
+        ImGui::Text("Right Click - Detach Mouse from Camera");
 		ImGui::Text("M - Toggle Object Movement");
 		ImGui::Text("C - Randomize Light Color");
 		ImGui::Text("X - Reset Light Color");
@@ -487,38 +497,39 @@ int main(void)
 			{
 				if (spawnPrimitive == 0)
 				{
-					spawnInstance(camera, vbh_cube, ibh_cube, instances);
+					spawnInstance(camera, "cube", vbh_cube, ibh_cube, instances);
 					std::cout << "Cube spawned" << std::endl;
 				}
 				else if (spawnPrimitive == 1)
 				{
-					spawnInstance(camera, vbh_capsule, ibh_capsule, instances);
+					spawnInstance(camera, "capsule", vbh_capsule, ibh_capsule, instances);
 					std::cout << "Capsule spawned" << std::endl;
 				}
 				else if (spawnPrimitive == 2)
 				{
-					spawnInstance(camera, vbh_cylinder, ibh_cylinder, instances);
+					spawnInstance(camera, "cylinder", vbh_cylinder, ibh_cylinder, instances);
 					std::cout << "Cylinder spawned" << std::endl;
 				}
 				else if (spawnPrimitive == 3)
 				{
-					spawnInstance(camera, vbh_sphere, ibh_sphere, instances);
+					spawnInstance(camera, "sphere", vbh_sphere, ibh_sphere, instances);
 					std::cout << "Sphere spawned" << std::endl;
 				}
 				else if (spawnPrimitive == 4)
 				{
-					spawnInstance(camera, vbh_plane, ibh_plane, instances);
+					spawnInstance(camera, "plane", vbh_plane, ibh_plane, instances);
 					std::cout << "Plane spawned" << std::endl;
 				}
 				else if (spawnPrimitive == 5)
 				{
-					spawnInstance(camera, vbh_mesh, ibh_mesh, instances);
+					spawnInstance(camera, "mesh", vbh_mesh, ibh_mesh, instances);
 					std::cout << "Test Import spawned" << std::endl;
 				}
 			}
 			if (ImGui::Button("Remove Last Instance"))
 			{
 				instances.pop_back();
+                //instanceCounter--;
 				std::cout << "Last Instance removed" << std::endl;
 			}
         }
@@ -543,7 +554,17 @@ int main(void)
 				lightDir[3] = 0.0f;
 			}
 		}
-
+		if (ImGui::CollapsingHeader("Hierarchy"))
+		{
+			for (auto& instance : instances)
+			{
+				const char* instanceName = instance.name.c_str();
+				if (ImGui::Selectable(instanceName, instance.selected))
+				{
+					instance.selected = !instance.selected;
+				}
+			}
+		}
 		ImGui::End();
 
         //handle inputs
@@ -558,34 +579,34 @@ int main(void)
         //call spawnInstance when key is pressed based on spawnPrimitive value
 		if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && InputManager::getCursorDisabled())
 		{
-			if (spawnPrimitive == 0)
-			{
-				spawnInstance(camera, vbh_cube, ibh_cube, instances);
-				std::cout << "Cube spawned" << std::endl;
-			}
-			else if (spawnPrimitive == 1)
-			{
-				spawnInstance(camera, vbh_capsule, ibh_capsule, instances);
-				std::cout << "Capsule spawned" << std::endl;
-			}
-			else if (spawnPrimitive == 2)
-			{
-				spawnInstance(camera, vbh_cylinder, ibh_cylinder, instances);
-				std::cout << "Cylinder spawned" << std::endl;
-			}
-			else if (spawnPrimitive == 3)
-			{
-				spawnInstance(camera, vbh_sphere, ibh_sphere, instances);
-				std::cout << "Sphere spawned" << std::endl;
-			}
-			else if (spawnPrimitive == 4)
-			{
-				spawnInstance(camera, vbh_plane, ibh_plane, instances);
-				std::cout << "Plane spawned" << std::endl;
-			}
+            if (spawnPrimitive == 0)
+            {
+                spawnInstance(camera, "cube", vbh_cube, ibh_cube, instances);
+                std::cout << "Cube spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 1)
+            {
+                spawnInstance(camera, "capsule", vbh_capsule, ibh_capsule, instances);
+                std::cout << "Capsule spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 2)
+            {
+                spawnInstance(camera, "cylinder", vbh_cylinder, ibh_cylinder, instances);
+                std::cout << "Cylinder spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 3)
+            {
+                spawnInstance(camera, "sphere", vbh_sphere, ibh_sphere, instances);
+                std::cout << "Sphere spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 4)
+            {
+                spawnInstance(camera, "plane", vbh_plane, ibh_plane, instances);
+                std::cout << "Plane spawned" << std::endl;
+            }
             else if (spawnPrimitive == 5)
             {
-                spawnInstance(camera, vbh_mesh, ibh_mesh, instances);
+                spawnInstance(camera, "mesh", vbh_mesh, ibh_mesh, instances);
                 std::cout << "Test Import spawned" << std::endl;
             }
 		}
@@ -593,6 +614,7 @@ int main(void)
         if (InputManager::isKeyToggled(GLFW_KEY_BACKSPACE) && !instances.empty())
         {
             instances.pop_back();
+            //instanceCounter--;
             std::cout << "Last Instance removed" << std::endl;
         }
 
@@ -751,9 +773,9 @@ int main(void)
         bx::mtxSRT(mtx, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
         bgfx::setTransform(mtx);
 
-		bgfx::setVertexBuffer(0, vbh_sphere);
+		/*bgfx::setVertexBuffer(0, vbh_sphere);
 		bgfx::setIndexBuffer(ibh_sphere);
-		bgfx::submit(0, defaultProgram);
+		bgfx::submit(0, defaultProgram);*/
 
 
         // End frame
