@@ -53,6 +53,8 @@ struct Instance
     int id;
     std::string name;
     float position[3];
+    float rotation[3]; // Euler angles in radians (for X, Y, Z)
+    float scale[3];    // Non-uniform scale for each axis
     bgfx::VertexBufferHandle vertexBuffer;
     bgfx::IndexBufferHandle indexBuffer;
     bool selected = false;
@@ -63,6 +65,9 @@ struct Instance
         position[0] = x;
         position[1] = y;
         position[2] = z;
+        // Initialize with no rotation and uniform scale of 1
+        rotation[0] = rotation[1] = rotation[2] = 0.0f;
+        scale[0] = scale[1] = scale[2] = 1.0f;
     }
 };
 
@@ -74,6 +79,30 @@ struct MeshData {
 struct Vec3 {
     float x, y, z;
 };
+
+// Moves the instance by (dx, dy, dz)
+void translateInstance(Instance& instance, float dx, float dy, float dz)
+{
+    instance.position[0] += dx;
+    instance.position[1] += dy;
+    instance.position[2] += dz;
+}
+
+// Rotates the instance by the given delta angles (in radians)
+void rotateInstance(Instance& instance, float dAngleX, float dAngleY, float dAngleZ)
+{
+    instance.rotation[0] += dAngleX;
+    instance.rotation[1] += dAngleY;
+    instance.rotation[2] += dAngleZ;
+}
+
+// Scales the instance by the given factors (multiplicatively)
+void scaleInstance(Instance& instance, float factorX, float factorY, float factorZ)
+{
+    instance.scale[0] *= factorX;
+    instance.scale[1] *= factorY;
+    instance.scale[2] *= factorZ;
+}
 
 //transfer to ObjLoader.cpp
 void computeNormals(std::vector<PosColorVertex>& vertices, const std::vector<uint16_t>& indices) {
@@ -567,9 +596,34 @@ int main(void)
 		}
 		ImGui::End();
 
+        // A simple panel to select an instance and modify its transform
+        static int selectedInstanceIndex = -1;
+        ImGui::Begin("Transform Controls");
+
+        // List all instances so the user can select one
+        for (int i = 0; i < instances.size(); i++)
+        {
+            char label[32];
+            sprintf(label, "Instance %d", i);
+            if (ImGui::Selectable(label, selectedInstanceIndex == i))
+            {
+                selectedInstanceIndex = i;
+            }
+        }
+
+        // If an instance is selected, show drag controls for its transform
+        if (selectedInstanceIndex >= 0 && selectedInstanceIndex < instances.size())
+        {
+            Instance& inst = instances[selectedInstanceIndex];
+            ImGui::DragFloat3("Translation", inst.position, 0.1f);
+            ImGui::DragFloat3("Rotation (radians)", inst.rotation, 0.1f);
+            ImGui::DragFloat3("Scale", inst.scale, 0.1f);
+        }
+        ImGui::End();
+
         //handle inputs
         InputManager::update(camera, 0.016f);
-		
+
         if (InputManager::isKeyToggled(GLFW_KEY_M))
         {
             modelMovement = !modelMovement;
@@ -752,7 +806,16 @@ int main(void)
             for (const auto& instance : instances)
             {
                 float model[16];
-                bx::mtxTranslate(model, instance.position[0], instance.position[1], instance.position[2]);
+                //bx::mtxTranslate(model, instance.position[0], instance.position[1], instance.position[2]);
+
+                // Build a Scale-Rotate-Translate matrix.
+                // Note: bx::mtxSRT expects parameters in the order:
+                // (result, scaleX, scaleY, scaleZ, rotX, rotY, rotZ, transX, transY, transZ)
+                bx::mtxSRT(model,
+                    instance.scale[0], instance.scale[1], instance.scale[2],
+                    instance.rotation[0], instance.rotation[1], instance.rotation[2],
+                    instance.position[0], instance.position[1], instance.position[2]);
+
                 bgfx::setTransform(model);
 
                 bgfx::setVertexBuffer(0, instance.vertexBuffer);
