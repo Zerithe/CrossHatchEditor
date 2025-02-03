@@ -294,6 +294,43 @@ bgfx::ShaderHandle loadShader(const char* shaderPath)
     return bgfx::createShader(mem);
 }
 
+const bgfx::Memory* loadMem(const char* _filePath)
+{
+    std::ifstream file(_filePath, std::ios::binary | std::ios::ate);
+    if (!file)
+    {
+        fprintf(stderr, "Failed to load file: %s\n", _filePath);
+        return nullptr;
+    }
+
+    // Get the file size.
+    std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    // Read file contents into a buffer.
+    std::vector<char> buffer(static_cast<size_t>(size));
+    if (!file.read(buffer.data(), size))
+    {
+        fprintf(stderr, "Failed to read file: %s\n", _filePath);
+        return nullptr;
+    }
+
+    // Create a BGFX memory block from the buffer.
+    return bgfx::copy(buffer.data(), static_cast<uint32_t>(size));
+}
+
+bgfx::TextureHandle loadTextureDDS(const char* _filePath)
+{
+    const bgfx::Memory* mem = loadMem(_filePath);
+    if (mem == nullptr)
+    {
+        return BGFX_INVALID_HANDLE;
+    }
+    // Create texture from memory.
+    return bgfx::createTexture(mem);
+}
+
+
 static int instanceCounter = 0;
 
 static void spawnInstance(Camera camera, const std::string& instanceName, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh, std::vector<Instance>& instances)
@@ -424,7 +461,7 @@ int main(void)
 	);
 
     //mesh generation
-    MeshData meshData = loadMesh("meshes/helicopter.obj");
+    MeshData meshData = loadMesh("meshes/suzanne.obj");
     bgfx::VertexBufferHandle vbh_mesh;
     bgfx::IndexBufferHandle ibh_mesh;
     createMeshBuffers(meshData, vbh_mesh, ibh_mesh);
@@ -464,6 +501,27 @@ int main(void)
     int spawnPrimitive = 0;
 
 	bool* p_open = NULL;
+    
+    float inkColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f }; // Typically black ink.
+
+    // Create uniforms (do this once)
+    u_lightDir = bgfx::createUniform("u_lightDir", bgfx::UniformType::Vec4);
+    u_lightColor = bgfx::createUniform("u_lightColor", bgfx::UniformType::Vec4);
+    u_viewPos = bgfx::createUniform("u_viewPos", bgfx::UniformType::Vec4);
+
+    bgfx::UniformHandle u_inkColor = bgfx::createUniform("u_inkColor", bgfx::UniformType::Vec4);
+    bgfx::UniformHandle u_cameraPos = bgfx::createUniform("u_cameraPos", bgfx::UniformType::Vec4);
+    bgfx::UniformHandle u_e = bgfx::createUniform("u_e", bgfx::UniformType::Vec4);
+    bgfx::UniformHandle u_noiseTex = bgfx::createUniform("u_noiseTex", bgfx::UniformType::Sampler);
+    bgfx::UniformHandle u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
+
+    // Load texture once
+    bgfx::TextureHandle noiseTexture = loadTextureDDS("shaders\\noise1.dds");
+
+    // Load shaders and create program once
+    bgfx::ShaderHandle vsh = loadShader("shaders\\v_out14.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out15.bin");
+    bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
 
     //MAIN LOOP
 	while (!glfwWindowShouldClose(window))
@@ -612,6 +670,11 @@ int main(void)
 				}
             }
 		}
+        if (ImGui::CollapsingHeader("Crosshatch Ink"))
+        {
+            // ColorEdit4 allows you to edit a vec4 (RGBA)
+            ImGui::ColorEdit4("Ink Color", inkColor);
+        }
 		ImGui::End();
 
         //// A simple panel to select an instance and modify its transform
@@ -742,25 +805,26 @@ int main(void)
         bgfx::setUniform(u_lightDir, lightDir);
         bgfx::setUniform(u_lightColor, lightColor);
         bgfx::setUniform(u_viewPos, viewPos);
-        //bgfx::setUniform(u_scale, scale);
 
-        // Create uniform handles for the light direction and color
-        u_lightDir = bgfx::createUniform("u_lightDir", bgfx::UniformType::Vec4);
-        u_lightColor = bgfx::createUniform("u_lightColor", bgfx::UniformType::Vec4);
-        u_viewPos = bgfx::createUniform("u_viewPos", bgfx::UniformType::Vec4);
-		//u_scale = bgfx::createUniform("u_scale", bgfx::UniformType::Vec4);
+        float cameraPos[4] = { camera.position.x, camera.position.y, camera.position.z, 1.0f };
+        float epsilon[4] = { 0.02f, 0.0f, 0.0f, 0.0f }; // Pack the epsilon value into the first element; the other three can be 0.
+        
+        bgfx::setUniform(u_inkColor, inkColor);
+        bgfx::setUniform(u_cameraPos, cameraPos);
+        bgfx::setUniform(u_e, epsilon);
+        bgfx::setTexture(0, u_noiseTex, noiseTexture); // Bind the noise texture to texture stage 0.
 
-        bgfx::UniformHandle u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
-
+        //bgfx::UniformHandle u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
+        
         // Example parameter values
         float params[4] = { 0.02f, 15.0f, 0.0f, 0.0f }; // e = 0.02 (tolerance), scale = 15.0
         bgfx::setUniform(u_params, params);
 
 
 
-        bgfx::ShaderHandle vsh = loadShader("shaders\\vs_cel.bin");
-        bgfx::ShaderHandle fsh = loadShader("shaders\\crosshatching_frag_variant1.bin");
-        bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
+        //bgfx::ShaderHandle vsh = loadShader("shaders\\v_out14.bin");
+        //bgfx::ShaderHandle fsh = loadShader("shaders\\f_out14.bin");
+        //bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
 
 
         /*bgfx::dbgTextClear();
