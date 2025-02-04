@@ -460,8 +460,26 @@ int main(void)
 		bgfx::makeRef(sphereIndices.data(), sizeof(uint16_t) * sphereIndices.size())
 	);
 
+    //cornell box generation
+    bgfx::VertexBufferHandle vbh_cornell = bgfx::createVertexBuffer(
+        bgfx::makeRef(cornellBoxVertices, sizeof(cornellBoxVertices)),
+        layout
+    );
+
+    bgfx::IndexBufferHandle ibh_cornell = bgfx::createIndexBuffer(
+        bgfx::makeRef(cornellBoxIndices, sizeof(cornellBoxIndices))
+    );
+
+    bgfx::VertexBufferHandle vbh_innerCube = bgfx::createVertexBuffer(
+        bgfx::makeRef(innerCubeVertices, sizeof(innerCubeVertices)),
+        layout
+    );
+    bgfx::IndexBufferHandle ibh_innerCube = bgfx::createIndexBuffer(
+        bgfx::makeRef(innerCubeIndices, sizeof(innerCubeIndices))
+    );
+
     //mesh generation
-    MeshData meshData = loadMesh("meshes/suzanne.obj");
+    MeshData meshData = loadMesh("meshes/cornell-box.obj");
     bgfx::VertexBufferHandle vbh_mesh;
     bgfx::IndexBufferHandle ibh_mesh;
     createMeshBuffers(meshData, vbh_mesh, ibh_mesh);
@@ -581,6 +599,7 @@ int main(void)
 			ImGui::RadioButton("Sphere", &spawnPrimitive, 3);
 			ImGui::RadioButton("Plane", &spawnPrimitive, 4);
 			ImGui::RadioButton("Test Import", &spawnPrimitive, 5);
+            ImGui::RadioButton("Cornell Box", &spawnPrimitive, 6);
 			if (ImGui::Button("Spawn Object"))
 			{
 				if (spawnPrimitive == 0)
@@ -613,6 +632,15 @@ int main(void)
 					spawnInstance(camera, "mesh", vbh_mesh, ibh_mesh, instances);
 					std::cout << "Test Import spawned" << std::endl;
 				}
+                else if (spawnPrimitive == 6)
+                {
+                    spawnInstance(camera, "cornell_box", vbh_cornell, ibh_cornell, instances);
+                    std::cout << "Cornell Box spawned" << std::endl;
+
+                    // Spawn Cube inside Cornell Box
+                    spawnInstance(camera, "inner_cube", vbh_innerCube, ibh_innerCube, instances);
+                    std::cout << "Inner Cube spawned inside Cornell Box" << std::endl;
+                }
 			}
 			if (ImGui::Button("Remove Last Instance"))
 			{
@@ -949,6 +977,10 @@ int main(void)
 	bgfx::destroy(ibh_cylinder);
     bgfx::destroy(vbh_mesh);
     bgfx::destroy(ibh_mesh);
+    bgfx::destroy(vbh_cornell);
+    bgfx::destroy(ibh_cornell);
+    bgfx::destroy(vbh_innerCube);
+    bgfx::destroy(ibh_innerCube);
 	//bgfx::destroy(defaultProgram);
     ImGui_ImplGlfw_Shutdown();
 	
