@@ -479,10 +479,28 @@ int main(void)
     );
 
     //mesh generation
-    MeshData meshData = loadMesh("meshes/cornell-box.obj");
+    MeshData meshData = loadMesh("meshes/suzanne.obj");
     bgfx::VertexBufferHandle vbh_mesh;
     bgfx::IndexBufferHandle ibh_mesh;
     createMeshBuffers(meshData, vbh_mesh, ibh_mesh);
+
+    //teapot generation
+    MeshData teapotData = loadMesh("meshes/teapot.obj");
+    bgfx::VertexBufferHandle vbh_teapot;
+    bgfx::IndexBufferHandle ibh_teapot;
+    createMeshBuffers(teapotData, vbh_teapot, ibh_teapot);
+
+    //stanford bunny generation
+    MeshData bunnyData = loadMesh("meshes/bunny.obj");
+    bgfx::VertexBufferHandle vbh_bunny;
+    bgfx::IndexBufferHandle ibh_bunny;
+    createMeshBuffers(bunnyData, vbh_bunny, ibh_bunny);
+
+    //lucy generation
+    MeshData lucyData = loadMesh("meshes/lucy.obj");
+    bgfx::VertexBufferHandle vbh_lucy;
+    bgfx::IndexBufferHandle ibh_lucy;
+    createMeshBuffers(lucyData, vbh_lucy, ibh_lucy);
 
     //Load OBJ file
     /*std::vector<ObjLoader::Vertex> suzanneVertices;
@@ -540,7 +558,40 @@ int main(void)
     bgfx::ShaderHandle vsh = loadShader("shaders\\v_out14.bin");
     bgfx::ShaderHandle fsh = loadShader("shaders\\f_out15.bin");
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
+    
+    spawnInstance(camera, "cornell_box", vbh_cornell, ibh_cornell, instances);
+    instances.back().position[0] = 8.0f; // Move left
+    instances.back().position[1] = 0.0f;
+    instances.back().position[2] = -5.0f;
 
+    spawnInstance(camera, "inner_cube", vbh_innerCube, ibh_innerCube, instances);
+    instances.back().position[0] = 8.0f; // Move left
+    instances.back().position[1] = 0.0f;
+    instances.back().position[2] = -5.0f;
+
+    spawnInstance(camera, "teapot", vbh_teapot, ibh_teapot, instances);
+    instances.back().position[0] = 3.0f; // Move left
+    instances.back().position[1] = -1.0f;
+    instances.back().position[2] = -5.0f;
+    instances.back().scale[0] *= 0.03f;
+    instances.back().scale[1] *= 0.03f;
+    instances.back().scale[2] *= 0.03f;
+
+    spawnInstance(camera, "bunny", vbh_bunny, ibh_bunny, instances);
+    instances.back().position[0] = -1.0f; // Move left
+    instances.back().position[1] = -1.0f;
+    instances.back().position[2] = -5.0f;
+    instances.back().scale[0] *= 10.0f;
+    instances.back().scale[1] *= 10.0f;
+    instances.back().scale[2] *= 10.0f;
+
+    spawnInstance(camera, "lucy", vbh_lucy, ibh_lucy, instances);
+    instances.back().position[0] = -4.0f; // Move left
+    instances.back().position[1] = -1.0f;
+    instances.back().position[2] = -5.0f;
+    instances.back().scale[0] *= 0.01f;
+    instances.back().scale[1] *= 0.01f;
+    instances.back().scale[2] *= 0.01f;
     //MAIN LOOP
 	while (!glfwWindowShouldClose(window))
 	{
@@ -600,6 +651,9 @@ int main(void)
 			ImGui::RadioButton("Plane", &spawnPrimitive, 4);
 			ImGui::RadioButton("Test Import", &spawnPrimitive, 5);
             ImGui::RadioButton("Cornell Box", &spawnPrimitive, 6);
+            ImGui::RadioButton("Teapot", &spawnPrimitive, 7);
+            ImGui::RadioButton("Bunny", &spawnPrimitive, 8);
+            ImGui::RadioButton("Lucy", &spawnPrimitive, 9);
 			if (ImGui::Button("Spawn Object"))
 			{
 				if (spawnPrimitive == 0)
@@ -640,6 +694,21 @@ int main(void)
                     // Spawn Cube inside Cornell Box
                     spawnInstance(camera, "inner_cube", vbh_innerCube, ibh_innerCube, instances);
                     std::cout << "Inner Cube spawned inside Cornell Box" << std::endl;
+                }
+                else if (spawnPrimitive == 7)
+                {
+                    spawnInstance(camera, "teapot", vbh_teapot, ibh_teapot, instances);
+                    std::cout << "Teapot spawned" << std::endl;
+                }
+                else if (spawnPrimitive == 8)
+                {
+                    spawnInstance(camera, "bunny", vbh_bunny, ibh_bunny, instances);
+                    std::cout << "Bunny spawned" << std::endl;
+                }
+                else if (spawnPrimitive == 9)
+                {
+                    spawnInstance(camera, "lucy", vbh_lucy, ibh_lucy, instances);
+                    std::cout << "Lucy spawned" << std::endl;
                 }
 			}
 			if (ImGui::Button("Remove Last Instance"))
