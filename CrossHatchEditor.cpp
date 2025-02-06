@@ -555,8 +555,8 @@ int main(void)
     bgfx::TextureHandle noiseTexture = loadTextureDDS("shaders\\noise1.dds");
 
     // Load shaders and create program once
-    bgfx::ShaderHandle vsh = loadShader("shaders\\v_out14.bin");
-    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out15.bin");
+    bgfx::ShaderHandle vsh = loadShader("shaders\\v_out16.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out16.bin");
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
     
     spawnInstance(camera, "cornell_box", vbh_cornell, ibh_cornell, instances);

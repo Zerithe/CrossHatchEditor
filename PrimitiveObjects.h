@@ -259,13 +259,7 @@ static PosColorVertex cornellBoxVertices[] = {
     { 1.0f, -1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00},
     { 1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00},
     { 1.0f,  1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00},
-    { 1.0f,  1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00},
-
-    // Light Source (yellow)
-    {-0.3f, 0.99f, -0.3f, 0.0f, -1.0f, 0.0f, 0xffffff00},
-    { 0.3f, 0.99f, -0.3f, 0.0f, -1.0f, 0.0f, 0xffffff00},
-    {-0.3f, 0.99f,  0.3f, 0.0f, -1.0f, 0.0f, 0xffffff00},
-    { 0.3f, 0.99f,  0.3f, 0.0f, -1.0f, 0.0f, 0xffffff00}
+    { 1.0f,  1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00}
 };
 
 static const uint16_t cornellBoxIndices[] = {
@@ -282,10 +276,7 @@ static const uint16_t cornellBoxIndices[] = {
     14, 15, 12, 15, 13, 12,  // Left wall (back)
 
     16, 18, 17, 17, 18, 19,  // Right wall (front)
-    18, 16, 19, 19, 16, 17,  // Right wall (back)
-
-    20, 21, 22, 21, 23, 22,  // Light Source (front)
-    22, 23, 20, 23, 21, 20   // Light Source (back)
+    18, 16, 19, 19, 16, 17  // Right wall (back)
 };
 
 // Cube for inside the Cornell Box (white)
