@@ -36,6 +36,7 @@
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
 #endif
+#include <imgui_internal.h>
 
 
 #define WNDW_WIDTH 1600
@@ -477,12 +478,47 @@ int main(void)
 	{
         glfwPollEvents();
 
-
         //imgui loop
 		ImGui_ImplGlfw_NewFrame();
 		ImGui_Implbgfx_NewFrame();
 		ImGui::NewFrame();
-        ImGui::DockSpaceOverViewport(ImGui::GetMainViewport()->ID, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+
+        ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(viewport->Pos);
+        ImGui::SetNextWindowSize(viewport->Size);
+        ImGui::SetNextWindowViewport(viewport->ID);
+
+        ImGuiWindowFlags dockspace_flags = ImGuiWindowFlags_NoDocking;
+        dockspace_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+        dockspace_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+
+        ImGui::Begin("Dockspace Window", nullptr, dockspace_flags);
+        ImGui::DockSpace(ImGui::GetID("MainDockspace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
+        ImGui::End();
+
+        static bool firstTime = true;
+        if (firstTime)
+        {
+            firstTime = false;
+			ImGuiID dockspace_id = ImGui::GetID("MainDockspace");
+            ImGui::DockBuilderRemoveNode(dockspace_id);
+			ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+			ImGui::DockBuilderSetNodeSize(dockspace_id, ImGui::GetMainViewport()->Size);
+
+			ImGuiID dock_main_id = dockspace_id;
+
+            // First, split the main dock space to create a right-side docking area
+            ImGuiID dock_right = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.3f, nullptr, &dock_main_id);
+
+            // Now, split the right-side docking area **vertically**
+            ImGuiID dock_top = ImGui::DockBuilderSplitNode(dock_right, ImGuiDir_Left, 0.5f, nullptr, &dock_right);
+
+            // Dock windows to the right side, stacked vertically
+            ImGui::DockBuilderDockWindow("CrossHatchEditor", dock_top);  // Top half
+            ImGui::DockBuilderDockWindow("Object List", dock_right);     // Bottom half
+
+			ImGui::DockBuilderFinish(dockspace_id);
+        }
 		
         //IMGUI WINDOW FOR CONTROLS
         //FOR REFERENCE USE THIS: https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html
@@ -580,35 +616,36 @@ int main(void)
 				lightDir[3] = 0.0f;
 			}
 		}
-        static int selectedInstanceIndex = -1;
-		if (ImGui::CollapsingHeader("Object List"))
-		{
-            // List all instances so the user can select one
-            for (int i = 0; i < instances.size(); i++)
-            {
-                char label[32];
-                sprintf(label, "Instance %d", i);
-                if (ImGui::Selectable(label, selectedInstanceIndex == i))
-                {
-                    selectedInstanceIndex = i;
-                }
-            }
-
-            // If an instance is selected, show drag controls for its transform
-            if (selectedInstanceIndex >= 0 && selectedInstanceIndex < instances.size())
-            {
-                Instance& inst = instances[selectedInstanceIndex];
-                ImGui::DragFloat3("Translation", inst.position, 0.1f);
-                ImGui::DragFloat3("Rotation (radians)", inst.rotation, 0.1f);
-                ImGui::DragFloat3("Scale", inst.scale, 0.1f);
-				if (ImGui::Button("Remove Instance"))
-				{
-					instances.erase(instances.begin() + selectedInstanceIndex);
-					selectedInstanceIndex = -1;
-				}
-            }
-		}
 		ImGui::End();
+
+		ImGui::Begin("Object List", p_open, window_flags);
+        static int selectedInstanceIndex = -1;
+        // List all instances so the user can select one
+        for (int i = 0; i < instances.size(); i++)
+        {
+            char label[32];
+            sprintf(label, "Instance %d", i);
+            if (ImGui::Selectable(label, selectedInstanceIndex == i))
+            {
+                selectedInstanceIndex = i;
+            }
+        }
+
+        // If an instance is selected, show drag controls for its transform
+        if (selectedInstanceIndex >= 0 && selectedInstanceIndex < instances.size())
+        {
+            Instance& inst = instances[selectedInstanceIndex];
+            ImGui::DragFloat3("Translation", inst.position, 0.1f);
+            ImGui::DragFloat3("Rotation (radians)", inst.rotation, 0.1f);
+            ImGui::DragFloat3("Scale", inst.scale, 0.1f);
+            if (ImGui::Button("Remove Instance"))
+            {
+                instances.erase(instances.begin() + selectedInstanceIndex);
+                selectedInstanceIndex = -1;
+            }
+        }
+		ImGui::End();
+
 
         //handle inputs
         InputManager::update(camera, 0.016f);
@@ -654,6 +691,8 @@ int main(void)
             }
 		}
 
+        
+
         if (InputManager::isKeyToggled(GLFW_KEY_BACKSPACE) && !instances.empty())
         {
             instances.pop_back();
@@ -694,9 +733,8 @@ int main(void)
             lightDir[3] = 0.0f;
         }
 
-        ImGuiViewport* viewport = ImGui::GetMainViewport();
-        int width = (int)viewport->Size.x;
-        int height = (int)viewport->Size.y;
+        int width = static_cast<int>(viewport->Size.x);
+        int height = static_cast<int>(viewport->Size.y);
 
 		if (width == 0 || height == 0)
 		{
@@ -721,6 +759,7 @@ int main(void)
         bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
 
         bgfx::touch(0);
+
 
         float viewPos[4] = { camera.position.x, camera.position.y, camera.position.z, 1.0f };
 
