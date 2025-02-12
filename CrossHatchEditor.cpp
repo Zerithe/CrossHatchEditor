@@ -39,6 +39,7 @@
 #endif
 #include <imgui_internal.h>
 #include "Logger.h"
+#include <bgfx/c99/bgfx.h>
 
 
 #define WNDW_WIDTH 1600
@@ -817,6 +818,12 @@ int main(void)
 
     Logger::GetInstance();
 
+    // For example, when the window is created and you know its size:
+    uint16_t fbWidth = WNDW_WIDTH;  // or another value you want
+    uint16_t fbHeight = WNDW_HEIGHT;
+    bgfx::FrameBufferHandle viewportFbo = bgfx::createFrameBuffer(fbWidth, fbHeight, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_RT);
+
+
     //MAIN LOOP
 	while (!glfwWindowShouldClose(window))
 	{
@@ -827,42 +834,57 @@ int main(void)
 		ImGui_Implbgfx_NewFrame();
 		ImGui::NewFrame();
 
-        ImGuiViewport* viewport = ImGui::GetMainViewport();
-   //     ImGui::SetNextWindowPos(viewport->Pos);
-   //     ImGui::SetNextWindowSize(viewport->Size);
-   //     ImGui::SetNextWindowViewport(viewport->ID);
+        // Get main viewport dimensions.
+        ImGuiViewport* mainViewport = ImGui::GetMainViewport();
 
-   //     ImGuiWindowFlags dockspace_flags = ImGuiWindowFlags_NoDocking;
-   //     dockspace_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
-   //     dockspace_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+        // Set up a full-screen window that will host the dockspace.
+        ImGuiWindowFlags dockspaceFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
 
-   //     ImGui::Begin("Dockspace Window", nullptr, dockspace_flags);
-   //     ImGui::DockSpace(ImGui::GetID("MainDockspace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
-   //     ImGui::End();
+        ImGui::SetNextWindowPos(mainViewport->Pos);
+        ImGui::SetNextWindowSize(mainViewport->Size);
+        ImGui::SetNextWindowViewport(mainViewport->ID);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        ImGui::Begin("DockSpaceWindow", nullptr, dockspaceFlags);
+        ImGui::PopStyleVar(3);
 
-   //     static bool firstTime = true;
-   //     if (firstTime)
-   //     {
-   //         firstTime = false;
-			//ImGuiID dockspace_id = ImGui::GetID("MainDockspace");
-   //         ImGui::DockBuilderRemoveNode(dockspace_id);
-			//ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
-			//ImGui::DockBuilderSetNodeSize(dockspace_id, ImGui::GetMainViewport()->Size);
+        // Create the dockspace
+        ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
+        ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), 0);
 
-			//ImGuiID dock_main_id = dockspace_id;
+        // Set up default dock layout only on first run.
+        static bool firstTimeDock = true;
+        if (firstTimeDock)
+        {
+            ImGui::DockBuilderRemoveNode(dockspace_id); // clear any previous layout
+            ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+            ImGui::DockBuilderSetNodeSize(dockspace_id, mainViewport->Size);
 
-   //         // First, split the main dock space to create a right-side docking area
-   //         ImGuiID dock_right = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.3f, nullptr, &dock_main_id);
+            // We split the dockspace into four regions:
+            // left: 25% width, right: 25% width, bottom: 25% height, center: remaining area.
+            ImGuiID dock_main_id = dockspace_id;
+            ImGuiID dock_left, dock_right, dock_bottom, dock_center;
+            ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, 0.25f, &dock_left, &dock_main_id);
+            ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.25f, &dock_right, &dock_main_id);
+            ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Down, 0.25f, &dock_bottom, &dock_main_id);
+            dock_center = dock_main_id;
 
-   //         // Now, split the right-side docking area **vertically**
-   //         ImGuiID dock_top = ImGui::DockBuilderSplitNode(dock_right, ImGuiDir_Left, 0.5f, nullptr, &dock_right);
+            // Now dock your windows into the desired regions.
+            ImGui::DockBuilderDockWindow("CrossHatchEditor", dock_right);
+            ImGui::DockBuilderDockWindow("Log Console", dock_bottom);
+            ImGui::DockBuilderDockWindow("Object List", dock_left);
+            // We will dock our 3D scene into a window called "Viewport" in the center.
+            ImGui::DockBuilderDockWindow("Viewport", dock_center);
 
-   //         // Dock windows to the right side, stacked vertically
-   //         ImGui::DockBuilderDockWindow("CrossHatchEditor", dock_top);  // Top half
-   //         ImGui::DockBuilderDockWindow("Object List", dock_right);     // Bottom half
+            ImGui::DockBuilderFinish(dockspace_id);
+            firstTimeDock = false;
+        }
 
-			//ImGui::DockBuilderFinish(dockspace_id);
-   //     }
+        ImGui::End(); // End the full-screen dockspace window
+
 		
         //IMGUI WINDOW FOR CONTROLS
         //FOR REFERENCE USE THIS: https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html
@@ -1108,8 +1130,8 @@ int main(void)
             // ColorEdit4 allows you to edit a vec4 (RGBA)
             ImGui::ColorEdit4("Ink Color", inkColor);
         }
-		ImGui::End();
-          
+        ImGui::End();
+
         //handle inputs
         InputManager::update(camera, 0.016f);
 
@@ -1198,22 +1220,29 @@ int main(void)
             lightDir[3] = 0.0f;
         }
 
-        int width = static_cast<int>(viewport->Size.x);
-        int height = static_cast<int>(viewport->Size.y);
+        //int width = static_cast<int>(mainViewport->Size.x);
+        //int height = static_cast<int>(mainViewport->Size.y);
 
-		if (width == 0 || height == 0)
-		{
-			continue;
-		}
+		//if (width == 0 || height == 0)
+		//{
+			//continue;
+		//}
 
-        bgfx::reset(width, height, BGFX_RESET_VSYNC);
-        bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
+        // Set BGFX view 0 to use the offscreen framebuffer (viewportFbo)
+        bgfx::setViewFrameBuffer(0, viewportFbo);
+        bgfx::reset(fbWidth, fbHeight, BGFX_RESET_VSYNC);
+        bgfx::setViewRect(0, 0, 0, fbWidth, fbHeight);
 
+        //float view[16];
+        //bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
+
+        //float proj[16];
+        //bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+        //bgfx::setViewTransform(0, view, proj);
         float view[16];
         bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
-
         float proj[16];
-        bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+        bx::mtxProj(proj, 60.0f, (float)fbWidth / (float)fbHeight, 0.1f, 100.0f, bgfx::getCaps()->originBottomLeft);
         bgfx::setViewTransform(0, view, proj);
 
         // Set model matrix
@@ -1222,8 +1251,16 @@ int main(void)
         bgfx::setTransform(mtx);
 
         bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
-
         bgfx::touch(0);
+
+        // Set model matrix
+        //float mtx[16];
+        //bx::mtxSRT(mtx, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        //bgfx::setTransform(mtx);
+
+        //bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
+
+        //bgfx::touch(0);
 
 
         float viewPos[4] = { camera.position.x, camera.position.y, camera.position.z, 1.0f };
@@ -1351,6 +1388,23 @@ int main(void)
 		bgfx::setIndexBuffer(ibh_sphere);
 		bgfx::submit(0, defaultProgram);*/
 
+        // --- (Inside the viewport window) Show the rendered scene texture ---
+        ImGui::Begin("Viewport", nullptr, ImGuiWindowFlags_NoCollapse);
+        {
+            ImVec2 vpSize = ImGui::GetContentRegionAvail();
+            if (vpSize.x > 0 && vpSize.y > 0)
+            {
+                // (Optional: you might want to resize or recreate the framebuffer if vpSize changes.)
+                bgfx::TextureHandle viewportTex = bgfx::getTexture(viewportFbo, 0);
+                ImTextureID texId = (ImTextureID)(intptr_t(viewportTex.idx));
+                ImGui::Image(texId, vpSize, ImVec2(0, 1), ImVec2(1, 0));
+            }
+            else
+            {
+                ImGui::Text("Viewport size is zero");
+            }
+        }
+        ImGui::End();
 
         // End frame
 		ImGui::Render();
