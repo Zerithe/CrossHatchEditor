@@ -484,41 +484,41 @@ int main(void)
 		ImGui::NewFrame();
 
         ImGuiViewport* viewport = ImGui::GetMainViewport();
-        ImGui::SetNextWindowPos(viewport->Pos);
-        ImGui::SetNextWindowSize(viewport->Size);
-        ImGui::SetNextWindowViewport(viewport->ID);
+   //     ImGui::SetNextWindowPos(viewport->Pos);
+   //     ImGui::SetNextWindowSize(viewport->Size);
+   //     ImGui::SetNextWindowViewport(viewport->ID);
 
-        ImGuiWindowFlags dockspace_flags = ImGuiWindowFlags_NoDocking;
-        dockspace_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
-        dockspace_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+   //     ImGuiWindowFlags dockspace_flags = ImGuiWindowFlags_NoDocking;
+   //     dockspace_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+   //     dockspace_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
 
-        ImGui::Begin("Dockspace Window", nullptr, dockspace_flags);
-        ImGui::DockSpace(ImGui::GetID("MainDockspace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
-        ImGui::End();
+   //     ImGui::Begin("Dockspace Window", nullptr, dockspace_flags);
+   //     ImGui::DockSpace(ImGui::GetID("MainDockspace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
+   //     ImGui::End();
 
-        static bool firstTime = true;
-        if (firstTime)
-        {
-            firstTime = false;
-			ImGuiID dockspace_id = ImGui::GetID("MainDockspace");
-            ImGui::DockBuilderRemoveNode(dockspace_id);
-			ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
-			ImGui::DockBuilderSetNodeSize(dockspace_id, ImGui::GetMainViewport()->Size);
+   //     static bool firstTime = true;
+   //     if (firstTime)
+   //     {
+   //         firstTime = false;
+			//ImGuiID dockspace_id = ImGui::GetID("MainDockspace");
+   //         ImGui::DockBuilderRemoveNode(dockspace_id);
+			//ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+			//ImGui::DockBuilderSetNodeSize(dockspace_id, ImGui::GetMainViewport()->Size);
 
-			ImGuiID dock_main_id = dockspace_id;
+			//ImGuiID dock_main_id = dockspace_id;
 
-            // First, split the main dock space to create a right-side docking area
-            ImGuiID dock_right = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.3f, nullptr, &dock_main_id);
+   //         // First, split the main dock space to create a right-side docking area
+   //         ImGuiID dock_right = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.3f, nullptr, &dock_main_id);
 
-            // Now, split the right-side docking area **vertically**
-            ImGuiID dock_top = ImGui::DockBuilderSplitNode(dock_right, ImGuiDir_Left, 0.5f, nullptr, &dock_right);
+   //         // Now, split the right-side docking area **vertically**
+   //         ImGuiID dock_top = ImGui::DockBuilderSplitNode(dock_right, ImGuiDir_Left, 0.5f, nullptr, &dock_right);
 
-            // Dock windows to the right side, stacked vertically
-            ImGui::DockBuilderDockWindow("CrossHatchEditor", dock_top);  // Top half
-            ImGui::DockBuilderDockWindow("Object List", dock_right);     // Bottom half
+   //         // Dock windows to the right side, stacked vertically
+   //         ImGui::DockBuilderDockWindow("CrossHatchEditor", dock_top);  // Top half
+   //         ImGui::DockBuilderDockWindow("Object List", dock_right);     // Bottom half
 
-			ImGui::DockBuilderFinish(dockspace_id);
-        }
+			//ImGui::DockBuilderFinish(dockspace_id);
+   //     }
 		
         //IMGUI WINDOW FOR CONTROLS
         //FOR REFERENCE USE THIS: https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html
