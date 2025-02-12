@@ -381,7 +381,8 @@ static void spawnInstance(Camera camera, const std::string& instanceName, bgfx::
     std::cout << "New instance created at (" << x << ", " << y << ", " << z << ")" << std::endl;
 }
 // Recursive draw function for hierarchy.
-void drawInstance(const Instance* instance, bgfx::ProgramHandle program, const float* parentTransform = nullptr)
+void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::UniformHandle u_diffuseTex,
+    bgfx::TextureHandle defaultWhiteTexture, bgfx::TextureHandle inheritedTexture, const float* parentTransform = nullptr)
 {
     // Load shaders and create program once
     bgfx::ShaderHandle vsh = loadShader("shaders\\v_out17.bin");
@@ -409,12 +410,37 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle program, const f
         bgfx::setTransform(world);
         bgfx::setVertexBuffer(0, instance->vertexBuffer);
         bgfx::setIndexBuffer(instance->indexBuffer);
+        // Decide which texture to use:
+        // If the inherited texture (from the parent) is valid, then use it regardless of what the instance may have set.
+        // Otherwise, use the instance’s own texture (if any), or fall back to the default.
+        bgfx::TextureHandle textureToUse = defaultWhiteTexture;
+        if (inheritedTexture.idx != bgfx::kInvalidHandle)
+        {
+            textureToUse = inheritedTexture;
+        }
+        else if (instance->diffuseTexture.idx != bgfx::kInvalidHandle)
+        {
+            textureToUse = instance->diffuseTexture;
+        }
+        else
+        {
+            textureToUse = defaultWhiteTexture;
+        }
+        bgfx::setTexture(1, u_diffuseTex, textureToUse);
         bgfx::submit(0, program);
+    }
+    // For children, propagate the override:
+    // If the inherited texture is already valid, continue propagating that.
+    // Otherwise, use the current instance’s texture as the inherited texture.
+    bgfx::TextureHandle newInheritedTexture = inheritedTexture;
+    if (inheritedTexture.idx == bgfx::kInvalidHandle)
+    {
+        newInheritedTexture = instance->diffuseTexture;
     }
     // Recursively draw children.
     for (const Instance* child : instance->children)
     {
-        drawInstance(child, program, world);
+        drawInstance(child, program, u_diffuseTex, defaultWhiteTexture, newInheritedTexture, world);
     }
 }
 // Recursive deletion for hierarchy.
@@ -1281,19 +1307,8 @@ int main(void)
                 bgfx::setTransform(model);
                 
 
-                // Bind the diffuse texture (using texture stage 1 for diffuse)
-                if (instance->diffuseTexture.idx != bgfx::kInvalidHandle)
-                {
-                    bgfx::setTexture(1, u_diffuseTex, instance->diffuseTexture);
-                }
-                else
-                {
-                    // Use a default white texture (or any other fallback) if no diffuse texture is set.
-                    bgfx::setTexture(1, u_diffuseTex, defaultWhiteTexture);
-                }
-
                 // Draw each top-level instance recursively:
-                drawInstance(instance, defaultProgram);
+                drawInstance(instance, defaultProgram, u_diffuseTex, defaultWhiteTexture, BGFX_INVALID_HANDLE);
             }
         }
         else
@@ -1313,19 +1328,9 @@ int main(void)
 
                 bgfx::setTransform(model);
 
-                // Bind the diffuse texture (using texture stage 1 for diffuse)
-                if (instance->diffuseTexture.idx != bgfx::kInvalidHandle)
-                {
-                    bgfx::setTexture(1, u_diffuseTex, instance->diffuseTexture);
-                }
-                else
-                {
-                    // Use a default white texture (or any other fallback) if no diffuse texture is set.
-                    bgfx::setTexture(1, u_diffuseTex, defaultWhiteTexture);
-                }
 
                 // Draw each top-level instance recursively:
-                drawInstance(instance, defaultProgram);
+                drawInstance(instance, defaultProgram, u_diffuseTex, defaultWhiteTexture, BGFX_INVALID_HANDLE);
             }
         }
 
