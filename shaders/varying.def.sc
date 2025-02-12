@@ -1,0 +1,2 @@
+vec3 v_normal : NORMAL = vec3(0.0, 0.0, 1.0);
+vec3 v_pos    : TEXCOORD0 = vec3(0.0, 0.0, 0.0);
