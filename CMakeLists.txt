@@ -33,7 +33,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 "ObjLoader.cpp"
 "ObjLoader.h" 
 "PrimitiveObjects.h"
-"bgfx-imgui/imgui_impl_bgfx.cpp")
+"bgfx-imgui/imgui_impl_bgfx.cpp" "Logger.cpp")
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 
@@ -81,7 +81,7 @@ file(GLOB IMGUI_GLOB
     ${IMGUI_PATH}/backends/imgui_impl_opengl3.h
     ${IMGUI_PATH}/backends/imgui_impl_opengl3.cpp
     ${IMGUI_PATH}/backends/imgui_impl_opengl3_loader.cpp)
-add_library("imgui" STATIC ${IMGUI_GLOB})
+add_library("imgui" STATIC ${IMGUI_GLOB} "Logger.cpp")
 target_include_directories("imgui" PUBLIC ${IMGUI_PATH})
 target_link_libraries("imgui" PRIVATE glfw)
 

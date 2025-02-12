@@ -38,6 +38,7 @@
 #include <GLFW/glfw3native.h>
 #endif
 #include <imgui_internal.h>
+#include "Logger.h"
 
 
 #define WNDW_WIDTH 1600
@@ -383,8 +384,8 @@ static void spawnInstance(Camera camera, const std::string& instanceName, bgfx::
 void drawInstance(const Instance* instance, bgfx::ProgramHandle program, const float* parentTransform = nullptr)
 {
     // Load shaders and create program once
-    bgfx::ShaderHandle vsh = loadShader("shaders\\v_out16.bin");
-    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out16.bin");
+    bgfx::ShaderHandle vsh = loadShader("shaders\\v_out17.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out17.bin");
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
     float local[16];
     bx::mtxSRT(local,
@@ -715,10 +716,12 @@ int main(void)
         TextureOption tex;
         tex.name = "Rock";
         tex.handle = loadTextureDDS("shaders\\texture1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         tex.name = "Wood";
         tex.handle = loadTextureDDS("shaders\\texture2.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // add texture
@@ -785,6 +788,9 @@ int main(void)
     instances.back()->scale[0] *= 0.01f;
     instances.back()->scale[1] *= 0.01f;
     instances.back()->scale[2] *= 0.01f;
+
+    Logger::GetInstance();
+
     //MAIN LOOP
 	while (!glfwWindowShouldClose(window))
 	{
@@ -982,6 +988,8 @@ int main(void)
 		}
 		ImGui::End();
 
+        Logger::GetInstance().DrawImGuiLogger();
+
 		ImGui::Begin("Object List", p_open, window_flags);
         static int selectedInstanceIndex = -1;
     
@@ -994,7 +1002,7 @@ int main(void)
                 ShowInstanceTree(instance, selectedInstance);
 
             }
-        }
+        
             // If an instance is selected, show its transform controls.
             if (selectedInstance)
             {
@@ -1003,6 +1011,42 @@ int main(void)
                 ImGui::DragFloat3("Translation", selectedInstance->position, 0.1f);
                 ImGui::DragFloat3("Rotation (radians)", selectedInstance->rotation, 0.1f);
                 ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
+
+                // --- Diffuse Texture Selection ---
+                ImGui::Separator();
+                ImGui::Text("Texture:");
+
+                // Use a static variable to hold the currently selected index
+                // (If no texture is selected, set to -1)
+                static int selectedTextureIndex = -1;
+
+                // Create a combo box listing all available textures plus "None"
+                if (ImGui::BeginCombo("##DiffuseTexture",
+                    (selectedTextureIndex >= 0) ? availableTextures[selectedTextureIndex].name.c_str() : "None"))
+                {
+                    // Option "None": no diffuse texture is applied.
+                    if (ImGui::Selectable("None", selectedTextureIndex == -1))
+                    {
+                        selectedTextureIndex = -1;
+                        selectedInstance->diffuseTexture = BGFX_INVALID_HANDLE;
+                    }
+                    // List each available texture.
+                    for (int i = 0; i < availableTextures.size(); i++)
+                    {
+                        bool is_selected = (selectedTextureIndex == i);
+                        if (ImGui::Selectable(availableTextures[i].name.c_str(), is_selected))
+                        {
+                            selectedTextureIndex = i;
+                            // Update the selected instance’s diffuse texture handle.
+                            selectedInstance->diffuseTexture = availableTextures[i].handle;
+                            std::cout << "Instance " << selectedInstance->name << " diffuseTexture handle: "
+                                << selectedInstance->diffuseTexture.idx << std::endl;
+                        }
+                        if (is_selected)
+                            ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
+                }
 
                 // You can add a button to remove the selected instance from the hierarchy.
                 if (ImGui::Button("Remove Selected"))
@@ -1031,8 +1075,8 @@ int main(void)
                     deleteInstance(selectedInstance);
                     selectedInstance = nullptr;
                 }
-            }
-		}
+             }
+        }
         if (ImGui::CollapsingHeader("Crosshatch Ink"))
         {
             // ColorEdit4 allows you to edit a vec4 (RGBA)
@@ -1236,21 +1280,20 @@ int main(void)
                 model[15] = 1.0f;
                 bgfx::setTransform(model);
                 
-                // Bind the diffuse texture.
-                if (instance.diffuseTexture.idx != bgfx::kInvalidHandle)
+
+                // Bind the diffuse texture (using texture stage 1 for diffuse)
+                if (instance->diffuseTexture.idx != bgfx::kInvalidHandle)
                 {
-                    bgfx::setTexture(1, u_diffuseTex, instance.diffuseTexture);
+                    bgfx::setTexture(1, u_diffuseTex, instance->diffuseTexture);
                 }
                 else
                 {
+                    // Use a default white texture (or any other fallback) if no diffuse texture is set.
                     bgfx::setTexture(1, u_diffuseTex, defaultWhiteTexture);
                 }
 
                 // Draw each top-level instance recursively:
-                for (const Instance* instance : instances)
-                {
-                    drawInstance(instance, defaultProgram);
-                }
+                drawInstance(instance, defaultProgram);
             }
         }
         else
@@ -1270,21 +1313,19 @@ int main(void)
 
                 bgfx::setTransform(model);
 
-                // Bind the diffuse texture.
-                if (instance.diffuseTexture.idx != bgfx::kInvalidHandle)
+                // Bind the diffuse texture (using texture stage 1 for diffuse)
+                if (instance->diffuseTexture.idx != bgfx::kInvalidHandle)
                 {
-                    bgfx::setTexture(1, u_diffuseTex, instance.diffuseTexture);
+                    bgfx::setTexture(1, u_diffuseTex, instance->diffuseTexture);
                 }
                 else
                 {
+                    // Use a default white texture (or any other fallback) if no diffuse texture is set.
                     bgfx::setTexture(1, u_diffuseTex, defaultWhiteTexture);
                 }
 
                 // Draw each top-level instance recursively:
-                for (const Instance* instance : instances)
-                {
-                    drawInstance(instance, defaultProgram);
-                }
+                drawInstance(instance, defaultProgram);
             }
         }
 
