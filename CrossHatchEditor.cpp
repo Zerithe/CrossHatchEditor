@@ -60,8 +60,13 @@ struct Instance
     bgfx::IndexBufferHandle indexBuffer;
     bool selected = false;
 
+
+    // NEW: optional diffuse texture for the object.
+    bgfx::TextureHandle diffuseTexture = BGFX_INVALID_HANDLE;
+
     std::vector<Instance*> children; // Hierarchy: child instances
     Instance* parent = nullptr;      // pointer to parent
+
 
     Instance(int instanceId, const std::string& instanceName, float x, float y, float z, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh)
         : id(instanceId), name(instanceName), vertexBuffer(vbh), indexBuffer(ibh)
@@ -77,6 +82,11 @@ struct Instance
         children.push_back(child);
         child->parent = this;
     }
+};
+
+struct TextureOption {
+    std::string name;
+    bgfx::TextureHandle handle;
 };
 
 struct MeshData {
@@ -209,6 +219,17 @@ MeshData loadMesh(const std::string& filePath) {
                 vertex.nz = 0.0f; // Default to zero, will recompute later
             }
 
+            // Retrieve texture coordinates (UVs) if available.
+            if (mesh->HasTextureCoords(0)) {
+                // Assimp stores texture coordinates in a 3D vector; we use only x and y.
+                vertex.u = mesh->mTextureCoords[0][i].x;
+                vertex.v = mesh->mTextureCoords[0][i].y;
+            }
+            else {
+                vertex.u = 0.0f;
+                vertex.v = 0.0f;
+            }
+
             if (mesh->HasVertexColors(0)) {
                 vertex.abgr = ((uint8_t)(mesh->mColors[0][i].r * 255) << 24) |
                     ((uint8_t)(mesh->mColors[0][i].g * 255) << 16) |
@@ -255,6 +276,7 @@ void createMeshBuffers(const MeshData& meshData, bgfx::VertexBufferHandle& vbh, 
         .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
         .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
         .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true, true)
+        .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float) // NEW: UV coordinates
         .end();
 
     vbh = bgfx::createVertexBuffer(
@@ -482,6 +504,7 @@ int main(void)
         .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
         .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
         .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true, true)
+        .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float) // NEW: UV coordinates
         .end();
 
     //plane generation
@@ -659,6 +682,10 @@ int main(void)
     
     float inkColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f }; // Typically black ink.
 
+    // Global uniform for the diffuse texture (put this at file scope or as a static variable)
+    static bgfx::UniformHandle u_diffuseTex = BGFX_INVALID_HANDLE;
+    u_diffuseTex = bgfx::createUniform("u_diffuseTex", bgfx::UniformType::Sampler);
+
     // Create uniforms (do this once)
     u_lightDir = bgfx::createUniform("u_lightDir", bgfx::UniformType::Vec4);
     u_lightColor = bgfx::createUniform("u_lightColor", bgfx::UniformType::Vec4);
@@ -670,11 +697,40 @@ int main(void)
     bgfx::UniformHandle u_noiseTex = bgfx::createUniform("u_noiseTex", bgfx::UniformType::Sampler);
     bgfx::UniformHandle u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
 
-    // Load texture once
+    // SHADER TEXTURE
     bgfx::TextureHandle noiseTexture = loadTextureDDS("shaders\\noise1.dds");
+
+
+    // Texture
+    std::vector<TextureOption> availableTextures;
+    {
+        TextureOption tex;
+        tex.name = "Rock";
+        tex.handle = loadTextureDDS("shaders\\texture1.dds");
+        availableTextures.push_back(tex);
+
+        tex.name = "Wood";
+        tex.handle = loadTextureDDS("shaders\\texture2.dds");
+        availableTextures.push_back(tex);
+
+        // add texture
+    }
+
+    //plane
+    bgfx::TextureHandle planeTexture = loadTextureDDS("shaders\\texture2.dds");
+    // Create a default white texture once (static variable)
+    static bgfx::TextureHandle defaultWhiteTexture = BGFX_INVALID_HANDLE;
+    if (defaultWhiteTexture.idx == bgfx::kInvalidHandle)
+    {
+        const uint32_t whitePixel = 0xffffffff;
+        const bgfx::Memory* mem = bgfx::copy(&whitePixel, sizeof(whitePixel));
+        defaultWhiteTexture = bgfx::createTexture2D(1, 1, false, 1, bgfx::TextureFormat::BGRA8, 0, mem);
+    }
+
     // Load shaders and create program once
-    bgfx::ShaderHandle vsh = loadShader("shaders\\v_out16.bin");
-    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out16.bin");
+    bgfx::ShaderHandle vsh = loadShader("shaders\\v_out17.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out17.bin");
+
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
     
     // --- Spawn Cornell Box with Hierarchy ---
@@ -946,31 +1002,6 @@ int main(void)
         }
 		ImGui::End();
 
-        //// A simple panel to select an instance and modify its transform
-        //static int selectedInstanceIndex = -1;
-        //ImGui::Begin("Transform Controls");
-
-        //// List all instances so the user can select one
-        //for (int i = 0; i < instances.size(); i++)
-        //{
-        //    char label[32];
-        //    sprintf(label, "Instance %d", i);
-        //    if (ImGui::Selectable(label, selectedInstanceIndex == i))
-        //    {
-        //        selectedInstanceIndex = i;
-        //    }
-        //}
-
-        //// If an instance is selected, show drag controls for its transform
-        //if (selectedInstanceIndex >= 0 && selectedInstanceIndex < instances.size())
-        //{
-        //    Instance& inst = instances[selectedInstanceIndex];
-        //    ImGui::DragFloat3("Translation", inst.position, 0.1f);
-        //    ImGui::DragFloat3("Rotation (radians)", inst.rotation, 0.1f);
-        //    ImGui::DragFloat3("Scale", inst.scale, 0.1f);
-        //}
-        //ImGui::End();
-
         //handle inputs
         InputManager::update(camera, 0.016f);
 
@@ -1118,6 +1149,7 @@ int main(void)
 
         bgfx::setVertexBuffer(0, vbh_plane);
         bgfx::setIndexBuffer(ibh_plane);
+        bgfx::setTexture(1, u_diffuseTex, planeTexture); // Bind the fixed plane texture:
         bgfx::submit(0, defaultProgram);
 
         if (modelMovement)
@@ -1149,6 +1181,16 @@ int main(void)
                 model[14] = instance->position[2];
                 model[15] = 1.0f;
                 bgfx::setTransform(model);
+                
+                // Bind the diffuse texture.
+                if (instance.diffuseTexture.idx != bgfx::kInvalidHandle)
+                {
+                    bgfx::setTexture(1, u_diffuseTex, instance.diffuseTexture);
+                }
+                else
+                {
+                    bgfx::setTexture(1, u_diffuseTex, defaultWhiteTexture);
+                }
 
                 // Draw each top-level instance recursively:
                 for (const Instance* instance : instances)
@@ -1174,6 +1216,16 @@ int main(void)
 
                 bgfx::setTransform(model);
 
+                // Bind the diffuse texture.
+                if (instance.diffuseTexture.idx != bgfx::kInvalidHandle)
+                {
+                    bgfx::setTexture(1, u_diffuseTex, instance.diffuseTexture);
+                }
+                else
+                {
+                    bgfx::setTexture(1, u_diffuseTex, defaultWhiteTexture);
+                }
+
                 // Draw each top-level instance recursively:
                 for (const Instance* instance : instances)
                 {
@@ -1187,6 +1239,7 @@ int main(void)
         layout.begin()
             .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
             .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float) // NEW: UV coordinates
             .end();
 
 
