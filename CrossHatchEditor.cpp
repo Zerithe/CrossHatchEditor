@@ -37,6 +37,7 @@
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
 #endif
+#include <imgui_internal.h>
 
 
 #define WNDW_WIDTH 1600
@@ -490,12 +491,19 @@ int main(void)
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-	/*ImGuiWindowFlags window_flags = 0;
-	window_flags |= ImGuiWindowFlags_MenuBar;*/
-    //io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-	
+	ImGuiWindowFlags window_flags = 0;
+    //window_flags |= ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking;
+    window_flags |= ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoCollapse;
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_Implbgfx_Init(255);
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
     // Load shaders
 
@@ -781,31 +789,55 @@ int main(void)
 	while (!glfwWindowShouldClose(window))
 	{
         glfwPollEvents();
-        
+
         //imgui loop
 		ImGui_ImplGlfw_NewFrame();
 		ImGui_Implbgfx_NewFrame();
 		ImGui::NewFrame();
-		//ImGui::ShowDemoWindow();
 
-        /*bgfx::dbgTextClear();
-        bgfx::dbgTextPrintf(0, 1, 0x4f, "Crosshatching Editor Ver 0.1");
-        bgfx::dbgTextPrintf(0, 2, 0x4f, "Nothing here yet...");
-        bgfx::dbgTextPrintf(0, 3, 0x0f, "Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
-        bgfx::dbgTextPrintf(0, 4, 0x0f, "M - Toggle Object Movement");
-        bgfx::dbgTextPrintf(0, 5, 0x0f, "C - Randomize Light Color");
-        bgfx::dbgTextPrintf(0, 6, 0x0f, "X - Reset Light Color");
-        bgfx::dbgTextPrintf(0, 7, 0x0f, "V - Randomize Light Direction");
-        bgfx::dbgTextPrintf(0, 8, 0x0f, "Z - Reset Light Direction");
-        bgfx::dbgTextPrintf(0, 9, 0x0f, "F1 - Toggle stats");*/
+        ImGuiViewport* viewport = ImGui::GetMainViewport();
+   //     ImGui::SetNextWindowPos(viewport->Pos);
+   //     ImGui::SetNextWindowSize(viewport->Size);
+   //     ImGui::SetNextWindowViewport(viewport->ID);
 
+   //     ImGuiWindowFlags dockspace_flags = ImGuiWindowFlags_NoDocking;
+   //     dockspace_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+   //     dockspace_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
 
+   //     ImGui::Begin("Dockspace Window", nullptr, dockspace_flags);
+   //     ImGui::DockSpace(ImGui::GetID("MainDockspace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
+   //     ImGui::End();
+
+   //     static bool firstTime = true;
+   //     if (firstTime)
+   //     {
+   //         firstTime = false;
+			//ImGuiID dockspace_id = ImGui::GetID("MainDockspace");
+   //         ImGui::DockBuilderRemoveNode(dockspace_id);
+			//ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+			//ImGui::DockBuilderSetNodeSize(dockspace_id, ImGui::GetMainViewport()->Size);
+
+			//ImGuiID dock_main_id = dockspace_id;
+
+   //         // First, split the main dock space to create a right-side docking area
+   //         ImGuiID dock_right = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.3f, nullptr, &dock_main_id);
+
+   //         // Now, split the right-side docking area **vertically**
+   //         ImGuiID dock_top = ImGui::DockBuilderSplitNode(dock_right, ImGuiDir_Left, 0.5f, nullptr, &dock_right);
+
+   //         // Dock windows to the right side, stacked vertically
+   //         ImGui::DockBuilderDockWindow("CrossHatchEditor", dock_top);  // Top half
+   //         ImGui::DockBuilderDockWindow("Object List", dock_right);     // Bottom half
+
+			//ImGui::DockBuilderFinish(dockspace_id);
+   //     }
+		
         //IMGUI WINDOW FOR CONTROLS
         //FOR REFERENCE USE THIS: https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html
-		ImGui::Begin("CrossHatchEditor", p_open, ImGuiWindowFlags_MenuBar);
+        ImGui::Begin("CrossHatchEditor", p_open, window_flags);
         if (ImGui::BeginMenuBar())
-        {
-            if (ImGui::BeginMenu("File"))
+        { 
+            if (ImGui::BeginMenu("File", true))
             {
                 if (ImGui::MenuItem("Open..")) { /* Do stuff */ }
                 if (ImGui::MenuItem("Save", "Ctrl+S")) { /* Do stuff */ }
@@ -948,15 +980,21 @@ int main(void)
 				lightDir[3] = 0.0f;
 			}
 		}
+		ImGui::End();
+
+		ImGui::Begin("Object List", p_open, window_flags);
         static int selectedInstanceIndex = -1;
+    
+    
 		if (ImGui::CollapsingHeader("Object List"))
 		{
             // For each top-level instance, show its tree.
             for (Instance* instance : instances)
             {
                 ShowInstanceTree(instance, selectedInstance);
-            }
 
+            }
+        }
             // If an instance is selected, show its transform controls.
             if (selectedInstance)
             {
@@ -1001,7 +1039,7 @@ int main(void)
             ImGui::ColorEdit4("Ink Color", inkColor);
         }
 		ImGui::End();
-
+          
         //handle inputs
         InputManager::update(camera, 0.016f);
 
@@ -1046,6 +1084,8 @@ int main(void)
             }
 		}
 
+        
+
         if (InputManager::isKeyToggled(GLFW_KEY_BACKSPACE) && !instances.empty())
         {
             Instance* inst = instances.back();
@@ -1082,17 +1122,28 @@ int main(void)
 
         if (InputManager::isKeyToggled(GLFW_KEY_Z))
         {
-            lightColor[0] = 0.0f;
-            lightColor[1] = 1.0f;
-            lightColor[2] = 1.0f;
-            lightColor[3] = 0.0f;
+            lightDir[0] = 0.0f;
+            lightDir[1] = 1.0f;
+            lightDir[2] = 1.0f;
+            lightDir[3] = 0.0f;
         }
+
+        int width = static_cast<int>(viewport->Size.x);
+        int height = static_cast<int>(viewport->Size.y);
+
+		if (width == 0 || height == 0)
+		{
+			continue;
+		}
+
+        bgfx::reset(width, height, BGFX_RESET_VSYNC);
+        bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
 
         float view[16];
         bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
 
         float proj[16];
-        bx::mtxProj(proj, 60.0f, float(WNDW_WIDTH) / float(WNDW_HEIGHT), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+        bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
         bgfx::setViewTransform(0, view, proj);
 
         // Set model matrix
@@ -1100,7 +1151,10 @@ int main(void)
         bx::mtxSRT(mtx, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
         bgfx::setTransform(mtx);
 
+        bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
+
         bgfx::touch(0);
+
 
         float viewPos[4] = { camera.position.x, camera.position.y, camera.position.z, 1.0f };
 

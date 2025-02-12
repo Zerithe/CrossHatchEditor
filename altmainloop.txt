@@ -1,0 +1,891 @@
+//MAIN LOOP WIP
+	while (!glfwWindowShouldClose(window))
+	{
+        glfwPollEvents();
+
+        //imgui loop
+		ImGui_ImplGlfw_NewFrame();
+		ImGui_Implbgfx_NewFrame();
+		ImGui::NewFrame();
+
+        ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(viewport->Pos);
+        ImGui::SetNextWindowSize(viewport->Size);
+        ImGui::SetNextWindowViewport(viewport->ID);
+
+        ImGuiWindowFlags dockspace_flags = ImGuiWindowFlags_NoDocking;
+        dockspace_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+        dockspace_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+
+        ImGui::Begin("Dockspace Window", nullptr, dockspace_flags);
+        ImGui::DockSpace(ImGui::GetID("MainDockspace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
+        ImGui::End();
+
+        static bool firstTime = true;
+        if (firstTime)
+        {
+            firstTime = false;
+			ImGuiID dockspace_id = ImGui::GetID("MainDockspace");
+            ImGui::DockBuilderRemoveNode(dockspace_id);
+			ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+			ImGui::DockBuilderSetNodeSize(dockspace_id, ImGui::GetMainViewport()->Size);
+
+			ImGuiID dock_main_id = dockspace_id;
+
+            // First, split the main dock space to create a right-side docking area
+            ImGuiID dock_right = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.3f, nullptr, &dock_main_id);
+
+            // Now, split the right-side docking area **vertically**
+            ImGuiID dock_top = ImGui::DockBuilderSplitNode(dock_right, ImGuiDir_Left, 0.5f, nullptr, &dock_right);
+
+            // Dock windows to the right side, stacked vertically
+            ImGui::DockBuilderDockWindow("CrossHatchEditor", dock_top);  // Top half
+            ImGui::DockBuilderDockWindow("Object List", dock_right);     // Bottom half
+			ImGui::DockBuilderDockWindow("Scene Viewport", dock_main_id);      // Right side
+
+			ImGui::DockBuilderFinish(dockspace_id);
+        }
+		
+        //IMGUI WINDOW FOR CONTROLS
+        //FOR REFERENCE USE THIS: https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html
+        ImGui::Begin("CrossHatchEditor", p_open, window_flags);
+        if (ImGui::BeginMenuBar())
+        { 
+            if (ImGui::BeginMenu("File", true))
+            {
+                if (ImGui::MenuItem("Open..")) { /* Do stuff */ }
+                if (ImGui::MenuItem("Save", "Ctrl+S")) { /* Do stuff */ }
+                if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
+                ImGui::EndMenu();
+            }
+			ImGui::EndMenuBar();
+		}
+		ImGui::Text("Crosshatch Editor Ver 0.2");
+		ImGui::Text("Some things here and there...");
+		ImGui::Text("Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
+        ImGui::Text("Right Click - Detach Mouse from Camera");
+		ImGui::Text("M - Toggle Object Movement");
+		ImGui::Text("C - Randomize Light Color");
+		ImGui::Text("X - Reset Light Color");
+		ImGui::Text("V - Randomize Light Direction");
+		ImGui::Text("Z - Reset Light Direction");
+		ImGui::Text("F1 - Toggle stats");
+
+		ImGui::Checkbox("Toggle Object Movement", &modelMovement);
+        
+        if (ImGui::CollapsingHeader("Spawn Objects"))
+        {
+			ImGui::RadioButton("Cube", &spawnPrimitive, 0);
+			ImGui::RadioButton("Capsule", &spawnPrimitive, 1);
+			ImGui::RadioButton("Cylinder", &spawnPrimitive, 2);
+			ImGui::RadioButton("Sphere", &spawnPrimitive, 3);
+			ImGui::RadioButton("Plane", &spawnPrimitive, 4);
+			ImGui::RadioButton("Test Import", &spawnPrimitive, 5);
+			if (ImGui::Button("Spawn Object"))
+			{
+				if (spawnPrimitive == 0)
+				{
+					spawnInstance(camera, "cube", vbh_cube, ibh_cube, instances);
+					std::cout << "Cube spawned" << std::endl;
+				}
+				else if (spawnPrimitive == 1)
+				{
+					spawnInstance(camera, "capsule", vbh_capsule, ibh_capsule, instances);
+					std::cout << "Capsule spawned" << std::endl;
+				}
+				else if (spawnPrimitive == 2)
+				{
+					spawnInstance(camera, "cylinder", vbh_cylinder, ibh_cylinder, instances);
+					std::cout << "Cylinder spawned" << std::endl;
+				}
+				else if (spawnPrimitive == 3)
+				{
+					spawnInstance(camera, "sphere", vbh_sphere, ibh_sphere, instances);
+					std::cout << "Sphere spawned" << std::endl;
+				}
+				else if (spawnPrimitive == 4)
+				{
+					spawnInstance(camera, "plane", vbh_plane, ibh_plane, instances);
+					std::cout << "Plane spawned" << std::endl;
+				}
+				else if (spawnPrimitive == 5)
+				{
+					spawnInstance(camera, "mesh", vbh_mesh, ibh_mesh, instances);
+					std::cout << "Test Import spawned" << std::endl;
+				}
+			}
+			if (ImGui::Button("Remove Last Instance"))
+			{
+				instances.pop_back();
+                //instanceCounter--;
+				std::cout << "Last Instance removed" << std::endl;
+			}
+        }
+		if (ImGui::CollapsingHeader("Lighting"))
+		{
+			ImGui::ColorEdit3("Light Color", lightColor);
+            if (ImGui::Button("Randomize Light Color"))
+            {
+                lightColor[0] = getRandomFloat(); // Random red
+                lightColor[1] = getRandomFloat(); // Random green
+                lightColor[2] = getRandomFloat(); // Random blue
+                lightColor[3] = 1.0f;
+            }
+			//lightdir is drag float3
+			ImGui::DragFloat3("Light Direction", lightDir, 0.01f, 0.0f, 0.0f);
+			//randomize light direction
+			if (ImGui::Button("Randomize Light Direction"))
+			{
+				lightDir[0] = getRandomFloat();
+				lightDir[1] = getRandomFloat();
+				lightDir[2] = getRandomFloat();
+				lightDir[3] = 0.0f;
+			}
+		}
+		ImGui::End();
+
+		ImGui::Begin("Object List", p_open, window_flags);
+        static int selectedInstanceIndex = -1;
+        // List all instances so the user can select one
+        for (int i = 0; i < instances.size(); i++)
+        {
+            char label[32];
+            sprintf(label, "Instance %d", i);
+            if (ImGui::Selectable(label, selectedInstanceIndex == i))
+            {
+                selectedInstanceIndex = i;
+            }
+        }
+
+        // If an instance is selected, show drag controls for its transform
+        if (selectedInstanceIndex >= 0 && selectedInstanceIndex < instances.size())
+        {
+            Instance& inst = instances[selectedInstanceIndex];
+            ImGui::DragFloat3("Translation", inst.position, 0.1f);
+            ImGui::DragFloat3("Rotation (radians)", inst.rotation, 0.1f);
+            ImGui::DragFloat3("Scale", inst.scale, 0.1f);
+            if (ImGui::Button("Remove Instance"))
+            {
+                instances.erase(instances.begin() + selectedInstanceIndex);
+                selectedInstanceIndex = -1;
+            }
+        }
+		ImGui::End();
+
+
+        //handle inputs
+        InputManager::update(camera, 0.016f);
+
+        if (InputManager::isKeyToggled(GLFW_KEY_M))
+        {
+            modelMovement = !modelMovement;
+            std::cout << "Model movement: " << modelMovement << std::endl;
+        }
+
+        //call spawnInstance when key is pressed based on spawnPrimitive value
+		if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && InputManager::getCursorDisabled())
+		{
+            if (spawnPrimitive == 0)
+            {
+                spawnInstance(camera, "cube", vbh_cube, ibh_cube, instances);
+                std::cout << "Cube spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 1)
+            {
+                spawnInstance(camera, "capsule", vbh_capsule, ibh_capsule, instances);
+                std::cout << "Capsule spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 2)
+            {
+                spawnInstance(camera, "cylinder", vbh_cylinder, ibh_cylinder, instances);
+                std::cout << "Cylinder spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 3)
+            {
+                spawnInstance(camera, "sphere", vbh_sphere, ibh_sphere, instances);
+                std::cout << "Sphere spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 4)
+            {
+                spawnInstance(camera, "plane", vbh_plane, ibh_plane, instances);
+                std::cout << "Plane spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 5)
+            {
+                spawnInstance(camera, "mesh", vbh_mesh, ibh_mesh, instances);
+                std::cout << "Test Import spawned" << std::endl;
+            }
+		}
+
+        
+
+        if (InputManager::isKeyToggled(GLFW_KEY_BACKSPACE) && !instances.empty())
+        {
+            instances.pop_back();
+            //instanceCounter--;
+            std::cout << "Last Instance removed" << std::endl;
+        }
+
+        if(InputManager::isKeyToggled(GLFW_KEY_C))
+        {
+            lightColor[0] = getRandomFloat(); // Random red
+            lightColor[1] = getRandomFloat(); // Random green
+            lightColor[2] = getRandomFloat(); // Random blue
+            lightColor[3] = 1.0f;
+
+        }
+
+        if (InputManager::isKeyToggled(GLFW_KEY_X))
+        {
+            lightColor[0] = 0.5f;
+            lightColor[1] = 0.5f;
+            lightColor[2] = 0.5f;
+            lightColor[3] = 1.0f;
+        }
+
+        if (InputManager::isKeyToggled(GLFW_KEY_V))
+        {
+            lightDir[0] = getRandomFloat();
+            lightDir[1] = getRandomFloat();
+            lightDir[2] = getRandomFloat();
+            lightDir[3] = 0.0f;
+        }
+
+        if (InputManager::isKeyToggled(GLFW_KEY_Z))
+        {
+            lightDir[0] = 0.0f;
+            lightDir[1] = 1.0f;
+            lightDir[2] = 1.0f;
+            lightDir[3] = 0.0f;
+        }
+
+        ImGui::Begin("Scene Viewport", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        // Get viewport size
+        ImVec2 viewportSize = ImGui::GetContentRegionAvail();  // Available size inside the window
+
+        // Ensure minimum valid size
+        if (viewportSize.x < 1.0f) viewportSize.x = 1.0f;
+        if (viewportSize.y < 1.0f) viewportSize.y = 1.0f;
+
+        uint16_t fbWidth = static_cast<uint16_t>(viewportSize.x);
+        uint16_t fbHeight = static_cast<uint16_t>(viewportSize.y);
+
+        static bgfx::FrameBufferHandle fb = BGFX_INVALID_HANDLE;
+        static bgfx::TextureHandle fbTexture = BGFX_INVALID_HANDLE;
+
+        // Recreate framebuffer if size changed
+        if (!bgfx::isValid(fb) || fbWidth != bgfx::getCaps()->limits.maxTextureSize || fbHeight != bgfx::getCaps()->limits.maxTextureSize)
+        {
+            // Destroy the old framebuffer if it exists
+            if (bgfx::isValid(fb)) {
+                bgfx::destroy(fb);
+                bgfx::destroy(fbTexture);
+            }
+
+            // Create a texture to render into
+            fbTexture = bgfx::createTexture2D(fbWidth, fbHeight, false, 1, bgfx::TextureFormat::RGBA8,
+                BGFX_TEXTURE_RT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP);
+
+            // Attach texture to framebuffer
+            fb = bgfx::createFrameBuffer(1, &fbTexture, true);
+        }
+
+
+        int width = static_cast<int>(viewport->Size.x);
+        int height = static_cast<int>(viewport->Size.y);
+
+        if (width == 0 || height == 0)
+        {
+            continue;
+        }
+
+        bgfx::reset(width, height, BGFX_RESET_VSYNC);
+        bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
+
+        float view[16];
+        bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
+
+        float proj[16];
+        bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+        bgfx::setViewTransform(0, view, proj);
+
+        // Set model matrix
+        float mtx[16];
+        bx::mtxSRT(mtx, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        bgfx::setTransform(mtx);
+
+        bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
+
+        bgfx::touch(0);
+
+        bgfx::frame();
+
+        float viewPos[4] = { camera.position.x, camera.position.y, camera.position.z, 1.0f };
+
+        bgfx::setUniform(u_lightDir, lightDir);
+        bgfx::setUniform(u_lightColor, lightColor);
+        bgfx::setUniform(u_viewPos, viewPos);
+        //bgfx::setUniform(u_scale, scale);
+
+        // Create uniform handles for the light direction and color
+        u_lightDir = bgfx::createUniform("u_lightDir", bgfx::UniformType::Vec4);
+        u_lightColor = bgfx::createUniform("u_lightColor", bgfx::UniformType::Vec4);
+        u_viewPos = bgfx::createUniform("u_viewPos", bgfx::UniformType::Vec4);
+        //u_scale = bgfx::createUniform("u_scale", bgfx::UniformType::Vec4);
+
+        bgfx::UniformHandle u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
+
+        // Example parameter values
+        float params[4] = { 0.02f, 15.0f, 0.0f, 0.0f }; // e = 0.02 (tolerance), scale = 15.0
+        bgfx::setUniform(u_params, params);
+
+
+
+        bgfx::ShaderHandle vsh = loadShader("shaders\\vs_cel.bin");
+        bgfx::ShaderHandle fsh = loadShader("shaders\\crosshatching_frag_variant1.bin");
+        bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
+
+
+        /*bgfx::dbgTextClear();
+        bgfx::dbgTextPrintf(0, 1, 0x4f, "Crosshatching Editor Ver 0.1");
+        bgfx::dbgTextPrintf(0, 2, 0x4f, "Nothing here yet...");
+        bgfx::dbgTextPrintf(0, 3, 0x0f, "Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
+        bgfx::dbgTextPrintf(0, 4, 0x0f, "M - Toggle Object Movement");
+        bgfx::dbgTextPrintf(0, 5, 0x0f, "C - Randomize Light Color");
+        bgfx::dbgTextPrintf(0, 6, 0x0f, "X - Reset Light Color");
+        bgfx::dbgTextPrintf(0, 7, 0x0f, "V - Randomize Light Direction");
+        bgfx::dbgTextPrintf(0, 8, 0x0f, "Z - Reset Light Direction");
+        bgfx::dbgTextPrintf(0, 9, 0x0f, "F1 - Toggle stats");*/
+
+        // Enable stats or debug text
+        bgfx::setDebug(s_showStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
+
+        float planeModel[16];
+        bx::mtxIdentity(planeModel);
+        bgfx::setTransform(planeModel);
+        bgfx::setVertexBuffer(0, vbh_plane);
+        bgfx::setIndexBuffer(ibh_plane);
+        bgfx::submit(0, defaultProgram);
+
+        if (modelMovement)
+        {
+            for (const auto& instance : instances)
+            {
+                float model[16];
+                // Calculate the forward vector pointing towards the camera
+                bx::Vec3 modelToCamera = bx::normalize(bx::Vec3(camera.position.x - instance.position[0],
+                    camera.position.y - instance.position[1],
+                    camera.position.z - instance.position[2]));
+
+
+                // Define the up vector
+                bx::Vec3 up = { 0.0f, 1.0f, 0.0f };
+
+                // Calculate the right vector (orthogonal to forward and up)
+                bx::Vec3 right = bx::normalize(bx::cross(up, modelToCamera));
+
+                // Recalculate the up vector to ensure orthogonality
+                up = bx::normalize(bx::cross(modelToCamera, right));
+
+                // Build the model matrix with the orientation facing the camera
+                model[0] = right.x;   model[1] = right.y;   model[2] = right.z;   model[3] = 0.0f;
+                model[4] = up.x;      model[5] = up.y;      model[6] = up.z;      model[7] = 0.0f;
+                model[8] = modelToCamera.x; model[9] = modelToCamera.y; model[10] = modelToCamera.z; model[11] = 0.0f;
+                model[12] = instance.position[0];
+                model[13] = instance.position[1];
+                model[14] = instance.position[2];
+                model[15] = 1.0f;
+                bgfx::setTransform(model);
+
+                bgfx::setVertexBuffer(0, instance.vertexBuffer);
+                bgfx::setIndexBuffer(instance.indexBuffer);
+                bgfx::submit(0, defaultProgram);
+            }
+        }
+        else
+        {
+            for (const auto& instance : instances)
+            {
+                float model[16];
+                //bx::mtxTranslate(model, instance.position[0], instance.position[1], instance.position[2]);
+
+                // Build a Scale-Rotate-Translate matrix.
+                // Note: bx::mtxSRT expects parameters in the order:
+                // (result, scaleX, scaleY, scaleZ, rotX, rotY, rotZ, transX, transY, transZ)
+                bx::mtxSRT(model,
+                    instance.scale[0], instance.scale[1], instance.scale[2],
+                    instance.rotation[0], instance.rotation[1], instance.rotation[2],
+                    instance.position[0], instance.position[1], instance.position[2]);
+
+                bgfx::setTransform(model);
+
+                bgfx::setVertexBuffer(0, instance.vertexBuffer);
+                bgfx::setIndexBuffer(instance.indexBuffer);
+                bgfx::submit(0, defaultProgram);
+            }
+        }
+
+        // Update your vertex layout to include normals
+        bgfx::VertexLayout layout;
+        layout.begin()
+            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
+            .end();
+
+
+
+        bx::mtxSRT(mtx, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        bgfx::setTransform(mtx);
+
+        /*bgfx::setVertexBuffer(0, vbh_sphere);
+        bgfx::setIndexBuffer(ibh_sphere);
+        bgfx::submit(0, defaultProgram);*/
+        bgfx::frame();
+
+		ImTextureID texture = (ImTextureID)(uintptr_t)fb.idx;
+		ImGui::Image(texture, viewportSize, ImVec2(0, 1), ImVec2(1, 0));
+		ImGui::End();
+
+        // End frame
+		ImGui::Render();
+		ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    //MAIN LOOP CURR
+	while (!glfwWindowShouldClose(window))
+	{
+        glfwPollEvents();
+
+        //imgui loop
+		ImGui_ImplGlfw_NewFrame();
+		ImGui_Implbgfx_NewFrame();
+		ImGui::NewFrame();
+
+        ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(viewport->Pos);
+        ImGui::SetNextWindowSize(viewport->Size);
+        ImGui::SetNextWindowViewport(viewport->ID);
+
+        ImGuiWindowFlags dockspace_flags = ImGuiWindowFlags_NoDocking;
+        dockspace_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+        dockspace_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+
+        ImGui::Begin("Dockspace Window", nullptr, dockspace_flags);
+        ImGui::DockSpace(ImGui::GetID("MainDockspace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
+        ImGui::End();
+
+        static bool firstTime = true;
+        if (firstTime)
+        {
+            firstTime = false;
+			ImGuiID dockspace_id = ImGui::GetID("MainDockspace");
+            ImGui::DockBuilderRemoveNode(dockspace_id);
+			ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+			ImGui::DockBuilderSetNodeSize(dockspace_id, ImGui::GetMainViewport()->Size);
+
+			ImGuiID dock_main_id = dockspace_id;
+
+            // First, split the main dock space to create a right-side docking area
+            ImGuiID dock_right = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.3f, nullptr, &dock_main_id);
+
+            // Now, split the right-side docking area **vertically**
+            ImGuiID dock_top = ImGui::DockBuilderSplitNode(dock_right, ImGuiDir_Left, 0.5f, nullptr, &dock_right);
+
+            // Dock windows to the right side, stacked vertically
+            ImGui::DockBuilderDockWindow("CrossHatchEditor", dock_top);  // Top half
+            ImGui::DockBuilderDockWindow("Object List", dock_right);     // Bottom half
+
+			ImGui::DockBuilderFinish(dockspace_id);
+        }
+		
+        //IMGUI WINDOW FOR CONTROLS
+        //FOR REFERENCE USE THIS: https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html
+        ImGui::Begin("CrossHatchEditor", p_open, window_flags);
+        if (ImGui::BeginMenuBar())
+        { 
+            if (ImGui::BeginMenu("File", true))
+            {
+                if (ImGui::MenuItem("Open..")) { /* Do stuff */ }
+                if (ImGui::MenuItem("Save", "Ctrl+S")) { /* Do stuff */ }
+                if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
+                ImGui::EndMenu();
+            }
+			ImGui::EndMenuBar();
+		}
+		ImGui::Text("Crosshatch Editor Ver 0.2");
+		ImGui::Text("Some things here and there...");
+		ImGui::Text("Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
+        ImGui::Text("Right Click - Detach Mouse from Camera");
+		ImGui::Text("M - Toggle Object Movement");
+		ImGui::Text("C - Randomize Light Color");
+		ImGui::Text("X - Reset Light Color");
+		ImGui::Text("V - Randomize Light Direction");
+		ImGui::Text("Z - Reset Light Direction");
+		ImGui::Text("F1 - Toggle stats");
+
+		ImGui::Checkbox("Toggle Object Movement", &modelMovement);
+        
+        if (ImGui::CollapsingHeader("Spawn Objects"))
+        {
+			ImGui::RadioButton("Cube", &spawnPrimitive, 0);
+			ImGui::RadioButton("Capsule", &spawnPrimitive, 1);
+			ImGui::RadioButton("Cylinder", &spawnPrimitive, 2);
+			ImGui::RadioButton("Sphere", &spawnPrimitive, 3);
+			ImGui::RadioButton("Plane", &spawnPrimitive, 4);
+			ImGui::RadioButton("Test Import", &spawnPrimitive, 5);
+			if (ImGui::Button("Spawn Object"))
+			{
+				if (spawnPrimitive == 0)
+				{
+					spawnInstance(camera, "cube", vbh_cube, ibh_cube, instances);
+					std::cout << "Cube spawned" << std::endl;
+				}
+				else if (spawnPrimitive == 1)
+				{
+					spawnInstance(camera, "capsule", vbh_capsule, ibh_capsule, instances);
+					std::cout << "Capsule spawned" << std::endl;
+				}
+				else if (spawnPrimitive == 2)
+				{
+					spawnInstance(camera, "cylinder", vbh_cylinder, ibh_cylinder, instances);
+					std::cout << "Cylinder spawned" << std::endl;
+				}
+				else if (spawnPrimitive == 3)
+				{
+					spawnInstance(camera, "sphere", vbh_sphere, ibh_sphere, instances);
+					std::cout << "Sphere spawned" << std::endl;
+				}
+				else if (spawnPrimitive == 4)
+				{
+					spawnInstance(camera, "plane", vbh_plane, ibh_plane, instances);
+					std::cout << "Plane spawned" << std::endl;
+				}
+				else if (spawnPrimitive == 5)
+				{
+					spawnInstance(camera, "mesh", vbh_mesh, ibh_mesh, instances);
+					std::cout << "Test Import spawned" << std::endl;
+				}
+			}
+			if (ImGui::Button("Remove Last Instance"))
+			{
+				instances.pop_back();
+                //instanceCounter--;
+				std::cout << "Last Instance removed" << std::endl;
+			}
+        }
+		if (ImGui::CollapsingHeader("Lighting"))
+		{
+			ImGui::ColorEdit3("Light Color", lightColor);
+            if (ImGui::Button("Randomize Light Color"))
+            {
+                lightColor[0] = getRandomFloat(); // Random red
+                lightColor[1] = getRandomFloat(); // Random green
+                lightColor[2] = getRandomFloat(); // Random blue
+                lightColor[3] = 1.0f;
+            }
+			//lightdir is drag float3
+			ImGui::DragFloat3("Light Direction", lightDir, 0.01f, 0.0f, 0.0f);
+			//randomize light direction
+			if (ImGui::Button("Randomize Light Direction"))
+			{
+				lightDir[0] = getRandomFloat();
+				lightDir[1] = getRandomFloat();
+				lightDir[2] = getRandomFloat();
+				lightDir[3] = 0.0f;
+			}
+		}
+		ImGui::End();
+
+		ImGui::Begin("Object List", p_open, window_flags);
+        static int selectedInstanceIndex = -1;
+        // List all instances so the user can select one
+        for (int i = 0; i < instances.size(); i++)
+        {
+            char label[32];
+            sprintf(label, "Instance %d", i);
+            if (ImGui::Selectable(label, selectedInstanceIndex == i))
+            {
+                selectedInstanceIndex = i;
+            }
+        }
+
+        // If an instance is selected, show drag controls for its transform
+        if (selectedInstanceIndex >= 0 && selectedInstanceIndex < instances.size())
+        {
+            Instance& inst = instances[selectedInstanceIndex];
+            ImGui::DragFloat3("Translation", inst.position, 0.1f);
+            ImGui::DragFloat3("Rotation (radians)", inst.rotation, 0.1f);
+            ImGui::DragFloat3("Scale", inst.scale, 0.1f);
+            if (ImGui::Button("Remove Instance"))
+            {
+                instances.erase(instances.begin() + selectedInstanceIndex);
+                selectedInstanceIndex = -1;
+            }
+        }
+		ImGui::End();
+
+
+        //handle inputs
+        InputManager::update(camera, 0.016f);
+
+        if (InputManager::isKeyToggled(GLFW_KEY_M))
+        {
+            modelMovement = !modelMovement;
+            std::cout << "Model movement: " << modelMovement << std::endl;
+        }
+
+        //call spawnInstance when key is pressed based on spawnPrimitive value
+		if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && InputManager::getCursorDisabled())
+		{
+            if (spawnPrimitive == 0)
+            {
+                spawnInstance(camera, "cube", vbh_cube, ibh_cube, instances);
+                std::cout << "Cube spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 1)
+            {
+                spawnInstance(camera, "capsule", vbh_capsule, ibh_capsule, instances);
+                std::cout << "Capsule spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 2)
+            {
+                spawnInstance(camera, "cylinder", vbh_cylinder, ibh_cylinder, instances);
+                std::cout << "Cylinder spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 3)
+            {
+                spawnInstance(camera, "sphere", vbh_sphere, ibh_sphere, instances);
+                std::cout << "Sphere spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 4)
+            {
+                spawnInstance(camera, "plane", vbh_plane, ibh_plane, instances);
+                std::cout << "Plane spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 5)
+            {
+                spawnInstance(camera, "mesh", vbh_mesh, ibh_mesh, instances);
+                std::cout << "Test Import spawned" << std::endl;
+            }
+		}
+
+        
+
+        if (InputManager::isKeyToggled(GLFW_KEY_BACKSPACE) && !instances.empty())
+        {
+            instances.pop_back();
+            //instanceCounter--;
+            std::cout << "Last Instance removed" << std::endl;
+        }
+
+        if(InputManager::isKeyToggled(GLFW_KEY_C))
+        {
+            lightColor[0] = getRandomFloat(); // Random red
+            lightColor[1] = getRandomFloat(); // Random green
+            lightColor[2] = getRandomFloat(); // Random blue
+            lightColor[3] = 1.0f;
+
+        }
+
+        if (InputManager::isKeyToggled(GLFW_KEY_X))
+        {
+            lightColor[0] = 0.5f;
+            lightColor[1] = 0.5f;
+            lightColor[2] = 0.5f;
+            lightColor[3] = 1.0f;
+        }
+
+        if (InputManager::isKeyToggled(GLFW_KEY_V))
+        {
+            lightDir[0] = getRandomFloat();
+            lightDir[1] = getRandomFloat();
+            lightDir[2] = getRandomFloat();
+            lightDir[3] = 0.0f;
+        }
+
+        if (InputManager::isKeyToggled(GLFW_KEY_Z))
+        {
+            lightDir[0] = 0.0f;
+            lightDir[1] = 1.0f;
+            lightDir[2] = 1.0f;
+            lightDir[3] = 0.0f;
+        }
+
+        int width = static_cast<int>(viewport->Size.x);
+        int height = static_cast<int>(viewport->Size.y);
+
+		if (width == 0 || height == 0)
+		{
+			continue;
+		}
+
+        bgfx::reset(width, height, BGFX_RESET_VSYNC);
+        bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
+
+        float view[16];
+        bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
+
+        float proj[16];
+        bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+        bgfx::setViewTransform(0, view, proj);
+
+        // Set model matrix
+        float mtx[16];
+        bx::mtxSRT(mtx, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        bgfx::setTransform(mtx);
+
+        bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
+
+        bgfx::touch(0);
+
+
+        float viewPos[4] = { camera.position.x, camera.position.y, camera.position.z, 1.0f };
+
+        bgfx::setUniform(u_lightDir, lightDir);
+        bgfx::setUniform(u_lightColor, lightColor);
+        bgfx::setUniform(u_viewPos, viewPos);
+        //bgfx::setUniform(u_scale, scale);
+
+        // Create uniform handles for the light direction and color
+        u_lightDir = bgfx::createUniform("u_lightDir", bgfx::UniformType::Vec4);
+        u_lightColor = bgfx::createUniform("u_lightColor", bgfx::UniformType::Vec4);
+        u_viewPos = bgfx::createUniform("u_viewPos", bgfx::UniformType::Vec4);
+		//u_scale = bgfx::createUniform("u_scale", bgfx::UniformType::Vec4);
+
+        bgfx::UniformHandle u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
+
+        // Example parameter values
+        float params[4] = { 0.02f, 15.0f, 0.0f, 0.0f }; // e = 0.02 (tolerance), scale = 15.0
+        bgfx::setUniform(u_params, params);
+
+
+
+        bgfx::ShaderHandle vsh = loadShader("shaders\\vs_cel.bin");
+        bgfx::ShaderHandle fsh = loadShader("shaders\\crosshatching_frag_variant1.bin");
+        bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
+
+
+        /*bgfx::dbgTextClear();
+        bgfx::dbgTextPrintf(0, 1, 0x4f, "Crosshatching Editor Ver 0.1");
+        bgfx::dbgTextPrintf(0, 2, 0x4f, "Nothing here yet...");
+        bgfx::dbgTextPrintf(0, 3, 0x0f, "Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
+        bgfx::dbgTextPrintf(0, 4, 0x0f, "M - Toggle Object Movement");
+        bgfx::dbgTextPrintf(0, 5, 0x0f, "C - Randomize Light Color");
+        bgfx::dbgTextPrintf(0, 6, 0x0f, "X - Reset Light Color");
+        bgfx::dbgTextPrintf(0, 7, 0x0f, "V - Randomize Light Direction");
+        bgfx::dbgTextPrintf(0, 8, 0x0f, "Z - Reset Light Direction");
+        bgfx::dbgTextPrintf(0, 9, 0x0f, "F1 - Toggle stats");*/
+
+        // Enable stats or debug text
+        bgfx::setDebug(s_showStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
+
+        float planeModel[16];
+        bx::mtxIdentity(planeModel);
+        bgfx::setTransform(planeModel);
+        bgfx::setVertexBuffer(0, vbh_plane);
+        bgfx::setIndexBuffer(ibh_plane);
+        bgfx::submit(0, defaultProgram);
+
+        if (modelMovement)
+        {
+            for (const auto& instance : instances)
+            {
+                float model[16];
+                // Calculate the forward vector pointing towards the camera
+                bx::Vec3 modelToCamera = bx::normalize(bx::Vec3(camera.position.x - instance.position[0],
+                    camera.position.y - instance.position[1],
+                    camera.position.z - instance.position[2]));
+
+
+                // Define the up vector
+                bx::Vec3 up = { 0.0f, 1.0f, 0.0f };
+
+                // Calculate the right vector (orthogonal to forward and up)
+                bx::Vec3 right = bx::normalize(bx::cross(up, modelToCamera));
+
+                // Recalculate the up vector to ensure orthogonality
+                up = bx::normalize(bx::cross(modelToCamera, right));
+
+                // Build the model matrix with the orientation facing the camera
+                model[0] = right.x;   model[1] = right.y;   model[2] = right.z;   model[3] = 0.0f;
+                model[4] = up.x;      model[5] = up.y;      model[6] = up.z;      model[7] = 0.0f;
+                model[8] = modelToCamera.x; model[9] = modelToCamera.y; model[10] = modelToCamera.z; model[11] = 0.0f;
+                model[12] = instance.position[0];
+                model[13] = instance.position[1];
+                model[14] = instance.position[2];
+                model[15] = 1.0f;
+                bgfx::setTransform(model);
+
+                bgfx::setVertexBuffer(0, instance.vertexBuffer);
+                bgfx::setIndexBuffer(instance.indexBuffer);
+                bgfx::submit(0, defaultProgram);
+            }
+        }
+        else
+        {
+            for (const auto& instance : instances)
+            {
+                float model[16];
+                //bx::mtxTranslate(model, instance.position[0], instance.position[1], instance.position[2]);
+
+                // Build a Scale-Rotate-Translate matrix.
+                // Note: bx::mtxSRT expects parameters in the order:
+                // (result, scaleX, scaleY, scaleZ, rotX, rotY, rotZ, transX, transY, transZ)
+                bx::mtxSRT(model,
+                    instance.scale[0], instance.scale[1], instance.scale[2],
+                    instance.rotation[0], instance.rotation[1], instance.rotation[2],
+                    instance.position[0], instance.position[1], instance.position[2]);
+
+                bgfx::setTransform(model);
+
+                bgfx::setVertexBuffer(0, instance.vertexBuffer);
+                bgfx::setIndexBuffer(instance.indexBuffer);
+                bgfx::submit(0, defaultProgram);
+            }
+        }
+
+        // Update your vertex layout to include normals
+        bgfx::VertexLayout layout;
+        layout.begin()
+            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
+            .end();
+
+
+
+        bx::mtxSRT(mtx, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        bgfx::setTransform(mtx);
+
+		/*bgfx::setVertexBuffer(0, vbh_sphere);
+		bgfx::setIndexBuffer(ibh_sphere);
+		bgfx::submit(0, defaultProgram);*/
+
+
+        // End frame
+		ImGui::Render();
+		ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
+        bgfx::frame();
+	}
