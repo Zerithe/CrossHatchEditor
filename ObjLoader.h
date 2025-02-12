@@ -11,6 +11,7 @@ public:
         float x, y, z;
         float nx, ny, nz;
         float u, v;
+        uint32_t abgr; // Vertex color in ABGR format.
     };
 
     static bool loadObj(const std::string& filepath,

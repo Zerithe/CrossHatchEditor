@@ -9,13 +9,15 @@ struct PosColorVertex {
     float x, y, z;        // Position
     float nx, ny, nz;     // Normal
     uint32_t abgr;        // Color
+    float u, v;  // texture coordinates
 };
 
 static PosColorVertex planeVertices[] = {
-    { -10.0f, -5.0f, -10.0f, 0.0f, 1.0f, 0.0f, 0xff888888 },
-    {  10.0f, -5.0f, -10.0f, 0.0f, 1.0f, 0.0f, 0xff888888 },
-    { -10.0f, -5.0f,  10.0f, 0.0f, 1.0f, 0.0f, 0xff888888 },
-    {  10.0f, -5.0f,  10.0f, 0.0f, 1.0f, 0.0f, 0xff888888 }
+    // x, y, z, nx, ny, nz, abgr,  u,    v
+    { -10.0f, -5.0f, -10.0f, 0.0f, 1.0f, 0.0f, 0xff888888, 0.0f, 0.0f },
+    {  10.0f, -5.0f, -10.0f, 0.0f, 1.0f, 0.0f, 0xff888888, 1.0f, 0.0f },
+    { -10.0f, -5.0f,  10.0f, 0.0f, 1.0f, 0.0f, 0xff888888, 0.0f, 1.0f },
+    {  10.0f, -5.0f,  10.0f, 0.0f, 1.0f, 0.0f, 0xff888888, 1.0f, 1.0f }
 };
 
 static const uint16_t planeIndices[] = {
@@ -23,24 +25,60 @@ static const uint16_t planeIndices[] = {
     1, 3, 2
 };
 
+// Define 24 vertices for the cube (4 vertices per face for 6 faces)
 static PosColorVertex cubeVertices[] = {
-    {-1.0f,  1.0f,  1.0f, -0.577f,  0.577f,  0.577f, 0xff000000},
-    { 1.0f,  1.0f,  1.0f,  0.577f,  0.577f,  0.577f, 0xff0000ff},
-    {-1.0f, -1.0f,  1.0f, -0.577f, -0.577f,  0.577f, 0xff00ff00},
-    { 1.0f, -1.0f,  1.0f,  0.577f, -0.577f,  0.577f, 0xff00ffff},
-    {-1.0f,  1.0f, -1.0f, -0.577f,  0.577f, -0.577f, 0xffff0000},
-    { 1.0f,  1.0f, -1.0f,  0.577f,  0.577f, -0.577f, 0xffff00ff},
-    {-1.0f, -1.0f, -1.0f, -0.577f, -0.577f, -0.577f, 0xffffff00},
-    { 1.0f, -1.0f, -1.0f,  0.577f, -0.577f, -0.577f, 0xffffffff}
+    // Front face (z = +1)
+    // Position              Normal         Color         UV
+    { -1.0f,  1.0f,  1.0f,    0, 0, 1,      0xffffffff,  0.0f, 0.0f },
+    {  1.0f,  1.0f,  1.0f,    0, 0, 1,      0xffffffff,  1.0f, 0.0f },
+    {  1.0f, -1.0f,  1.0f,    0, 0, 1,      0xffffffff,  1.0f, 1.0f },
+    { -1.0f, -1.0f,  1.0f,    0, 0, 1,      0xffffffff,  0.0f, 1.0f },
+
+    // Back face (z = -1)
+    {  1.0f,  1.0f, -1.0f,    0, 0,-1,      0xffffffff,  0.0f, 0.0f },
+    { -1.0f,  1.0f, -1.0f,    0, 0,-1,      0xffffffff,  1.0f, 0.0f },
+    { -1.0f, -1.0f, -1.0f,    0, 0,-1,      0xffffffff,  1.0f, 1.0f },
+    {  1.0f, -1.0f, -1.0f,    0, 0,-1,      0xffffffff,  0.0f, 1.0f },
+
+    // Top face (y = +1)
+    { -1.0f,  1.0f, -1.0f,    0, 1, 0,      0xffffffff,  0.0f, 0.0f },
+    {  1.0f,  1.0f, -1.0f,    0, 1, 0,      0xffffffff,  1.0f, 0.0f },
+    {  1.0f,  1.0f,  1.0f,    0, 1, 0,      0xffffffff,  1.0f, 1.0f },
+    { -1.0f,  1.0f,  1.0f,    0, 1, 0,      0xffffffff,  0.0f, 1.0f },
+
+    // Bottom face (y = -1)
+    { -1.0f, -1.0f,  1.0f,    0,-1, 0,      0xffffffff,  0.0f, 0.0f },
+    {  1.0f, -1.0f,  1.0f,    0,-1, 0,      0xffffffff,  1.0f, 0.0f },
+    {  1.0f, -1.0f, -1.0f,    0,-1, 0,      0xffffffff,  1.0f, 1.0f },
+    { -1.0f, -1.0f, -1.0f,    0,-1, 0,      0xffffffff,  0.0f, 1.0f },
+
+    // Left face (x = -1)
+    { -1.0f,  1.0f, -1.0f,   -1, 0, 0,      0xffffffff,  0.0f, 0.0f },
+    { -1.0f,  1.0f,  1.0f,   -1, 0, 0,      0xffffffff,  1.0f, 0.0f },
+    { -1.0f, -1.0f,  1.0f,   -1, 0, 0,      0xffffffff,  1.0f, 1.0f },
+    { -1.0f, -1.0f, -1.0f,   -1, 0, 0,      0xffffffff,  0.0f, 1.0f },
+
+    // Right face (x = +1)
+    {  1.0f,  1.0f,  1.0f,    1, 0, 0,      0xffffffff,  0.0f, 0.0f },
+    {  1.0f,  1.0f, -1.0f,    1, 0, 0,      0xffffffff,  1.0f, 0.0f },
+    {  1.0f, -1.0f, -1.0f,    1, 0, 0,      0xffffffff,  1.0f, 1.0f },
+    {  1.0f, -1.0f,  1.0f,    1, 0, 0,      0xffffffff,  0.0f, 1.0f }
 };
 
+
 static const uint16_t cubeIndices[] = {
-    0, 1, 2, 1, 3, 2,
-    4, 6, 5, 5, 6, 7,
-    0, 2, 4, 4, 2, 6,
-    1, 5, 3, 5, 7, 3,
-    0, 4, 1, 4, 5, 1,
-    2, 3, 6, 6, 3, 7
+    // Front face
+    0, 1, 2,  0, 2, 3,
+    // Back face
+    4, 5, 6,  4, 6, 7,
+    // Top face
+    8, 9,10,  8,10,11,
+    // Bottom face
+    12,13,14, 12,14,15,
+    // Left face
+    16,17,18, 16,18,19,
+    // Right face
+    20,21,22, 20,22,23
 };
 
 void generateCapsule(float radius, float halfHeight, int stacks, int sectors,
@@ -189,45 +227,172 @@ static const uint16_t cylinderIndices[] = {
 
 void generateSphere(float radius, int stacks, int sectors,
     std::vector<PosColorVertex>& vertices,
-    std::vector<uint16_t>& indices) {
+    std::vector<uint16_t>& indices)
+{
     const float PI = 3.14159265359f;
 
-    for (int i = 0; i <= stacks; ++i) {
+    for (int i = 0; i <= stacks; ++i)
+    {
         float stackAngle = PI / 2 - i * (PI / stacks);
         float xy = radius * cosf(stackAngle);
         float z = radius * sinf(stackAngle);
-
-        for (int j = 0; j <= sectors; ++j) {
+        // v goes from 0 at the top to 1 at the bottom
+        // (adjust this if your shader expects the opposite)
+        for (int j = 0; j <= sectors; ++j)
+        {
             float sectorAngle = j * (2 * PI / sectors);
             float x = xy * cosf(sectorAngle);
             float y = xy * sinf(sectorAngle);
-
-            // Calculate normal
             float nx = x / radius;
             float ny = y / radius;
             float nz = z / radius;
-
-            uint32_t color = 0xff0000ff;
-            if (z > 0) color = 0xff00ff00;
-
-            vertices.push_back({ x, y, z, nx, ny, nz, color });
+            float u = (float)j / sectors;   // 0 to 1
+            float v = (float)i / stacks;    // 0 to 1
+            // Set vertex color to white so it does not tint the texture.
+            uint32_t color = 0xffffffff;
+            vertices.push_back({ x, y, z, nx, ny, nz, color, u, v });
         }
     }
 
-    for (int i = 0; i < stacks; ++i) {
-        for (int j = 0; j < sectors; ++j) {
+    // Generate indices for each quad (two triangles per quad)
+    for (int i = 0; i < stacks; ++i)
+    {
+        for (int j = 0; j < sectors; ++j)
+        {
             int first = i * (sectors + 1) + j;
             int second = first + sectors + 1;
 
+            // Reversed triangle order:
             indices.push_back(first);
             indices.push_back(first + 1);
             indices.push_back(second);
 
-            indices.push_back(second);
             indices.push_back(first + 1);
             indices.push_back(second + 1);
+            indices.push_back(second);
         }
     }
+
 }
 
+static PosColorVertex cornellBoxVertices[] = {
+    // Floor (white)
+    {-1.0f, -1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0xffffffff},
+    { 1.0f, -1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0xffffffff},
+    {-1.0f, -1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 0xffffffff},
+    { 1.0f, -1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 0xffffffff},
+
+    // Ceiling (white)
+    {-1.0f,  1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0xffffffff},
+    { 1.0f,  1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0xffffffff},
+    {-1.0f,  1.0f,  1.0f, 0.0f, -1.0f, 0.0f, 0xffffffff},
+    { 1.0f,  1.0f,  1.0f, 0.0f, -1.0f, 0.0f, 0xffffffff},
+
+    // Back Wall (white)
+    {-1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0xffffffff},
+    { 1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0xffffffff},
+    {-1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0xffffffff},
+    { 1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0xffffffff},
+
+    // Left Wall (red)
+    {-1.0f, -1.0f,  1.0f, 1.0f, 0.0f, 0.0f, 0xffff0000},
+    {-1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0xffff0000},
+    {-1.0f,  1.0f,  1.0f, 1.0f, 0.0f, 0.0f, 0xffff0000},
+    {-1.0f,  1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0xffff0000},
+
+    // Right Wall (green)
+    { 1.0f, -1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00},
+    { 1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00},
+    { 1.0f,  1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00},
+    { 1.0f,  1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00}
+};
+
+static const uint16_t cornellBoxIndices[] = {
+    0, 1, 2, 1, 3, 2,  // Floor (front)
+    2, 3, 0, 3, 1, 0,  // Floor (back)
+
+    4, 6, 5, 5, 6, 7,  // Ceiling (front)
+    6, 4, 7, 7, 4, 5,  // Ceiling (back)
+
+    8, 9, 10, 9, 11, 10,  // Back wall (front)
+    10, 11, 8, 11, 9, 8,  // Back wall (back)
+
+    12, 13, 14, 13, 15, 14,  // Left wall (front)
+    14, 15, 12, 15, 13, 12,  // Left wall (back)
+
+    16, 18, 17, 17, 18, 19,  // Right wall (front)
+    18, 16, 19, 19, 16, 17  // Right wall (back)
+};
+
+// Cube for inside the Cornell Box (white)
+static PosColorVertex innerCubeVertices[] = {
+    {-0.3f, -1.0f, -0.3f, -0.577f, -0.577f, -0.577f, 0xffffffff},
+    { 0.3f, -1.0f, -0.3f,  0.577f, -0.577f, -0.577f, 0xffffffff},
+    {-0.3f, -0.4f, -0.3f, -0.577f,  0.577f, -0.577f, 0xffffffff},
+    { 0.3f, -0.4f, -0.3f,  0.577f,  0.577f, -0.577f, 0xffffffff},
+    {-0.3f, -1.0f,  0.3f, -0.577f, -0.577f,  0.577f, 0xffffffff},
+    { 0.3f, -1.0f,  0.3f,  0.577f, -0.577f,  0.577f, 0xffffffff},
+    {-0.3f, -0.4f,  0.3f, -0.577f,  0.577f,  0.577f, 0xffffffff},
+    { 0.3f, -0.4f,  0.3f,  0.577f,  0.577f,  0.577f, 0xffffffff}
+};
+
+static const uint16_t innerCubeIndices[] = {
+    0, 1, 2, 1, 3, 2, // Front
+    4, 6, 5, 5, 6, 7, // Back
+    0, 2, 4, 4, 2, 6, // Left
+    1, 5, 3, 5, 7, 3, // Right
+    0, 4, 1, 4, 5, 1, // Bottom
+    2, 3, 6, 6, 3, 7  // Top
+};
+
+static PosColorVertex cornellBoxFloorVertices[] = {
+    // Floor (white)
+    {-1.0f, -1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0xffffffff},
+    { 1.0f, -1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0xffffffff},
+    {-1.0f, -1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 0xffffffff},
+    { 1.0f, -1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 0xffffffff}
+};
+static const uint16_t cornellBoxFloorIndices[] = {
+    0, 1, 2, 1, 3, 2  // Floor (front)
+};
+static PosColorVertex cornellBoxCeilingVertices[] = {
+    // Ceiling (white)
+    {-1.0f,  1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0xffffffff},
+    { 1.0f,  1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0xffffffff},
+    {-1.0f,  1.0f,  1.0f, 0.0f, -1.0f, 0.0f, 0xffffffff},
+    { 1.0f,  1.0f,  1.0f, 0.0f, -1.0f, 0.0f, 0xffffffff}
+};
+static const uint16_t cornellBoxCeilingIndices[] = {
+    0, 2, 1, 1, 2, 3  // Ceiling (front)
+};
+static PosColorVertex cornellBoxBackVertices[] = {
+    // Back Wall (white)
+    {-1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0xffffffff},
+    { 1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0xffffffff},
+    {-1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0xffffffff},
+    { 1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0xffffffff}
+};
+static const uint16_t cornellBoxBackIndices[] = {
+    2, 3, 0, 3, 1, 0  // Back wall (back)
+};
+static PosColorVertex cornellBoxRightVertices[] = {
+    // Right Wall (red)
+    {-1.0f, -1.0f,  1.0f, 1.0f, 0.0f, 0.0f, 0xffff0000},
+    {-1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0xffff0000},
+    {-1.0f,  1.0f,  1.0f, 1.0f, 0.0f, 0.0f, 0xffff0000},
+    {-1.0f,  1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0xffff0000}
+};
+static const uint16_t cornellBoxRightIndices[] = {
+    2, 3, 0, 3, 1, 0  // Right wall (back)
+};
+static PosColorVertex cornellBoxLeftVertices[] = {
+    // Left Wall (green)
+    { 1.0f, -1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00},
+    { 1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00},
+    { 1.0f,  1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00},
+    { 1.0f,  1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00}
+};
+static const uint16_t cornellBoxLeftIndices[] = {
+    2, 0, 3, 3, 0, 1  // Left wall (back)
+};
 #endif
