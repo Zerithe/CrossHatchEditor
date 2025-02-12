@@ -2,6 +2,7 @@
 //
 #include "CrossHatchEditor.h"
 #include <iostream>
+#include <cstring>
 #include <vector>
 #include <sstream>
 #include <fstream>
@@ -59,6 +60,9 @@ struct Instance
     bgfx::IndexBufferHandle indexBuffer;
     bool selected = false;
 
+    std::vector<Instance*> children; // Hierarchy: child instances
+    Instance* parent = nullptr;      // pointer to parent
+
     Instance(int instanceId, const std::string& instanceName, float x, float y, float z, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh)
         : id(instanceId), name(instanceName), vertexBuffer(vbh), indexBuffer(ibh)
     {
@@ -68,6 +72,10 @@ struct Instance
         // Initialize with no rotation and uniform scale of 1
         rotation[0] = rotation[1] = rotation[2] = 0.0f;
         scale[0] = scale[1] = scale[2] = 1.0f;
+    }
+    void addChild(Instance* child) {
+        children.push_back(child);
+        child->parent = this;
     }
 };
 
@@ -333,7 +341,7 @@ bgfx::TextureHandle loadTextureDDS(const char* _filePath)
 
 static int instanceCounter = 0;
 
-static void spawnInstance(Camera camera, const std::string& instanceName, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh, std::vector<Instance>& instances)
+static void spawnInstance(Camera camera, const std::string& instanceName, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh, std::vector<Instance*>& instances)
 {
 
     float spawnDistance = 5.0f;
@@ -345,10 +353,86 @@ static void spawnInstance(Camera camera, const std::string& instanceName, bgfx::
 	std::string fullName = instanceName + std::to_string(instanceCounter);
 
     // Create a new instance with the current vertex and index buffers
-    instances.emplace_back(instanceCounter++, fullName, x, y, z, vbh, ibh);
+    instances.push_back(new Instance(instanceCounter++, fullName, x, y, z, vbh, ibh));
     std::cout << "New instance created at (" << x << ", " << y << ", " << z << ")" << std::endl;
 }
+// Recursive draw function for hierarchy.
+void drawInstance(const Instance* instance, bgfx::ProgramHandle program, const float* parentTransform = nullptr)
+{
+    // Load shaders and create program once
+    bgfx::ShaderHandle vsh = loadShader("shaders\\v_out16.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out16.bin");
+    bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
+    float local[16];
+    bx::mtxSRT(local,
+        instance->scale[0], instance->scale[1], instance->scale[2],
+        instance->rotation[0], instance->rotation[1], instance->rotation[2],
+        instance->position[0], instance->position[1], instance->position[2]);
 
+    float world[16];
+    if (parentTransform)
+        bx::mtxMul(world, parentTransform, local);
+    else
+        std::memcpy(world, local, sizeof(world));
+
+
+    const bgfx::VertexBufferHandle invalidVbh = BGFX_INVALID_HANDLE;
+    const bgfx::IndexBufferHandle invalidIbh = BGFX_INVALID_HANDLE;
+    // Draw geometry if valid.
+    if (instance->vertexBuffer.idx != invalidVbh.idx &&
+        instance->indexBuffer.idx != invalidIbh.idx)
+    {
+        bgfx::setTransform(world);
+        bgfx::setVertexBuffer(0, instance->vertexBuffer);
+        bgfx::setIndexBuffer(instance->indexBuffer);
+        bgfx::submit(0, program);
+    }
+    // Recursively draw children.
+    for (const Instance* child : instance->children)
+    {
+        drawInstance(child, program, world);
+    }
+}
+// Recursive deletion for hierarchy.
+void deleteInstance(Instance* instance)
+{
+    for (Instance* child : instance->children)
+    {
+        deleteInstance(child);
+    }
+    delete instance;
+}
+// Recursive function to show the instance hierarchy in a tree view.
+void ShowInstanceTree(Instance* instance, Instance*& selectedInstance)
+{
+    // Set up flags for the tree node.
+    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow;
+    if (instance->children.empty())
+    {
+        flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+    }
+    if (selectedInstance == instance)
+    {
+        flags |= ImGuiTreeNodeFlags_Selected;
+    }
+
+    // Use the instance pointer as the unique ID.
+    bool nodeOpen = ImGui::TreeNodeEx((void*)instance, flags, "%s", instance->name.c_str());
+    if (ImGui::IsItemClicked())
+    {
+        selectedInstance = instance;
+    }
+
+    // If the node is open (and it's not a leaf that doesn't push), display its children.
+    if (nodeOpen && !(flags & ImGuiTreeNodeFlags_NoTreePushOnOpen))
+    {
+        for (Instance* child : instance->children)
+        {
+            ShowInstanceTree(child, selectedInstance);
+        }
+        ImGui::TreePop();
+    }
+}
 int main(void)
 {
     // Initialize GLFW
@@ -477,6 +561,41 @@ int main(void)
     bgfx::IndexBufferHandle ibh_innerCube = bgfx::createIndexBuffer(
         bgfx::makeRef(innerCubeIndices, sizeof(innerCubeIndices))
     );
+    bgfx::VertexBufferHandle vbh_floor = bgfx::createVertexBuffer(
+        bgfx::makeRef(cornellBoxFloorVertices, sizeof(cornellBoxFloorVertices)),
+        layout
+    );
+    bgfx::IndexBufferHandle ibh_floor = bgfx::createIndexBuffer(
+        bgfx::makeRef(cornellBoxFloorIndices, sizeof(cornellBoxFloorIndices))
+    );
+    bgfx::VertexBufferHandle vbh_ceiling = bgfx::createVertexBuffer(
+        bgfx::makeRef(cornellBoxCeilingVertices, sizeof(cornellBoxCeilingVertices)),
+        layout
+    );
+    bgfx::IndexBufferHandle ibh_ceiling = bgfx::createIndexBuffer(
+        bgfx::makeRef(cornellBoxCeilingIndices, sizeof(cornellBoxCeilingIndices))
+    );
+    bgfx::VertexBufferHandle vbh_back = bgfx::createVertexBuffer(
+        bgfx::makeRef(cornellBoxBackVertices, sizeof(cornellBoxBackVertices)),
+        layout
+    );
+    bgfx::IndexBufferHandle ibh_back = bgfx::createIndexBuffer(
+        bgfx::makeRef(cornellBoxBackIndices, sizeof(cornellBoxBackIndices))
+    );
+    bgfx::VertexBufferHandle vbh_left = bgfx::createVertexBuffer(
+        bgfx::makeRef(cornellBoxLeftVertices, sizeof(cornellBoxLeftVertices)),
+        layout
+    );
+    bgfx::IndexBufferHandle ibh_left = bgfx::createIndexBuffer(
+        bgfx::makeRef(cornellBoxLeftIndices, sizeof(cornellBoxLeftIndices))
+    );
+    bgfx::VertexBufferHandle vbh_right = bgfx::createVertexBuffer(
+        bgfx::makeRef(cornellBoxRightVertices, sizeof(cornellBoxRightVertices)),
+        layout
+    );
+    bgfx::IndexBufferHandle ibh_right = bgfx::createIndexBuffer(
+        bgfx::makeRef(cornellBoxRightIndices, sizeof(cornellBoxRightIndices))
+    );
 
     //mesh generation
     MeshData meshData = loadMesh("meshes/suzanne.obj");
@@ -526,7 +645,7 @@ int main(void)
 
     Camera camera;
 
-    std::vector<Instance> instances;
+    std::vector<Instance*> instances;
 
     bool modelMovement = false;
 
@@ -553,45 +672,55 @@ int main(void)
 
     // Load texture once
     bgfx::TextureHandle noiseTexture = loadTextureDDS("shaders\\noise1.dds");
-
     // Load shaders and create program once
     bgfx::ShaderHandle vsh = loadShader("shaders\\v_out16.bin");
     bgfx::ShaderHandle fsh = loadShader("shaders\\f_out16.bin");
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
     
-    spawnInstance(camera, "cornell_box", vbh_cornell, ibh_cornell, instances);
-    instances.back().position[0] = 8.0f; // Move left
-    instances.back().position[1] = 0.0f;
-    instances.back().position[2] = -5.0f;
+    // --- Spawn Cornell Box with Hierarchy ---
+    Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", 8.0f, 0.0f, -5.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+    // Create a walls node (dummy instance without geometry)
+    Instance* wallsNode = new Instance(instanceCounter++, "walls", 0.0f, 0.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
 
-    spawnInstance(camera, "inner_cube", vbh_innerCube, ibh_innerCube, instances);
-    instances.back().position[0] = 8.0f; // Move left
-    instances.back().position[1] = 0.0f;
-    instances.back().position[2] = -5.0f;
+    Instance* floorPlane = new Instance(instanceCounter++, "floor", 0.0f, 0.0f, 0.0f, vbh_floor, ibh_floor);
+    wallsNode->addChild(floorPlane);
+    Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", 0.0f, 0.0f, 0.0f, vbh_ceiling, ibh_ceiling);
+    wallsNode->addChild(ceilingPlane);
+    Instance* backPlane = new Instance(instanceCounter++, "back", 0.0f, 0.0f, 0.0f, vbh_back, ibh_back);
+    wallsNode->addChild(backPlane);
+    Instance* leftPlane = new Instance(instanceCounter++, "left_wall", 0.0f, 0.0f, 0.0f, vbh_left, ibh_left);
+    wallsNode->addChild(leftPlane);
+    Instance* rightPlane = new Instance(instanceCounter++, "right_wall", 0.0f, 0.0f, 0.0f, vbh_right, ibh_right);
+    wallsNode->addChild(rightPlane);
+
+    Instance* innerCube = new Instance(instanceCounter++, "inner_cube", 0.0f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
+    cornellBox->addChild(wallsNode);
+    cornellBox->addChild(innerCube);
+    instances.push_back(cornellBox);
 
     spawnInstance(camera, "teapot", vbh_teapot, ibh_teapot, instances);
-    instances.back().position[0] = 3.0f; // Move left
-    instances.back().position[1] = -1.0f;
-    instances.back().position[2] = -5.0f;
-    instances.back().scale[0] *= 0.03f;
-    instances.back().scale[1] *= 0.03f;
-    instances.back().scale[2] *= 0.03f;
+    instances.back()->position[0] = 3.0f;
+    instances.back()->position[1] = -1.0f;
+    instances.back()->position[2] = -5.0f;
+    instances.back()->scale[0] *= 0.03f;
+    instances.back()->scale[1] *= 0.03f;
+    instances.back()->scale[2] *= 0.03f;
 
     spawnInstance(camera, "bunny", vbh_bunny, ibh_bunny, instances);
-    instances.back().position[0] = -1.0f; // Move left
-    instances.back().position[1] = -1.0f;
-    instances.back().position[2] = -5.0f;
-    instances.back().scale[0] *= 10.0f;
-    instances.back().scale[1] *= 10.0f;
-    instances.back().scale[2] *= 10.0f;
+    instances.back()->position[0] = -1.0f;
+    instances.back()->position[1] = -1.0f;
+    instances.back()->position[2] = -5.0f;
+    instances.back()->scale[0] *= 10.0f;
+    instances.back()->scale[1] *= 10.0f;
+    instances.back()->scale[2] *= 10.0f;
 
     spawnInstance(camera, "lucy", vbh_lucy, ibh_lucy, instances);
-    instances.back().position[0] = -4.0f; // Move left
-    instances.back().position[1] = -1.0f;
-    instances.back().position[2] = -5.0f;
-    instances.back().scale[0] *= 0.01f;
-    instances.back().scale[1] *= 0.01f;
-    instances.back().scale[2] *= 0.01f;
+    instances.back()->position[0] = -4.0f;
+    instances.back()->position[1] = -1.0f;
+    instances.back()->position[2] = -5.0f;
+    instances.back()->scale[0] *= 0.01f;
+    instances.back()->scale[1] *= 0.01f;
+    instances.back()->scale[2] *= 0.01f;
     //MAIN LOOP
 	while (!glfwWindowShouldClose(window))
 	{
@@ -641,7 +770,8 @@ int main(void)
 		ImGui::Text("F1 - Toggle stats");
 
 		ImGui::Checkbox("Toggle Object Movement", &modelMovement);
-        
+        // This static pointer will store the currently selected instance in the hierarchy.
+        static Instance* selectedInstance = nullptr;
         if (ImGui::CollapsingHeader("Spawn Objects"))
         {
 			ImGui::RadioButton("Cube", &spawnPrimitive, 0);
@@ -688,12 +818,32 @@ int main(void)
 				}
                 else if (spawnPrimitive == 6)
                 {
-                    spawnInstance(camera, "cornell_box", vbh_cornell, ibh_cornell, instances);
-                    std::cout << "Cornell Box spawned" << std::endl;
+                    float spawnDistance = 5.0f;
+                    // Position for new instance, e.g., random or predefined position
+                    float x = camera.position.x + camera.front.x * spawnDistance;
+                    float y = camera.position.y + camera.front.y * spawnDistance;
+                    float z = camera.position.z + camera.front.z * spawnDistance;
+                    // --- Spawn Cornell Box with Hierarchy ---
+                    Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", x, y, z, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+                    // Create a walls node (dummy instance without geometry)
+                    Instance* wallsNode = new Instance(instanceCounter++, "walls", 0.0f, 0.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
 
-                    // Spawn Cube inside Cornell Box
-                    spawnInstance(camera, "inner_cube", vbh_innerCube, ibh_innerCube, instances);
-                    std::cout << "Inner Cube spawned inside Cornell Box" << std::endl;
+                    Instance* floorPlane = new Instance(instanceCounter++, "floor", 0.0f, 0.0f, 0.0f, vbh_floor, ibh_floor);
+                    wallsNode->addChild(floorPlane);
+                    Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", 0.0f, 0.0f, 0.0f, vbh_ceiling, ibh_ceiling);
+                    wallsNode->addChild(ceilingPlane);
+                    Instance* backPlane = new Instance(instanceCounter++, "back", 0.0f, 0.0f, 0.0f, vbh_back, ibh_back);
+                    wallsNode->addChild(backPlane);
+                    Instance* leftPlane = new Instance(instanceCounter++, "left_wall", 0.0f, 0.0f, 0.0f, vbh_left, ibh_left);
+                    wallsNode->addChild(leftPlane);
+                    Instance* rightPlane = new Instance(instanceCounter++, "right_wall", 0.0f, 0.0f, 0.0f, vbh_right, ibh_right);
+                    wallsNode->addChild(rightPlane);
+
+                    Instance* innerCube = new Instance(instanceCounter++, "inner_cube", 0.0f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
+                    cornellBox->addChild(wallsNode);
+                    cornellBox->addChild(innerCube);
+                    instances.push_back(cornellBox);
+                    std::cout << "Cornell Box spawned" << std::endl;
                 }
                 else if (spawnPrimitive == 7)
                 {
@@ -713,8 +863,11 @@ int main(void)
 			}
 			if (ImGui::Button("Remove Last Instance"))
 			{
+                Instance* inst = instances.back();
 				instances.pop_back();
                 //instanceCounter--;
+                delete inst;
+                selectedInstance = nullptr;
 				std::cout << "Last Instance removed" << std::endl;
 			}
         }
@@ -742,29 +895,48 @@ int main(void)
         static int selectedInstanceIndex = -1;
 		if (ImGui::CollapsingHeader("Object List"))
 		{
-            // List all instances so the user can select one
-            for (int i = 0; i < instances.size(); i++)
+            // For each top-level instance, show its tree.
+            for (Instance* instance : instances)
             {
-                char label[32];
-                sprintf(label, "Instance %d", i);
-                if (ImGui::Selectable(label, selectedInstanceIndex == i))
-                {
-                    selectedInstanceIndex = i;
-                }
+                ShowInstanceTree(instance, selectedInstance);
             }
 
-            // If an instance is selected, show drag controls for its transform
-            if (selectedInstanceIndex >= 0 && selectedInstanceIndex < instances.size())
+            // If an instance is selected, show its transform controls.
+            if (selectedInstance)
             {
-                Instance& inst = instances[selectedInstanceIndex];
-                ImGui::DragFloat3("Translation", inst.position, 0.1f);
-                ImGui::DragFloat3("Rotation (radians)", inst.rotation, 0.1f);
-                ImGui::DragFloat3("Scale", inst.scale, 0.1f);
-				if (ImGui::Button("Remove Instance"))
-				{
-					instances.erase(instances.begin() + selectedInstanceIndex);
-					selectedInstanceIndex = -1;
-				}
+                ImGui::Separator();
+                ImGui::Text("Selected: %s", selectedInstance->name.c_str());
+                ImGui::DragFloat3("Translation", selectedInstance->position, 0.1f);
+                ImGui::DragFloat3("Rotation (radians)", selectedInstance->rotation, 0.1f);
+                ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
+
+                // You can add a button to remove the selected instance from the hierarchy.
+                if (ImGui::Button("Remove Selected"))
+                {
+                    // If the selected instance has a parent, remove it from the parent's children list.
+                    if (selectedInstance->parent)
+                    {
+                        Instance* parent = selectedInstance->parent;
+                        auto it = std::find(parent->children.begin(), parent->children.end(), selectedInstance);
+                        if (it != parent->children.end())
+                        {
+                            parent->children.erase(it);
+                        }
+                    }
+                    else
+                    {
+                        // Otherwise, it's top-level. Remove it from the global instances vector.
+                        auto it = std::find(instances.begin(), instances.end(), selectedInstance);
+                        if (it != instances.end())
+                        {
+                            instances.erase(it);
+                        }
+                    }
+
+                    // Delete the instance (which will recursively delete its children)
+                    deleteInstance(selectedInstance);
+                    selectedInstance = nullptr;
+                }
             }
 		}
         if (ImGui::CollapsingHeader("Crosshatch Ink"))
@@ -845,8 +1017,10 @@ int main(void)
 
         if (InputManager::isKeyToggled(GLFW_KEY_BACKSPACE) && !instances.empty())
         {
+            Instance* inst = instances.back();
             instances.pop_back();
             //instanceCounter--;
+            delete inst;
             std::cout << "Last Instance removed" << std::endl;
         }
 
@@ -941,19 +1115,20 @@ int main(void)
         float planeModel[16];
         bx::mtxIdentity(planeModel);
         bgfx::setTransform(planeModel);
+
         bgfx::setVertexBuffer(0, vbh_plane);
         bgfx::setIndexBuffer(ibh_plane);
         bgfx::submit(0, defaultProgram);
 
         if (modelMovement)
         {
-            for (const auto& instance : instances)
+            for (const Instance* instance : instances)
             {
                 float model[16];
                 // Calculate the forward vector pointing towards the camera
-                bx::Vec3 modelToCamera = bx::normalize(bx::Vec3(camera.position.x - instance.position[0],
-                    camera.position.y - instance.position[1],
-                    camera.position.z - instance.position[2]));
+                bx::Vec3 modelToCamera = bx::normalize(bx::Vec3(camera.position.x - instance->position[0],
+                    camera.position.y - instance->position[1],
+                    camera.position.z - instance->position[2]));
 
 
                 // Define the up vector
@@ -969,15 +1144,17 @@ int main(void)
                 model[0] = right.x;   model[1] = right.y;   model[2] = right.z;   model[3] = 0.0f;
                 model[4] = up.x;      model[5] = up.y;      model[6] = up.z;      model[7] = 0.0f;
                 model[8] = modelToCamera.x; model[9] = modelToCamera.y; model[10] = modelToCamera.z; model[11] = 0.0f;
-                model[12] = instance.position[0];
-                model[13] = instance.position[1];
-                model[14] = instance.position[2];
+                model[12] = instance->position[0];
+                model[13] = instance->position[1];
+                model[14] = instance->position[2];
                 model[15] = 1.0f;
                 bgfx::setTransform(model);
 
-                bgfx::setVertexBuffer(0, instance.vertexBuffer);
-                bgfx::setIndexBuffer(instance.indexBuffer);
-                bgfx::submit(0, defaultProgram);
+                // Draw each top-level instance recursively:
+                for (const Instance* instance : instances)
+                {
+                    drawInstance(instance, defaultProgram);
+                }
             }
         }
         else
@@ -991,15 +1168,17 @@ int main(void)
                 // Note: bx::mtxSRT expects parameters in the order:
                 // (result, scaleX, scaleY, scaleZ, rotX, rotY, rotZ, transX, transY, transZ)
                 bx::mtxSRT(model,
-                    instance.scale[0], instance.scale[1], instance.scale[2],
-                    instance.rotation[0], instance.rotation[1], instance.rotation[2],
-                    instance.position[0], instance.position[1], instance.position[2]);
+                    instance->scale[0], instance->scale[1], instance->scale[2],
+                    instance->rotation[0], instance->rotation[1], instance->rotation[2],
+                    instance->position[0], instance->position[1], instance->position[2]);
 
                 bgfx::setTransform(model);
 
-                bgfx::setVertexBuffer(0, instance.vertexBuffer);
-                bgfx::setIndexBuffer(instance.indexBuffer);
-                bgfx::submit(0, defaultProgram);
+                // Draw each top-level instance recursively:
+                for (const Instance* instance : instances)
+                {
+                    drawInstance(instance, defaultProgram);
+                }
             }
         }
 
@@ -1027,8 +1206,9 @@ int main(void)
 	}
     for (const auto& instance : instances)
     {
-        bgfx::destroy(instance.vertexBuffer);
-        bgfx::destroy(instance.indexBuffer);
+        bgfx::destroy(instance->vertexBuffer);
+        bgfx::destroy(instance->indexBuffer);
+        deleteInstance(instance);
     }
 
     bgfx::destroy(vbh_plane);

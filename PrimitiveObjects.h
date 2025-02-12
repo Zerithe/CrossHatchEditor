@@ -299,4 +299,55 @@ static const uint16_t innerCubeIndices[] = {
     0, 4, 1, 4, 5, 1, // Bottom
     2, 3, 6, 6, 3, 7  // Top
 };
+
+static PosColorVertex cornellBoxFloorVertices[] = {
+    // Floor (white)
+    {-1.0f, -1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0xffffffff},
+    { 1.0f, -1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0xffffffff},
+    {-1.0f, -1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 0xffffffff},
+    { 1.0f, -1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 0xffffffff}
+};
+static const uint16_t cornellBoxFloorIndices[] = {
+    0, 1, 2, 1, 3, 2  // Floor (front)
+};
+static PosColorVertex cornellBoxCeilingVertices[] = {
+    // Ceiling (white)
+    {-1.0f,  1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0xffffffff},
+    { 1.0f,  1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0xffffffff},
+    {-1.0f,  1.0f,  1.0f, 0.0f, -1.0f, 0.0f, 0xffffffff},
+    { 1.0f,  1.0f,  1.0f, 0.0f, -1.0f, 0.0f, 0xffffffff}
+};
+static const uint16_t cornellBoxCeilingIndices[] = {
+    0, 2, 1, 1, 2, 3  // Ceiling (front)
+};
+static PosColorVertex cornellBoxBackVertices[] = {
+    // Back Wall (white)
+    {-1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0xffffffff},
+    { 1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0xffffffff},
+    {-1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0xffffffff},
+    { 1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0xffffffff}
+};
+static const uint16_t cornellBoxBackIndices[] = {
+    2, 3, 0, 3, 1, 0  // Back wall (back)
+};
+static PosColorVertex cornellBoxRightVertices[] = {
+    // Right Wall (red)
+    {-1.0f, -1.0f,  1.0f, 1.0f, 0.0f, 0.0f, 0xffff0000},
+    {-1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0xffff0000},
+    {-1.0f,  1.0f,  1.0f, 1.0f, 0.0f, 0.0f, 0xffff0000},
+    {-1.0f,  1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0xffff0000}
+};
+static const uint16_t cornellBoxRightIndices[] = {
+    2, 3, 0, 3, 1, 0  // Right wall (back)
+};
+static PosColorVertex cornellBoxLeftVertices[] = {
+    // Left Wall (green)
+    { 1.0f, -1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00},
+    { 1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00},
+    { 1.0f,  1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00},
+    { 1.0f,  1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0xff00ff00}
+};
+static const uint16_t cornellBoxLeftIndices[] = {
+    2, 0, 3, 3, 0, 1  // Left wall (back)
+};
 #endif
