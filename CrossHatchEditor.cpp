@@ -463,10 +463,10 @@ void deleteInstance(Instance* instance)
     delete instance;
 }
 // Recursive function to show the instance hierarchy in a tree view.
-void ShowInstanceTree(Instance* instance, Instance*& selectedInstance)
+void ShowInstanceTree(Instance* instance, Instance*& selectedInstance, std::vector<Instance*>& instances)
 {
     // Set up flags for the tree node.
-    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow;
+    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
     if (instance->children.empty())
     {
         flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
@@ -482,13 +482,51 @@ void ShowInstanceTree(Instance* instance, Instance*& selectedInstance)
     {
         selectedInstance = instance;
     }
-
+    // Begin drag source
+    if (ImGui::BeginDragDropSource())
+    {
+        // Set the payload: the pointer to the instance
+        Instance* dragInstance = instance;
+        ImGui::SetDragDropPayload("DND_INSTANCE", &dragInstance, sizeof(Instance*));
+        ImGui::Text("%s", instance->name.c_str());
+        ImGui::EndDragDropSource();
+    }
+    // Make this node a drag drop target
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_INSTANCE"))
+        {
+            // Get the instance being dragged
+            Instance* dropped = *(Instance**)payload->Data;
+            if (dropped != instance)
+            {
+                // Remove the dropped instance from its current parent's children list
+                if (dropped->parent)
+                {
+                    auto it = std::find(dropped->parent->children.begin(),
+                        dropped->parent->children.end(), dropped);
+                    if (it != dropped->parent->children.end())
+                        dropped->parent->children.erase(it);
+                }
+                else
+                {
+                    // If it's top-level, remove it from the global instances vector.
+                    auto it = std::find(instances.begin(), instances.end(), dropped);
+                    if (it != instances.end())
+                        instances.erase(it);
+                }
+                // Add the dropped instance as a child of the current node.
+                instance->addChild(dropped);
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
     // If the node is open (and it's not a leaf that doesn't push), display its children.
     if (nodeOpen && !(flags & ImGuiTreeNodeFlags_NoTreePushOnOpen))
     {
         for (Instance* child : instance->children)
         {
-            ShowInstanceTree(child, selectedInstance);
+            ShowInstanceTree(child, selectedInstance, instances);
         }
         ImGui::TreePop();
     }
@@ -1044,7 +1082,7 @@ int main(void)
             // For each top-level instance, show its tree.
             for (Instance* instance : instances)
             {
-                ShowInstanceTree(instance, selectedInstance);
+                ShowInstanceTree(instance, selectedInstance, instances);
 
             }
         
