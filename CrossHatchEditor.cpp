@@ -62,7 +62,8 @@ struct Instance
     bgfx::IndexBufferHandle indexBuffer;
     bool selected = false;
 
-
+    // Add an override object color (RGBA)
+    float objectColor[4];
     // NEW: optional diffuse texture for the object.
     bgfx::TextureHandle diffuseTexture = BGFX_INVALID_HANDLE;
 
@@ -79,13 +80,15 @@ struct Instance
         // Initialize with no rotation and uniform scale of 1
         rotation[0] = rotation[1] = rotation[2] = 0.0f;
         scale[0] = scale[1] = scale[2] = 1.0f;
+        // Initialize the object color to white (no override)
+        objectColor[0] = 1.0f; objectColor[1] = 1.0f; objectColor[2] = 1.0f; objectColor[3] = 1.0f;
     }
     void addChild(Instance* child) {
         children.push_back(child);
         child->parent = this;
     }
 };
-
+static Instance* selectedInstance = nullptr;
 struct TextureOption {
     std::string name;
     bgfx::TextureHandle handle;
@@ -381,13 +384,9 @@ static void spawnInstance(Camera camera, const std::string& instanceName, bgfx::
     std::cout << "New instance created at (" << x << ", " << y << ", " << z << ")" << std::endl;
 }
 // Recursive draw function for hierarchy.
-void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::UniformHandle u_diffuseTex,
+void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::UniformHandle u_diffuseTex, bgfx::UniformHandle u_objectColor,
     bgfx::TextureHandle defaultWhiteTexture, bgfx::TextureHandle inheritedTexture, const float* parentTransform = nullptr)
 {
-    // Load shaders and create program once
-    bgfx::ShaderHandle vsh = loadShader("shaders\\v_out17.bin");
-    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out17.bin");
-    bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
     float local[16];
     bx::mtxSRT(local,
         instance->scale[0], instance->scale[1], instance->scale[2],
@@ -408,6 +407,17 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::U
         instance->indexBuffer.idx != invalidIbh.idx)
     {
         bgfx::setTransform(world);
+        // If this instance is selected, update the override uniform:
+        if (selectedInstance == instance)
+        {
+            bgfx::setUniform(u_objectColor, instance->objectColor);
+        }
+        else
+        {
+            // Otherwise, use white (no override)
+            float white[4] = { 1,1,1,1 };
+            bgfx::setUniform(u_objectColor, white);
+        }
         bgfx::setVertexBuffer(0, instance->vertexBuffer);
         bgfx::setIndexBuffer(instance->indexBuffer);
         // Decide which texture to use:
@@ -440,7 +450,7 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::U
     // Recursively draw children.
     for (const Instance* child : instance->children)
     {
-        drawInstance(child, program, u_diffuseTex, defaultWhiteTexture, newInheritedTexture, world);
+        drawInstance(child, program, u_diffuseTex, u_objectColor, defaultWhiteTexture, newInheritedTexture, world);
     }
 }
 // Recursive deletion for hierarchy.
@@ -731,6 +741,7 @@ int main(void)
     bgfx::UniformHandle u_e = bgfx::createUniform("u_e", bgfx::UniformType::Vec4);
     bgfx::UniformHandle u_noiseTex = bgfx::createUniform("u_noiseTex", bgfx::UniformType::Sampler);
     bgfx::UniformHandle u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
+    bgfx::UniformHandle u_objectColor = bgfx::createUniform("u_objectColor", bgfx::UniformType::Vec4);
 
     // SHADER TEXTURE
     bgfx::TextureHandle noiseTexture = loadTextureDDS("shaders\\noise1.dds");
@@ -766,7 +777,7 @@ int main(void)
 
     // Load shaders and create program once
     bgfx::ShaderHandle vsh = loadShader("shaders\\v_out17.bin");
-    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out17.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out18.bin");
 
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
     
@@ -786,9 +797,14 @@ int main(void)
     Instance* rightPlane = new Instance(instanceCounter++, "right_wall", 0.0f, 0.0f, 0.0f, vbh_right, ibh_right);
     wallsNode->addChild(rightPlane);
 
-    Instance* innerCube = new Instance(instanceCounter++, "inner_cube", 0.0f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
+    Instance* innerCube = new Instance(instanceCounter++, "inner_cube", 0.3f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
+    Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", 1.1f, 1.0f, -0.9f, vbh_innerCube, ibh_innerCube);
+    innerRectBox->scale[0] = 0.8f;
+    innerRectBox->scale[1] = 2.0f;
+    innerRectBox->scale[2] = 0.8f;
     cornellBox->addChild(wallsNode);
     cornellBox->addChild(innerCube);
+    cornellBox->addChild(innerRectBox);
     instances.push_back(cornellBox);
 
     spawnInstance(camera, "teapot", vbh_teapot, ibh_teapot, instances);
@@ -890,8 +906,6 @@ int main(void)
 		ImGui::Text("F1 - Toggle stats");
 
 		ImGui::Checkbox("Toggle Object Movement", &modelMovement);
-        // This static pointer will store the currently selected instance in the hierarchy.
-        static Instance* selectedInstance = nullptr;
         if (ImGui::CollapsingHeader("Spawn Objects"))
         {
 			ImGui::RadioButton("Cube", &spawnPrimitive, 0);
@@ -960,8 +974,13 @@ int main(void)
                     wallsNode->addChild(rightPlane);
 
                     Instance* innerCube = new Instance(instanceCounter++, "inner_cube", 0.0f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
+                    Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", 1.1f, 1.0f, -0.9f, vbh_innerCube, ibh_innerCube);
+                    innerRectBox->scale[0] = 0.8f;
+                    innerRectBox->scale[1] = 2.0f;
+                    innerRectBox->scale[2] = 0.8f;
                     cornellBox->addChild(wallsNode);
                     cornellBox->addChild(innerCube);
+                    cornellBox->addChild(innerRectBox);
                     instances.push_back(cornellBox);
                     std::cout << "Cornell Box spawned" << std::endl;
                 }
@@ -1037,7 +1056,9 @@ int main(void)
                 ImGui::DragFloat3("Translation", selectedInstance->position, 0.1f);
                 ImGui::DragFloat3("Rotation (radians)", selectedInstance->rotation, 0.1f);
                 ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
-
+                //Object color Selection
+                ImGui::Separator();
+                ImGui::ColorEdit3("Object Color", selectedInstance->objectColor);
                 // --- Diffuse Texture Selection ---
                 ImGui::Separator();
                 ImGui::Text("Texture:");
@@ -1308,7 +1329,7 @@ int main(void)
                 
 
                 // Draw each top-level instance recursively:
-                drawInstance(instance, defaultProgram, u_diffuseTex, defaultWhiteTexture, BGFX_INVALID_HANDLE);
+                drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor,defaultWhiteTexture, BGFX_INVALID_HANDLE);
             }
         }
         else
@@ -1330,7 +1351,7 @@ int main(void)
 
 
                 // Draw each top-level instance recursively:
-                drawInstance(instance, defaultProgram, u_diffuseTex, defaultWhiteTexture, BGFX_INVALID_HANDLE);
+                drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor,defaultWhiteTexture, BGFX_INVALID_HANDLE);
             }
         }
 
