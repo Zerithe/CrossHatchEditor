@@ -383,9 +383,17 @@ static void spawnInstance(Camera camera, const std::string& instanceName, bgfx::
     instances.push_back(new Instance(instanceCounter++, fullName, x, y, z, vbh, ibh));
     std::cout << "New instance created at (" << x << ", " << y << ", " << z << ")" << std::endl;
 }
+// Helper function to determine if a color is (approximately) white.
+bool IsWhite(const float color[4], float epsilon = 0.001f)
+{
+    return std::fabs(color[0] - 1.0f) < epsilon &&
+        std::fabs(color[1] - 1.0f) < epsilon &&
+        std::fabs(color[2] - 1.0f) < epsilon &&
+        std::fabs(color[3] - 1.0f) < epsilon;
+}
 // Recursive draw function for hierarchy.
 void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::UniformHandle u_diffuseTex, bgfx::UniformHandle u_objectColor,
-    bgfx::TextureHandle defaultWhiteTexture, bgfx::TextureHandle inheritedTexture, const float* parentTransform = nullptr)
+    bgfx::TextureHandle defaultWhiteTexture, bgfx::TextureHandle inheritedTexture, const float* parentColor = nullptr, const float* parentTransform = nullptr)
 {
     float local[16];
     bx::mtxSRT(local,
@@ -399,7 +407,21 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::U
     else
         std::memcpy(world, local, sizeof(world));
 
+    // Compute effective object color.
+    float effectiveColor[4];
+    if (parentColor && !IsWhite(parentColor))
+    {
+        // If parent's color is not white, inherit it.
+        std::memcpy(effectiveColor, parentColor, sizeof(effectiveColor));
+    }
+    else
+    {
+        // Otherwise, use this instance's objectColor.
+        std::memcpy(effectiveColor, instance->objectColor, sizeof(effectiveColor));
+    }
 
+    // Set the object override color uniform.
+    bgfx::setUniform(u_objectColor, effectiveColor);
     const bgfx::VertexBufferHandle invalidVbh = BGFX_INVALID_HANDLE;
     const bgfx::IndexBufferHandle invalidIbh = BGFX_INVALID_HANDLE;
     // Draw geometry if valid.
@@ -407,17 +429,6 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::U
         instance->indexBuffer.idx != invalidIbh.idx)
     {
         bgfx::setTransform(world);
-        // If this instance is selected, update the override uniform:
-        if (selectedInstance == instance)
-        {
-            bgfx::setUniform(u_objectColor, instance->objectColor);
-        }
-        else
-        {
-            // Otherwise, use white (no override)
-            float white[4] = { 1,1,1,1 };
-            bgfx::setUniform(u_objectColor, white);
-        }
         bgfx::setVertexBuffer(0, instance->vertexBuffer);
         bgfx::setIndexBuffer(instance->indexBuffer);
         // Decide which texture to use:
@@ -439,6 +450,9 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::U
         bgfx::setTexture(1, u_diffuseTex, textureToUse);
         bgfx::submit(0, program);
     }
+    // Determine what color to pass to children.
+    // If the effective color is white, then children should use their own objectColor.
+    const float* childParentColor = (!IsWhite(effectiveColor)) ? effectiveColor : nullptr;
     // For children, propagate the override:
     // If the inherited texture is already valid, continue propagating that.
     // Otherwise, use the current instance’s texture as the inherited texture.
@@ -450,7 +464,7 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::U
     // Recursively draw children.
     for (const Instance* child : instance->children)
     {
-        drawInstance(child, program, u_diffuseTex, u_objectColor, defaultWhiteTexture, newInheritedTexture, world);
+        drawInstance(child, program, u_diffuseTex, u_objectColor, defaultWhiteTexture, newInheritedTexture, childParentColor, world);
     }
 }
 // Recursive deletion for hierarchy.
@@ -1085,7 +1099,7 @@ int main(void)
                 ShowInstanceTree(instance, selectedInstance, instances);
 
             }
-        
+
             // If an instance is selected, show its transform controls.
             if (selectedInstance)
             {
@@ -1367,7 +1381,7 @@ int main(void)
                 
 
                 // Draw each top-level instance recursively:
-                drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor,defaultWhiteTexture, BGFX_INVALID_HANDLE);
+                drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor,defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor);
             }
         }
         else
@@ -1389,7 +1403,7 @@ int main(void)
 
 
                 // Draw each top-level instance recursively:
-                drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor,defaultWhiteTexture, BGFX_INVALID_HANDLE);
+                drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor);
             }
         }
 
