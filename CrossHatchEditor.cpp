@@ -36,6 +36,8 @@
 #if defined(_WIN32)
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
+#include <windows.h>
+#include <commdlg.h>
 #endif
 #include <imgui_internal.h>
 #include "Logger.h"
@@ -186,6 +188,32 @@ void computeNormals(std::vector<PosColorVertex>& vertices, const std::vector<uin
         vertices[i].ny = normal.y;
         vertices[i].nz = normal.z;
     }
+}
+
+std::string openFileDialog(bool save) {
+#ifdef _WIN32
+    char filePath[MAX_PATH] = { 0 };
+
+    OPENFILENAMEA ofn; // Windows File Picker Struct
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = NULL;
+    ofn.lpstrFilter = "Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0";
+    ofn.lpstrFile = filePath;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+    if (save) {
+        ofn.Flags |= OFN_OVERWRITEPROMPT;
+        if (GetSaveFileNameA(&ofn))
+            return std::string(filePath);
+    }
+    else {
+        if (GetOpenFileNameA(&ofn))
+            return std::string(filePath);
+    }
+#endif
+    return "";
 }
 
 MeshData loadMesh(const std::string& filePath) {
@@ -493,6 +521,112 @@ void ShowInstanceTree(Instance* instance, Instance*& selectedInstance)
         ImGui::TreePop();
     }
 }
+
+void saveInstance(std::ofstream& file, const Instance* instance, std::vector<TextureOption> availableTextures, int parentID = -1)
+{
+    file << (parentID == -1 ? "instance " : "child ") << instance->id << " " << instance->name << " "
+        << instance->position[0] << " " << instance->position[1] << " " << instance->position[2] << " "
+        << instance->rotation[0] << " " << instance->rotation[1] << " " << instance->rotation[2] << " "
+        << instance->scale[0] << " " << instance->scale[1] << " " << instance->scale[2] << " "
+        << instance->objectColor[0] << " " << instance->objectColor[1] << " " << instance->objectColor[2] << " " << instance->objectColor[3] << " ";
+
+    // Find texture index
+    int textureIndex = -1;
+    for (int i = 0; i < availableTextures.size(); i++) {
+        if (instance->diffuseTexture.idx == availableTextures[i].handle.idx) {
+            textureIndex = i;
+            break;
+        }
+    }
+    file << textureIndex << "\n";
+
+    // Save children
+    for (const Instance* child : instance->children) {
+        saveInstance(file, child, availableTextures, instance->id);
+    }
+}
+
+// Recursive function to save an instance to a text file.
+void saveScene(const std::string& filename, const std::vector<Instance*>& instances, std::vector<TextureOption> availableTextures)
+{
+	std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Failed to save scene!" << std::endl;
+        return;
+    }
+
+    for (const Instance* instance : instances) {
+        saveInstance(file, instance, availableTextures);
+    }
+
+    file.close();
+	std::cout << "Scene saved to " << filename << std::endl;
+}
+
+void loadSceneText(const std::string& filename, std::vector<Instance*>& instances, std::vector<TextureOption> availableTextures) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Failed to load scene!" << std::endl;
+        return;
+    }
+
+    std::cout << "Test" << std::endl;
+
+    // Clear old instances safely
+    for (Instance* inst : instances) {
+        delete inst;
+    }
+
+    instances.clear();
+    std::unordered_map<int, Instance*> instanceMap;
+
+    std::string line;
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        std::string type;
+        iss >> type;
+
+        if (type == "instance" || type == "child") {
+            int id, parentID = -1;
+            std::string name;
+            float pos[3], rot[3], scale[3], color[4];
+            int textureIndex;
+
+            if (type == "child") {
+                iss >> parentID;
+            }
+
+            iss >> id >> name >> pos[0] >> pos[1] >> pos[2]
+                >> rot[0] >> rot[1] >> rot[2]
+                >> scale[0] >> scale[1] >> scale[2]
+                >> color[0] >> color[1] >> color[2] >> color[3] >> textureIndex;
+
+            Instance* instance = new Instance(id, name, pos[0], pos[1], pos[2], BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+            instance->rotation[0] = rot[0]; instance->rotation[1] = rot[1]; instance->rotation[2] = rot[2];
+            instance->scale[0] = scale[0]; instance->scale[1] = scale[1]; instance->scale[2] = scale[2];
+            instance->objectColor[0] = color[0]; instance->objectColor[1] = color[1];
+            instance->objectColor[2] = color[2]; instance->objectColor[3] = color[3];
+
+            // Assign texture if available
+            if (textureIndex >= 0 && textureIndex < availableTextures.size()) {
+                instance->diffuseTexture = availableTextures[textureIndex].handle;
+            }
+
+            instanceMap[id] = instance;
+
+            if (parentID == -1) {
+                instances.push_back(instance);
+            }
+            else {
+                instanceMap[parentID]->addChild(instance);
+            }
+        }
+    }
+
+    file.close();
+    std::cout << "Scene loaded from " << filename << std::endl;
+}
+
 int main(void)
 {
     // Initialize GLFW
@@ -714,6 +848,7 @@ int main(void)
     Camera camera;
 
     std::vector<Instance*> instances;
+    instances.reserve(100);
 
     bool modelMovement = false;
 
@@ -887,8 +1022,18 @@ int main(void)
         { 
             if (ImGui::BeginMenu("File", true))
             {
-                if (ImGui::MenuItem("Open..")) { /* Do stuff */ }
-                if (ImGui::MenuItem("Save", "Ctrl+S")) { /* Do stuff */ }
+                if (ImGui::MenuItem("Open..")) 
+                {
+                    std::string loadFilePath = openFileDialog(false); // Open load dialog
+                    if (!loadFilePath.empty())
+                        loadSceneText(loadFilePath, instances, availableTextures);
+                }
+                if (ImGui::MenuItem("Save", "Ctrl+S")) 
+                { 
+                    std::string saveFilePath = openFileDialog(true); // Open save dialog
+                    if (!saveFilePath.empty())
+                        saveScene(saveFilePath, instances, availableTextures);
+                }
                 if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
                 ImGui::EndMenu();
             }
