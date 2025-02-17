@@ -522,109 +522,253 @@ void ShowInstanceTree(Instance* instance, Instance*& selectedInstance)
     }
 }
 
-void saveInstance(std::ofstream& file, const Instance* instance, std::vector<TextureOption> availableTextures, int parentID = -1)
-{
-    file << (parentID == -1 ? "instance " : "child ") << instance->id << " " << instance->name << " "
-        << instance->position[0] << " " << instance->position[1] << " " << instance->position[2] << " "
-        << instance->rotation[0] << " " << instance->rotation[1] << " " << instance->rotation[2] << " "
-        << instance->scale[0] << " " << instance->scale[1] << " " << instance->scale[2] << " "
-        << instance->objectColor[0] << " " << instance->objectColor[1] << " " << instance->objectColor[2] << " " << instance->objectColor[3] << " ";
+//void saveInstance(std::ofstream& file, const Instance* instance, std::vector<TextureOption> availableTextures, int parentID = -1)
+//{
+//    file << (parentID == -1 ? "instance " : "child ") << instance->id << " " << instance->name << " "
+//        << instance->position[0] << " " << instance->position[1] << " " << instance->position[2] << " "
+//        << instance->rotation[0] << " " << instance->rotation[1] << " " << instance->rotation[2] << " "
+//        << instance->scale[0] << " " << instance->scale[1] << " " << instance->scale[2] << " "
+//        << instance->objectColor[0] << " " << instance->objectColor[1] << " " << instance->objectColor[2] << " " << instance->objectColor[3] << " ";
+//
+//    // Find texture index
+//    int textureIndex = -1;
+//    for (int i = 0; i < availableTextures.size(); i++) {
+//        if (instance->diffuseTexture.idx == availableTextures[i].handle.idx) {
+//            textureIndex = i;
+//            break;
+//        }
+//    }
+//    file << textureIndex << "\n";
+//
+//    // Save children
+//    for (const Instance* child : instance->children) {
+//        saveInstance(file, child, availableTextures, instance->id);
+//    }
+//}
+//
+//// Recursive function to save an instance to a text file.
+//void saveScene(const std::string& filename, const std::vector<Instance*>& instances, std::vector<TextureOption> availableTextures)
+//{
+//	std::ofstream file(filename);
+//    if (!file.is_open()) {
+//        std::cerr << "Failed to save scene!" << std::endl;
+//        return;
+//    }
+//
+//    for (const Instance* instance : instances) {
+//        saveInstance(file, instance, availableTextures);
+//    }
+//
+//    file.close();
+//	std::cout << "Scene saved to " << filename << std::endl;
+//}
+//
+//void loadSceneText(const std::string& filename, std::vector<Instance*>& instances, std::vector<TextureOption> availableTextures) {
+//    std::ifstream file(filename);
+//    if (!file.is_open()) {
+//        std::cerr << "Failed to load scene!" << std::endl;
+//        return;
+//    }
+//
+//    std::cout << "Test" << std::endl;
+//
+//    // Clear old instances safely
+//    for (Instance* inst : instances) {
+//        delete inst;
+//    }
+//
+//    instances.clear();
+//    std::unordered_map<int, Instance*> instanceMap;
+//
+//    std::string line;
+//    while (std::getline(file, line)) {
+//        std::istringstream iss(line);
+//        std::string type;
+//        iss >> type;
+//
+//        if (type == "instance" || type == "child") {
+//            int id, parentID = -1;
+//            std::string name;
+//            float pos[3], rot[3], scale[3], color[4];
+//            int textureIndex;
+//
+//            if (type == "child") {
+//                iss >> parentID;
+//            }
+//
+//            iss >> id >> name >> pos[0] >> pos[1] >> pos[2]
+//                >> rot[0] >> rot[1] >> rot[2]
+//                >> scale[0] >> scale[1] >> scale[2]
+//                >> color[0] >> color[1] >> color[2] >> color[3] >> textureIndex;
+//
+//            Instance* instance = new Instance(id, name, pos[0], pos[1], pos[2], BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+//            instance->rotation[0] = rot[0]; instance->rotation[1] = rot[1]; instance->rotation[2] = rot[2];
+//            instance->scale[0] = scale[0]; instance->scale[1] = scale[1]; instance->scale[2] = scale[2];
+//            instance->objectColor[0] = color[0]; instance->objectColor[1] = color[1];
+//            instance->objectColor[2] = color[2]; instance->objectColor[3] = color[3];
+//
+//            // Assign texture if available
+//            if (textureIndex >= 0 && textureIndex < availableTextures.size()) {
+//                instance->diffuseTexture = availableTextures[textureIndex].handle;
+//            }
+//
+//            instanceMap[id] = instance;
+//
+//            if (parentID == -1) {
+//                instances.push_back(instance);
+//            }
+//            else {
+//                instanceMap[parentID]->addChild(instance);
+//            }
+//        }
+//    }
+//
+//    file.close();
+//    std::cout << "Scene loaded from " << filename << std::endl;
+//}
 
-    // Find texture index
-    int textureIndex = -1;
-    for (int i = 0; i < availableTextures.size(); i++) {
-        if (instance->diffuseTexture.idx == availableTextures[i].handle.idx) {
-            textureIndex = i;
+void saveInstance(std::ofstream& file, const Instance* instance, const std::vector<TextureOption>& availableTextures, int parentID = -1)
+{
+    // Find the texture name based on the texture handle
+    std::string textureName = "none";
+    for (const auto& tex : availableTextures)
+    {
+        if (instance->diffuseTexture.idx == tex.handle.idx)
+        {
+            textureName = tex.name;
             break;
         }
     }
-    file << textureIndex << "\n";
 
-    // Save children
-    for (const Instance* child : instance->children) {
+    // Save instance properties
+    file << instance->id << " " << instance->name << " "
+        << instance->position[0] << " " << instance->position[1] << " " << instance->position[2] << " "
+        << instance->rotation[0] << " " << instance->rotation[1] << " " << instance->rotation[2] << " "
+        << instance->scale[0] << " " << instance->scale[1] << " " << instance->scale[2] << " "
+        << instance->objectColor[0] << " " << instance->objectColor[1] << " " << instance->objectColor[2] << " " << instance->objectColor[3] << " "
+        << textureName << " " << parentID << "\n"; // Add texture name
+
+    // Save child instances recursively
+    for (const Instance* child : instance->children)
+    {
         saveInstance(file, child, availableTextures, instance->id);
     }
 }
 
-// Recursive function to save an instance to a text file.
-void saveScene(const std::string& filename, const std::vector<Instance*>& instances, std::vector<TextureOption> availableTextures)
+void saveSceneToFile(std::vector<Instance*>& instances, const std::vector<TextureOption>& availableTextures)
 {
-	std::ofstream file(filename);
-    if (!file.is_open()) {
+    std::string saveFilePath = openFileDialog(true); // Open save dialog
+    if (saveFilePath.empty()) return; // Exit if no file was chosen
+
+    std::ofstream file(saveFilePath);
+    if (!file.is_open())
+    {
         std::cerr << "Failed to save scene!" << std::endl;
         return;
     }
 
-    for (const Instance* instance : instances) {
+    for (const Instance* instance : instances)
+    {
         saveInstance(file, instance, availableTextures);
     }
 
     file.close();
-	std::cout << "Scene saved to " << filename << std::endl;
+    std::cout << "Scene saved to " << saveFilePath << std::endl;
 }
 
-void loadSceneText(const std::string& filename, std::vector<Instance*>& instances, std::vector<TextureOption> availableTextures) {
-    std::ifstream file(filename);
-    if (!file.is_open()) {
+void loadSceneFromFile(std::vector<Instance*>& instances,
+    const std::vector<TextureOption>& availableTextures,
+    const std::unordered_map<std::string, std::pair<bgfx::VertexBufferHandle, bgfx::IndexBufferHandle>>& bufferMap)
+{
+    std::string loadFilePath = openFileDialog(false);
+    if (loadFilePath.empty()) return;
+
+    std::ifstream file(loadFilePath);
+    if (!file.is_open())
+    {
         std::cerr << "Failed to load scene!" << std::endl;
         return;
     }
 
-    std::cout << "Test" << std::endl;
-
     // Clear old instances safely
-    for (Instance* inst : instances) {
-        delete inst;
+    for (Instance* inst : instances)
+    {
+        deleteInstance(inst);
     }
-
     instances.clear();
+
     std::unordered_map<int, Instance*> instanceMap;
-
     std::string line;
-    while (std::getline(file, line)) {
+
+    while (std::getline(file, line))
+    {
         std::istringstream iss(line);
-        std::string type;
-        iss >> type;
+        int id, parentID;
+        std::string name, textureName;
+        float pos[3], rot[3], scale[3], color[4];
 
-        if (type == "instance" || type == "child") {
-            int id, parentID = -1;
-            std::string name;
-            float pos[3], rot[3], scale[3], color[4];
-            int textureIndex;
+        iss >> id >> name
+            >> pos[0] >> pos[1] >> pos[2]
+            >> rot[0] >> rot[1] >> rot[2]
+            >> scale[0] >> scale[1] >> scale[2]
+            >> color[0] >> color[1] >> color[2] >> color[3]
+            >> textureName >> parentID;
 
-            if (type == "child") {
-                iss >> parentID;
+        // Find the correct vertex and index buffers from the map
+        bgfx::VertexBufferHandle vbh = BGFX_INVALID_HANDLE;
+        bgfx::IndexBufferHandle ibh = BGFX_INVALID_HANDLE;
+
+        auto it = bufferMap.find(name);
+        if (it != bufferMap.end())
+        {
+            vbh = it->second.first;
+            ibh = it->second.second;
+        }
+
+        // Create new instance
+        Instance* instance = new Instance(id, name, pos[0], pos[1], pos[2], vbh, ibh);
+        instance->rotation[0] = rot[0];
+        instance->rotation[1] = rot[1];
+        instance->rotation[2] = rot[2];
+
+        instance->scale[0] = scale[0];
+        instance->scale[1] = scale[1];
+        instance->scale[2] = scale[2];
+
+        instance->objectColor[0] = color[0];
+        instance->objectColor[1] = color[1];
+        instance->objectColor[2] = color[2];
+        instance->objectColor[3] = color[3];
+
+        // Assign texture
+        instance->diffuseTexture = BGFX_INVALID_HANDLE;
+        if (textureName != "none")
+        {
+            for (const auto& tex : availableTextures)
+            {
+                if (tex.name == textureName)
+                {
+                    instance->diffuseTexture = tex.handle;
+                    break;
+                }
             }
+        }
 
-            iss >> id >> name >> pos[0] >> pos[1] >> pos[2]
-                >> rot[0] >> rot[1] >> rot[2]
-                >> scale[0] >> scale[1] >> scale[2]
-                >> color[0] >> color[1] >> color[2] >> color[3] >> textureIndex;
+        instanceMap[id] = instance;
 
-            Instance* instance = new Instance(id, name, pos[0], pos[1], pos[2], BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
-            instance->rotation[0] = rot[0]; instance->rotation[1] = rot[1]; instance->rotation[2] = rot[2];
-            instance->scale[0] = scale[0]; instance->scale[1] = scale[1]; instance->scale[2] = scale[2];
-            instance->objectColor[0] = color[0]; instance->objectColor[1] = color[1];
-            instance->objectColor[2] = color[2]; instance->objectColor[3] = color[3];
-
-            // Assign texture if available
-            if (textureIndex >= 0 && textureIndex < availableTextures.size()) {
-                instance->diffuseTexture = availableTextures[textureIndex].handle;
-            }
-
-            instanceMap[id] = instance;
-
-            if (parentID == -1) {
-                instances.push_back(instance);
-            }
-            else {
-                instanceMap[parentID]->addChild(instance);
-            }
+        // Handle hierarchy
+        if (parentID == -1)
+        {
+            instances.push_back(instance);
+        }
+        else if (instanceMap.find(parentID) != instanceMap.end())
+        {
+            instanceMap[parentID]->addChild(instance);
         }
     }
 
     file.close();
-    std::cout << "Scene loaded from " << filename << std::endl;
+    std::cout << "Scene loaded from " << loadFilePath << std::endl;
 }
 
 int main(void)
@@ -822,6 +966,26 @@ int main(void)
     bgfx::VertexBufferHandle vbh_lucy;
     bgfx::IndexBufferHandle ibh_lucy;
     createMeshBuffers(lucyData, vbh_lucy, ibh_lucy);
+
+    std::unordered_map<std::string, std::pair<bgfx::VertexBufferHandle, bgfx::IndexBufferHandle>> bufferMap;
+
+	bufferMap["cube"] = { vbh_cube, ibh_cube };
+	bufferMap["capsule"] = { vbh_capsule, ibh_capsule };
+	bufferMap["cylinder"] = { vbh_cylinder, ibh_cylinder };
+	bufferMap["sphere"] = { vbh_sphere, ibh_sphere };
+	bufferMap["plane"] = { vbh_plane, ibh_plane };
+	bufferMap["cornell_box"] = { vbh_cornell, ibh_cornell };
+	bufferMap["innerCube"] = { vbh_innerCube, ibh_innerCube };
+	bufferMap["floor"] = { vbh_floor, ibh_floor };
+	bufferMap["ceiling"] = { vbh_ceiling, ibh_ceiling };
+	bufferMap["back"] = { vbh_back, ibh_back };
+	bufferMap["left"] = { vbh_left, ibh_left };
+	bufferMap["right"] = { vbh_right, ibh_right };
+	bufferMap["mesh"] = { vbh_mesh, ibh_mesh };
+	bufferMap["teapot"] = { vbh_teapot, ibh_teapot };
+	bufferMap["bunny"] = { vbh_bunny, ibh_bunny };
+	bufferMap["lucy"] = { vbh_lucy, ibh_lucy };
+
 
     //Load OBJ file
     /*std::vector<ObjLoader::Vertex> suzanneVertices;
@@ -1024,15 +1188,17 @@ int main(void)
             {
                 if (ImGui::MenuItem("Open..")) 
                 {
-                    std::string loadFilePath = openFileDialog(false); // Open load dialog
-                    if (!loadFilePath.empty())
-                        loadSceneText(loadFilePath, instances, availableTextures);
+                    //std::string loadFilePath = openFileDialog(false); // Open load dialog
+                    //if (!loadFilePath.empty())
+                    //    loadSceneText(loadFilePath, instances, availableTextures);
+					loadSceneFromFile(instances, availableTextures, bufferMap);
                 }
                 if (ImGui::MenuItem("Save", "Ctrl+S")) 
                 { 
-                    std::string saveFilePath = openFileDialog(true); // Open save dialog
-                    if (!saveFilePath.empty())
-                        saveScene(saveFilePath, instances, availableTextures);
+                    //std::string saveFilePath = openFileDialog(true); // Open save dialog
+                    //if (!saveFilePath.empty())
+                    //    saveScene(saveFilePath, instances, availableTextures);
+					saveSceneToFile(instances, availableTextures);
                 }
                 if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
                 ImGui::EndMenu();
