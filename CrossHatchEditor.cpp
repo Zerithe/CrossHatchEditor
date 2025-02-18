@@ -14,6 +14,12 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <commdlg.h>
+#endif
+#include <filesystem>
+namespace fs = std::filesystem;
 
 #include <bgfx/bgfx.h>
 #include <bx/uint32_t.h>
@@ -285,12 +291,12 @@ void createMeshBuffers(const MeshData& meshData, bgfx::VertexBufferHandle& vbh, 
         .end();
 
     vbh = bgfx::createVertexBuffer(
-        bgfx::makeRef(meshData.vertices.data(), sizeof(PosColorVertex) * meshData.vertices.size()),
+        bgfx::copy(meshData.vertices.data(), sizeof(PosColorVertex) * meshData.vertices.size()),
         layout
     );
 
     ibh = bgfx::createIndexBuffer(
-        bgfx::makeRef(meshData.indices.data(), sizeof(uint16_t) * meshData.indices.size())
+        bgfx::copy(meshData.indices.data(), sizeof(uint16_t) * meshData.indices.size())
     );
 }
 static void glfw_keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -480,7 +486,7 @@ void deleteInstance(Instance* instance)
 void ShowInstanceTree(Instance* instance, Instance*& selectedInstance, std::vector<Instance*>& instances)
 {
     // Set up flags for the tree node.
-    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
+    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow;
     if (instance->children.empty())
     {
         flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
@@ -544,6 +550,79 @@ void ShowInstanceTree(Instance* instance, Instance*& selectedInstance, std::vect
         }
         ImGui::TreePop();
     }
+}
+
+void ShowTopLevelDropTarget(std::vector<Instance*>& instances)
+{
+    // Reserve a region across the available width (adjust the height as needed)
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+    ImGui::Dummy(ImVec2(avail.x, 50)); // 50 pixels tall drop area
+    ImGui::Text("Drop here to make top-level");
+
+    // Get the region's rectangle
+    ImVec2 dropPos = ImGui::GetItemRectMin();
+    ImVec2 dropSize = ImGui::GetItemRectSize();
+    ImRect dropRect(dropPos, ImVec2(dropPos.x + dropSize.x, dropPos.y + dropSize.y));
+    // Use a custom drag-drop target on that dummy widget.
+    if (ImGui::BeginDragDropTargetCustom(dropRect, ImGui::GetID("TopLevelDropTarget")))
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_INSTANCE"))
+        {
+            Instance* dropped = *(Instance**)payload->Data;
+            // Remove the dropped node from its current parent (if any)
+            if (dropped->parent)
+            {
+                auto it = std::find(dropped->parent->children.begin(), dropped->parent->children.end(), dropped);
+                if (it != dropped->parent->children.end())
+                    dropped->parent->children.erase(it);
+                dropped->parent = nullptr;
+            }
+            // If the node isn't already top-level, add it to the global list.
+            auto it = std::find(instances.begin(), instances.end(), dropped);
+            if (it == instances.end())
+            {
+                instances.push_back(dropped);
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+}
+std::string OpenFileDialog(HWND owner, const char* filter)
+{
+#ifdef _WIN32
+    OPENFILENAME ofn;
+    char fileName[MAX_PATH] = { 0 };
+
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = owner; // Use the passed HWND
+    ofn.lpstrFilter = filter;
+    ofn.lpstrFile = fileName;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
+    ofn.lpstrDefExt = "obj";
+
+    if (GetOpenFileName(&ofn))
+    {
+        return std::string(fileName);
+    }
+#endif
+    return std::string();
+}
+
+std::string GetRelativePath(const std::string& absolutePath, const std::string& base = fs::current_path().string())
+{
+    fs::path absPath(absolutePath);
+    fs::path basePath(base);
+    fs::path relPath = fs::relative(absPath, basePath);
+    return relPath.string();
+}
+
+std::string ConvertBackslashesToForward(const std::string& path)
+{
+    std::string result = path;
+    std::replace(result.begin(), result.end(), '\\', '/');
+    return result;
 }
 int main(void)
 {
@@ -939,6 +1018,27 @@ int main(void)
         { 
             if (ImGui::BeginMenu("File", true))
             {
+                if (ImGui::MenuItem("Import OBJ"))
+                {
+                    // Use a filter for OBJ files and all files.
+                    std::string absPath = OpenFileDialog(glfwGetWin32Window(window), "OBJ Files\0*.obj\0All Files\0*.*\0");
+                    std::string relPath = GetRelativePath(absPath);
+                    std::string normalizedRelPath = ConvertBackslashesToForward(relPath);
+                    std::cout << "filePath: " << normalizedRelPath << std::endl;
+                    if (!normalizedRelPath.empty())
+                    {
+                        // Load the mesh from the selected file.
+                        MeshData importedMesh = loadMesh(normalizedRelPath);
+                        std::cout << "Imported mesh vertices: " << importedMesh.vertices.size()
+                            << ", indices: " << importedMesh.indices.size() << std::endl;
+                        bgfx::VertexBufferHandle vbh_imported;
+                        bgfx::IndexBufferHandle ibh_imported;
+                        createMeshBuffers(importedMesh, vbh_imported, ibh_imported);
+                        // Spawn the imported mesh as an instance.
+                        spawnInstance(camera, "imported_obj", vbh_imported, ibh_imported, instances);
+                        std::cout << "imported obj spawned" << std::endl;
+                    }
+                }
                 if (ImGui::MenuItem("Open..")) { /* Do stuff */ }
                 if (ImGui::MenuItem("Save", "Ctrl+S")) { /* Do stuff */ }
                 if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
@@ -1099,6 +1199,9 @@ int main(void)
                 ShowInstanceTree(instance, selectedInstance, instances);
 
             }
+
+            // Now, show the drop target region for reparenting to top-level.
+            ShowTopLevelDropTarget(instances);
 
             // If an instance is selected, show its transform controls.
             if (selectedInstance)
