@@ -14,6 +14,12 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <commdlg.h>
+#endif
+#include <filesystem>
+namespace fs = std::filesystem;
 
 #include <bgfx/bgfx.h>
 #include <bx/uint32_t.h>
@@ -285,12 +291,12 @@ void createMeshBuffers(const MeshData& meshData, bgfx::VertexBufferHandle& vbh, 
         .end();
 
     vbh = bgfx::createVertexBuffer(
-        bgfx::makeRef(meshData.vertices.data(), sizeof(PosColorVertex) * meshData.vertices.size()),
+        bgfx::copy(meshData.vertices.data(), sizeof(PosColorVertex) * meshData.vertices.size()),
         layout
     );
 
     ibh = bgfx::createIndexBuffer(
-        bgfx::makeRef(meshData.indices.data(), sizeof(uint16_t) * meshData.indices.size())
+        bgfx::copy(meshData.indices.data(), sizeof(uint16_t) * meshData.indices.size())
     );
 }
 static void glfw_keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -383,9 +389,17 @@ static void spawnInstance(Camera camera, const std::string& instanceName, bgfx::
     instances.push_back(new Instance(instanceCounter++, fullName, x, y, z, vbh, ibh));
     std::cout << "New instance created at (" << x << ", " << y << ", " << z << ")" << std::endl;
 }
+// Helper function to determine if a color is (approximately) white.
+bool IsWhite(const float color[4], float epsilon = 0.001f)
+{
+    return std::fabs(color[0] - 1.0f) < epsilon &&
+        std::fabs(color[1] - 1.0f) < epsilon &&
+        std::fabs(color[2] - 1.0f) < epsilon &&
+        std::fabs(color[3] - 1.0f) < epsilon;
+}
 // Recursive draw function for hierarchy.
 void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::UniformHandle u_diffuseTex, bgfx::UniformHandle u_objectColor,
-    bgfx::TextureHandle defaultWhiteTexture, bgfx::TextureHandle inheritedTexture, const float* parentTransform = nullptr)
+    bgfx::TextureHandle defaultWhiteTexture, bgfx::TextureHandle inheritedTexture, const float* parentColor = nullptr, const float* parentTransform = nullptr)
 {
     float local[16];
     bx::mtxSRT(local,
@@ -399,7 +413,21 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::U
     else
         std::memcpy(world, local, sizeof(world));
 
+    // Compute effective object color.
+    float effectiveColor[4];
+    if (parentColor && !IsWhite(parentColor))
+    {
+        // If parent's color is not white, inherit it.
+        std::memcpy(effectiveColor, parentColor, sizeof(effectiveColor));
+    }
+    else
+    {
+        // Otherwise, use this instance's objectColor.
+        std::memcpy(effectiveColor, instance->objectColor, sizeof(effectiveColor));
+    }
 
+    // Set the object override color uniform.
+    bgfx::setUniform(u_objectColor, effectiveColor);
     const bgfx::VertexBufferHandle invalidVbh = BGFX_INVALID_HANDLE;
     const bgfx::IndexBufferHandle invalidIbh = BGFX_INVALID_HANDLE;
     // Draw geometry if valid.
@@ -407,17 +435,6 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::U
         instance->indexBuffer.idx != invalidIbh.idx)
     {
         bgfx::setTransform(world);
-        // If this instance is selected, update the override uniform:
-        if (selectedInstance == instance)
-        {
-            bgfx::setUniform(u_objectColor, instance->objectColor);
-        }
-        else
-        {
-            // Otherwise, use white (no override)
-            float white[4] = { 1,1,1,1 };
-            bgfx::setUniform(u_objectColor, white);
-        }
         bgfx::setVertexBuffer(0, instance->vertexBuffer);
         bgfx::setIndexBuffer(instance->indexBuffer);
         // Decide which texture to use:
@@ -439,6 +456,9 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::U
         bgfx::setTexture(1, u_diffuseTex, textureToUse);
         bgfx::submit(0, program);
     }
+    // Determine what color to pass to children.
+    // If the effective color is white, then children should use their own objectColor.
+    const float* childParentColor = (!IsWhite(effectiveColor)) ? effectiveColor : nullptr;
     // For children, propagate the override:
     // If the inherited texture is already valid, continue propagating that.
     // Otherwise, use the current instance’s texture as the inherited texture.
@@ -450,7 +470,7 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::U
     // Recursively draw children.
     for (const Instance* child : instance->children)
     {
-        drawInstance(child, program, u_diffuseTex, u_objectColor, defaultWhiteTexture, newInheritedTexture, world);
+        drawInstance(child, program, u_diffuseTex, u_objectColor, defaultWhiteTexture, newInheritedTexture, childParentColor, world);
     }
 }
 // Recursive deletion for hierarchy.
@@ -463,7 +483,7 @@ void deleteInstance(Instance* instance)
     delete instance;
 }
 // Recursive function to show the instance hierarchy in a tree view.
-void ShowInstanceTree(Instance* instance, Instance*& selectedInstance)
+void ShowInstanceTree(Instance* instance, Instance*& selectedInstance, std::vector<Instance*>& instances)
 {
     // Set up flags for the tree node.
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow;
@@ -482,16 +502,127 @@ void ShowInstanceTree(Instance* instance, Instance*& selectedInstance)
     {
         selectedInstance = instance;
     }
-
+    // Begin drag source
+    if (ImGui::BeginDragDropSource())
+    {
+        // Set the payload: the pointer to the instance
+        Instance* dragInstance = instance;
+        ImGui::SetDragDropPayload("DND_INSTANCE", &dragInstance, sizeof(Instance*));
+        ImGui::Text("%s", instance->name.c_str());
+        ImGui::EndDragDropSource();
+    }
+    // Make this node a drag drop target
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_INSTANCE"))
+        {
+            // Get the instance being dragged
+            Instance* dropped = *(Instance**)payload->Data;
+            if (dropped != instance)
+            {
+                // Remove the dropped instance from its current parent's children list
+                if (dropped->parent)
+                {
+                    auto it = std::find(dropped->parent->children.begin(),
+                        dropped->parent->children.end(), dropped);
+                    if (it != dropped->parent->children.end())
+                        dropped->parent->children.erase(it);
+                }
+                else
+                {
+                    // If it's top-level, remove it from the global instances vector.
+                    auto it = std::find(instances.begin(), instances.end(), dropped);
+                    if (it != instances.end())
+                        instances.erase(it);
+                }
+                // Add the dropped instance as a child of the current node.
+                instance->addChild(dropped);
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
     // If the node is open (and it's not a leaf that doesn't push), display its children.
     if (nodeOpen && !(flags & ImGuiTreeNodeFlags_NoTreePushOnOpen))
     {
         for (Instance* child : instance->children)
         {
-            ShowInstanceTree(child, selectedInstance);
+            ShowInstanceTree(child, selectedInstance, instances);
         }
         ImGui::TreePop();
     }
+}
+
+void ShowTopLevelDropTarget(std::vector<Instance*>& instances)
+{
+    // Reserve a region across the available width (adjust the height as needed)
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+    ImGui::Dummy(ImVec2(avail.x, 50)); // 50 pixels tall drop area
+    ImGui::Text("Drop here to make top-level");
+
+    // Get the region's rectangle
+    ImVec2 dropPos = ImGui::GetItemRectMin();
+    ImVec2 dropSize = ImGui::GetItemRectSize();
+    ImRect dropRect(dropPos, ImVec2(dropPos.x + dropSize.x, dropPos.y + dropSize.y));
+    // Use a custom drag-drop target on that dummy widget.
+    if (ImGui::BeginDragDropTargetCustom(dropRect, ImGui::GetID("TopLevelDropTarget")))
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_INSTANCE"))
+        {
+            Instance* dropped = *(Instance**)payload->Data;
+            // Remove the dropped node from its current parent (if any)
+            if (dropped->parent)
+            {
+                auto it = std::find(dropped->parent->children.begin(), dropped->parent->children.end(), dropped);
+                if (it != dropped->parent->children.end())
+                    dropped->parent->children.erase(it);
+                dropped->parent = nullptr;
+            }
+            // If the node isn't already top-level, add it to the global list.
+            auto it = std::find(instances.begin(), instances.end(), dropped);
+            if (it == instances.end())
+            {
+                instances.push_back(dropped);
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+}
+std::string OpenFileDialog(HWND owner, const char* filter)
+{
+#ifdef _WIN32
+    OPENFILENAME ofn;
+    char fileName[MAX_PATH] = { 0 };
+
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = owner; // Use the passed HWND
+    ofn.lpstrFilter = filter;
+    ofn.lpstrFile = fileName;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
+    ofn.lpstrDefExt = "obj";
+
+    if (GetOpenFileName(&ofn))
+    {
+        return std::string(fileName);
+    }
+#endif
+    return std::string();
+}
+
+std::string GetRelativePath(const std::string& absolutePath, const std::string& base = fs::current_path().string())
+{
+    fs::path absPath(absolutePath);
+    fs::path basePath(base);
+    fs::path relPath = fs::relative(absPath, basePath);
+    return relPath.string();
+}
+
+std::string ConvertBackslashesToForward(const std::string& path)
+{
+    std::string result = path;
+    std::replace(result.begin(), result.end(), '\\', '/');
+    return result;
 }
 int main(void)
 {
@@ -887,6 +1018,27 @@ int main(void)
         { 
             if (ImGui::BeginMenu("File", true))
             {
+                if (ImGui::MenuItem("Import OBJ"))
+                {
+                    // Use a filter for OBJ files and all files.
+                    std::string absPath = OpenFileDialog(glfwGetWin32Window(window), "OBJ Files\0*.obj\0All Files\0*.*\0");
+                    std::string relPath = GetRelativePath(absPath);
+                    std::string normalizedRelPath = ConvertBackslashesToForward(relPath);
+                    std::cout << "filePath: " << normalizedRelPath << std::endl;
+                    if (!normalizedRelPath.empty())
+                    {
+                        // Load the mesh from the selected file.
+                        MeshData importedMesh = loadMesh(normalizedRelPath);
+                        std::cout << "Imported mesh vertices: " << importedMesh.vertices.size()
+                            << ", indices: " << importedMesh.indices.size() << std::endl;
+                        bgfx::VertexBufferHandle vbh_imported;
+                        bgfx::IndexBufferHandle ibh_imported;
+                        createMeshBuffers(importedMesh, vbh_imported, ibh_imported);
+                        // Spawn the imported mesh as an instance.
+                        spawnInstance(camera, "imported_obj", vbh_imported, ibh_imported, instances);
+                        std::cout << "imported obj spawned" << std::endl;
+                    }
+                }
                 if (ImGui::MenuItem("Open..")) { /* Do stuff */ }
                 if (ImGui::MenuItem("Save", "Ctrl+S")) { /* Do stuff */ }
                 if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
@@ -1044,10 +1196,13 @@ int main(void)
             // For each top-level instance, show its tree.
             for (Instance* instance : instances)
             {
-                ShowInstanceTree(instance, selectedInstance);
+                ShowInstanceTree(instance, selectedInstance, instances);
 
             }
-        
+
+            // Now, show the drop target region for reparenting to top-level.
+            ShowTopLevelDropTarget(instances);
+
             // If an instance is selected, show its transform controls.
             if (selectedInstance)
             {
@@ -1329,7 +1484,7 @@ int main(void)
                 
 
                 // Draw each top-level instance recursively:
-                drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor,defaultWhiteTexture, BGFX_INVALID_HANDLE);
+                drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor,defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor);
             }
         }
         else
@@ -1351,7 +1506,7 @@ int main(void)
 
 
                 // Draw each top-level instance recursively:
-                drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor,defaultWhiteTexture, BGFX_INVALID_HANDLE);
+                drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor);
             }
         }
 
