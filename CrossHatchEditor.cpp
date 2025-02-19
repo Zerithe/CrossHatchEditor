@@ -42,6 +42,8 @@ namespace fs = std::filesystem;
 #if defined(_WIN32)
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
+#include <windows.h>
+#include <commdlg.h>
 #endif
 #include <imgui_internal.h>
 #include "Logger.h"
@@ -61,6 +63,7 @@ struct Instance
 {
     int id;
     std::string name;
+    std::string type;
     float position[3];
     float rotation[3]; // Euler angles in radians (for X, Y, Z)
     float scale[3];    // Non-uniform scale for each axis
@@ -77,8 +80,8 @@ struct Instance
     Instance* parent = nullptr;      // pointer to parent
 
 
-    Instance(int instanceId, const std::string& instanceName, float x, float y, float z, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh)
-        : id(instanceId), name(instanceName), vertexBuffer(vbh), indexBuffer(ibh)
+    Instance(int instanceId, const std::string& instanceName, const std::string& instanceType, float x, float y, float z, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh)
+        : id(instanceId), name(instanceName), type(instanceType), vertexBuffer(vbh), indexBuffer(ibh)
     {
         position[0] = x;
         position[1] = y;
@@ -192,6 +195,32 @@ void computeNormals(std::vector<PosColorVertex>& vertices, const std::vector<uin
         vertices[i].ny = normal.y;
         vertices[i].nz = normal.z;
     }
+}
+
+std::string openFileDialog(bool save) {
+#ifdef _WIN32
+    char filePath[MAX_PATH] = { 0 };
+
+    OPENFILENAMEA ofn; // Windows File Picker Struct
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = NULL;
+    ofn.lpstrFilter = "Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0";
+    ofn.lpstrFile = filePath;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+    if (save) {
+        ofn.Flags |= OFN_OVERWRITEPROMPT;
+        if (GetSaveFileNameA(&ofn))
+            return std::string(filePath);
+    }
+    else {
+        if (GetOpenFileNameA(&ofn))
+            return std::string(filePath);
+    }
+#endif
+    return "";
 }
 
 MeshData loadMesh(const std::string& filePath) {
@@ -374,7 +403,7 @@ bgfx::TextureHandle loadTextureDDS(const char* _filePath)
 
 static int instanceCounter = 0;
 
-static void spawnInstance(Camera camera, const std::string& instanceName, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh, std::vector<Instance*>& instances)
+static void spawnInstance(Camera camera, const std::string& instanceName, const std::string& instanceType, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh, std::vector<Instance*>& instances)
 {
 
     float spawnDistance = 5.0f;
@@ -386,7 +415,7 @@ static void spawnInstance(Camera camera, const std::string& instanceName, bgfx::
 	std::string fullName = instanceName + std::to_string(instanceCounter);
 
     // Create a new instance with the current vertex and index buffers
-    instances.push_back(new Instance(instanceCounter++, fullName, x, y, z, vbh, ibh));
+    instances.push_back(new Instance(instanceCounter++, fullName, instanceType, x, y, z, vbh, ibh));
     std::cout << "New instance created at (" << x << ", " << y << ", " << z << ")" << std::endl;
 }
 // Helper function to determine if a color is (approximately) white.
@@ -552,6 +581,157 @@ void ShowInstanceTree(Instance* instance, Instance*& selectedInstance, std::vect
     }
 }
 
+
+void saveInstance(std::ofstream& file, const Instance* instance,
+    const std::vector<TextureOption>& availableTextures, int parentID = -1)
+{
+    std::string textureName = "none";
+    for (const auto& tex : availableTextures)
+    {
+        if (instance->diffuseTexture.idx == tex.handle.idx)
+        {
+            textureName = tex.name;
+            break;
+        }
+    }
+
+    file << instance->id << " " << instance->type << " " << instance->name << " "
+        << instance->position[0] << " " << instance->position[1] << " " << instance->position[2] << " "
+        << instance->rotation[0] << " " << instance->rotation[1] << " " << instance->rotation[2] << " "
+        << instance->scale[0] << " " << instance->scale[1] << " " << instance->scale[2] << " "
+        << instance->objectColor[0] << " " << instance->objectColor[1] << " " << instance->objectColor[2] << " " << instance->objectColor[3] << " "
+        << textureName << " " << parentID << "\n"; // Save `type` and parentID
+
+    // Recursively save children
+    for (const Instance* child : instance->children)
+    {
+        saveInstance(file, child, availableTextures, instance->id);
+    }
+}
+
+void saveSceneToFile(std::vector<Instance*>& instances, const std::vector<TextureOption>& availableTextures)
+{
+    std::string saveFilePath = openFileDialog(true); // Open save dialog
+    if (saveFilePath.empty()) return; // Exit if no file was chosen
+
+    std::ofstream file(saveFilePath);
+    if (!file.is_open())
+    {
+        std::cerr << "Failed to save scene!" << std::endl;
+        return;
+    }
+
+    for (const Instance* instance : instances)
+    {
+        // Ensure top-level instances are saved first (with no parent)
+        saveInstance(file, instance, availableTextures, -1);
+    }
+
+    file.close();
+    std::cout << "Scene saved to " << saveFilePath << std::endl;
+}
+
+void loadSceneFromFile(std::vector<Instance*>& instances,
+    const std::vector<TextureOption>& availableTextures,
+    const std::unordered_map<std::string, std::pair<bgfx::VertexBufferHandle, bgfx::IndexBufferHandle>>& bufferMap)
+{
+    std::string loadFilePath = openFileDialog(false);
+    if (loadFilePath.empty()) return;
+
+    std::ifstream file(loadFilePath);
+    if (!file.is_open())
+    {
+        std::cerr << "Failed to load scene!" << std::endl;
+        return;
+    }
+
+    // Clear existing instances
+    for (Instance* inst : instances)
+    {
+        deleteInstance(inst);
+    }
+    instances.clear();
+
+    std::unordered_map<int, Instance*> instanceMap; // Stores instances by their IDs
+    std::vector<std::pair<int, int>> parentAssignments; // Stores parent-child assignments
+
+    std::string line;
+    while (std::getline(file, line))
+    {
+        std::istringstream iss(line);
+        int id, parentID;
+        std::string type, name, textureName;
+        float pos[3], rot[3], scale[3], color[4];
+
+        iss >> id >> type >> name
+            >> pos[0] >> pos[1] >> pos[2]
+            >> rot[0] >> rot[1] >> rot[2]
+            >> scale[0] >> scale[1] >> scale[2]
+            >> color[0] >> color[1] >> color[2] >> color[3]
+            >> textureName >> parentID;
+
+        // Fetch correct buffers using `type`
+        bgfx::VertexBufferHandle vbh = BGFX_INVALID_HANDLE;
+        bgfx::IndexBufferHandle ibh = BGFX_INVALID_HANDLE;
+
+        auto it = bufferMap.find(type);
+        if (it != bufferMap.end())
+        {
+            vbh = it->second.first;
+            ibh = it->second.second;
+        }
+
+        // Create instance
+        Instance* instance = new Instance(id, name, type, pos[0], pos[1], pos[2], vbh, ibh);
+        instance->rotation[0] = rot[0]; instance->rotation[1] = rot[1]; instance->rotation[2] = rot[2];
+        instance->scale[0] = scale[0]; instance->scale[1] = scale[1]; instance->scale[2] = scale[2];
+        instance->objectColor[0] = color[0]; instance->objectColor[1] = color[1];
+        instance->objectColor[2] = color[2]; instance->objectColor[3] = color[3];
+
+        // Assign texture
+        instance->diffuseTexture = BGFX_INVALID_HANDLE;
+        if (textureName != "none")
+        {
+            for (const auto& tex : availableTextures)
+            {
+                if (tex.name == textureName)
+                {
+                    instance->diffuseTexture = tex.handle;
+                    break;
+                }
+            }
+        }
+
+        instanceMap[id] = instance;
+
+        // If it has a parent, store the relationship
+        if (parentID != -1)
+        {
+            parentAssignments.push_back({ id, parentID });
+        }
+        else
+        {
+            // If it has no parent, it's a top-level instance
+            instances.push_back(instance);
+        }
+    }
+
+    // Restore parent-child relationships
+    for (const auto& [childID, parentID] : parentAssignments)
+    {
+        auto childIt = instanceMap.find(childID);
+        auto parentIt = instanceMap.find(parentID);
+        if (childIt != instanceMap.end() && parentIt != instanceMap.end())
+        {
+            parentIt->second->addChild(childIt->second);
+        }
+    }
+
+    file.close();
+    std::cout << "Scene loaded from " << loadFilePath << std::endl;
+}
+
+
 void ShowTopLevelDropTarget(std::vector<Instance*>& instances)
 {
     // Reserve a region across the available width (adjust the height as needed)
@@ -624,6 +804,7 @@ std::string ConvertBackslashesToForward(const std::string& path)
     std::replace(result.begin(), result.end(), '\\', '/');
     return result;
 }
+
 int main(void)
 {
     // Initialize GLFW
@@ -820,6 +1001,26 @@ int main(void)
     bgfx::IndexBufferHandle ibh_lucy;
     createMeshBuffers(lucyData, vbh_lucy, ibh_lucy);
 
+    std::unordered_map<std::string, std::pair<bgfx::VertexBufferHandle, bgfx::IndexBufferHandle>> bufferMap;
+
+	bufferMap["cube"] = { vbh_cube, ibh_cube };
+	bufferMap["capsule"] = { vbh_capsule, ibh_capsule };
+	bufferMap["cylinder"] = { vbh_cylinder, ibh_cylinder };
+	bufferMap["sphere"] = { vbh_sphere, ibh_sphere };
+	bufferMap["plane"] = { vbh_plane, ibh_plane };
+	bufferMap["cornell_box"] = { vbh_cornell, ibh_cornell };
+	bufferMap["innerCube"] = { vbh_innerCube, ibh_innerCube };
+	bufferMap["floor"] = { vbh_floor, ibh_floor };
+	bufferMap["ceiling"] = { vbh_ceiling, ibh_ceiling };
+	bufferMap["back"] = { vbh_back, ibh_back };
+	bufferMap["left"] = { vbh_left, ibh_left };
+	bufferMap["right"] = { vbh_right, ibh_right };
+	bufferMap["mesh"] = { vbh_mesh, ibh_mesh };
+	bufferMap["teapot"] = { vbh_teapot, ibh_teapot };
+	bufferMap["bunny"] = { vbh_bunny, ibh_bunny };
+	bufferMap["lucy"] = { vbh_lucy, ibh_lucy };
+
+
     //Load OBJ file
     /*std::vector<ObjLoader::Vertex> suzanneVertices;
     std::vector<uint16_t> suzanneIndices;
@@ -845,6 +1046,7 @@ int main(void)
     Camera camera;
 
     std::vector<Instance*> instances;
+    instances.reserve(100);
 
     bool modelMovement = false;
 
@@ -913,23 +1115,23 @@ int main(void)
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
     
     // --- Spawn Cornell Box with Hierarchy ---
-    Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", 8.0f, 0.0f, -5.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+    Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", 8.0f, 0.0f, -5.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
     // Create a walls node (dummy instance without geometry)
-    Instance* wallsNode = new Instance(instanceCounter++, "walls", 0.0f, 0.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+    Instance* wallsNode = new Instance(instanceCounter++, "walls", "empty", 0.0f, 0.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
 
-    Instance* floorPlane = new Instance(instanceCounter++, "floor", 0.0f, 0.0f, 0.0f, vbh_floor, ibh_floor);
+    Instance* floorPlane = new Instance(instanceCounter++, "floor", "floor", 0.0f, 0.0f, 0.0f, vbh_floor, ibh_floor);
     wallsNode->addChild(floorPlane);
-    Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", 0.0f, 0.0f, 0.0f, vbh_ceiling, ibh_ceiling);
+    Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", "ceiling", 0.0f, 0.0f, 0.0f, vbh_ceiling, ibh_ceiling);
     wallsNode->addChild(ceilingPlane);
-    Instance* backPlane = new Instance(instanceCounter++, "back", 0.0f, 0.0f, 0.0f, vbh_back, ibh_back);
+    Instance* backPlane = new Instance(instanceCounter++, "back", "back", 0.0f, 0.0f, 0.0f, vbh_back, ibh_back);
     wallsNode->addChild(backPlane);
-    Instance* leftPlane = new Instance(instanceCounter++, "left_wall", 0.0f, 0.0f, 0.0f, vbh_left, ibh_left);
+    Instance* leftPlane = new Instance(instanceCounter++, "left_wall", "left", 0.0f, 0.0f, 0.0f, vbh_left, ibh_left);
     wallsNode->addChild(leftPlane);
-    Instance* rightPlane = new Instance(instanceCounter++, "right_wall", 0.0f, 0.0f, 0.0f, vbh_right, ibh_right);
+    Instance* rightPlane = new Instance(instanceCounter++, "right_wall", "right", 0.0f, 0.0f, 0.0f, vbh_right, ibh_right);
     wallsNode->addChild(rightPlane);
 
-    Instance* innerCube = new Instance(instanceCounter++, "inner_cube", 0.3f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
-    Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", 1.1f, 1.0f, -0.9f, vbh_innerCube, ibh_innerCube);
+    Instance* innerCube = new Instance(instanceCounter++, "inner_cube", "innerCube", 0.3f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
+    Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", "innerCube", 1.1f, 1.0f, -0.9f, vbh_innerCube, ibh_innerCube);
     innerRectBox->scale[0] = 0.8f;
     innerRectBox->scale[1] = 2.0f;
     innerRectBox->scale[2] = 0.8f;
@@ -938,7 +1140,7 @@ int main(void)
     cornellBox->addChild(innerRectBox);
     instances.push_back(cornellBox);
 
-    spawnInstance(camera, "teapot", vbh_teapot, ibh_teapot, instances);
+    spawnInstance(camera, "teapot", "teapot", vbh_teapot, ibh_teapot, instances);
     instances.back()->position[0] = 3.0f;
     instances.back()->position[1] = -1.0f;
     instances.back()->position[2] = -5.0f;
@@ -946,7 +1148,7 @@ int main(void)
     instances.back()->scale[1] *= 0.03f;
     instances.back()->scale[2] *= 0.03f;
 
-    spawnInstance(camera, "bunny", vbh_bunny, ibh_bunny, instances);
+    spawnInstance(camera, "bunny", "bunny", vbh_bunny, ibh_bunny, instances);
     instances.back()->position[0] = -1.0f;
     instances.back()->position[1] = -1.0f;
     instances.back()->position[2] = -5.0f;
@@ -954,7 +1156,7 @@ int main(void)
     instances.back()->scale[1] *= 10.0f;
     instances.back()->scale[2] *= 10.0f;
 
-    spawnInstance(camera, "lucy", vbh_lucy, ibh_lucy, instances);
+    spawnInstance(camera, "lucy", "lucy", vbh_lucy, ibh_lucy, instances);
     instances.back()->position[0] = -4.0f;
     instances.back()->position[1] = -1.0f;
     instances.back()->position[2] = -5.0f;
@@ -1018,6 +1220,20 @@ int main(void)
         { 
             if (ImGui::BeginMenu("File", true))
             {
+                if (ImGui::MenuItem("Open..")) 
+                {
+                    //std::string loadFilePath = openFileDialog(false); // Open load dialog
+                    //if (!loadFilePath.empty())
+                    //    loadSceneText(loadFilePath, instances, availableTextures);
+					loadSceneFromFile(instances, availableTextures, bufferMap);
+                }
+                if (ImGui::MenuItem("Save", "Ctrl+S")) 
+                { 
+                    //std::string saveFilePath = openFileDialog(true); // Open save dialog
+                    //if (!saveFilePath.empty())
+                    //    saveScene(saveFilePath, instances, availableTextures);
+					saveSceneToFile(instances, availableTextures);
+                }
                 if (ImGui::MenuItem("Import OBJ"))
                 {
                     // Use a filter for OBJ files and all files.
@@ -1039,8 +1255,6 @@ int main(void)
                         std::cout << "imported obj spawned" << std::endl;
                     }
                 }
-                if (ImGui::MenuItem("Open..")) { /* Do stuff */ }
-                if (ImGui::MenuItem("Save", "Ctrl+S")) { /* Do stuff */ }
                 if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
                 ImGui::EndMenu();
             }
@@ -1074,59 +1288,54 @@ int main(void)
 			{
 				if (spawnPrimitive == 0)
 				{
-					spawnInstance(camera, "cube", vbh_cube, ibh_cube, instances);
+					spawnInstance(camera, "cube", "cube", vbh_cube, ibh_cube, instances);
 					std::cout << "Cube spawned" << std::endl;
 				}
 				else if (spawnPrimitive == 1)
 				{
-					spawnInstance(camera, "capsule", vbh_capsule, ibh_capsule, instances);
+					spawnInstance(camera, "capsule", "capsule", vbh_capsule, ibh_capsule, instances);
 					std::cout << "Capsule spawned" << std::endl;
 				}
 				else if (spawnPrimitive == 2)
 				{
-					spawnInstance(camera, "cylinder", vbh_cylinder, ibh_cylinder, instances);
+					spawnInstance(camera, "cylinder", "cylinder", vbh_cylinder, ibh_cylinder, instances);
 					std::cout << "Cylinder spawned" << std::endl;
 				}
 				else if (spawnPrimitive == 3)
 				{
-					spawnInstance(camera, "sphere", vbh_sphere, ibh_sphere, instances);
+					spawnInstance(camera, "sphere", "sphere", vbh_sphere, ibh_sphere, instances);
 					std::cout << "Sphere spawned" << std::endl;
 				}
 				else if (spawnPrimitive == 4)
 				{
-					spawnInstance(camera, "plane", vbh_plane, ibh_plane, instances);
+					spawnInstance(camera, "plane", "plane", vbh_plane, ibh_plane, instances);
 					std::cout << "Plane spawned" << std::endl;
 				}
 				else if (spawnPrimitive == 5)
 				{
-					spawnInstance(camera, "mesh", vbh_mesh, ibh_mesh, instances);
+					spawnInstance(camera, "mesh", "mesh", vbh_mesh, ibh_mesh, instances);
 					std::cout << "Test Import spawned" << std::endl;
 				}
                 else if (spawnPrimitive == 6)
                 {
-                    float spawnDistance = 5.0f;
-                    // Position for new instance, e.g., random or predefined position
-                    float x = camera.position.x + camera.front.x * spawnDistance;
-                    float y = camera.position.y + camera.front.y * spawnDistance;
-                    float z = camera.position.z + camera.front.z * spawnDistance;
                     // --- Spawn Cornell Box with Hierarchy ---
-                    Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", x, y, z, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+                    Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", 8.0f, 0.0f, -5.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
                     // Create a walls node (dummy instance without geometry)
-                    Instance* wallsNode = new Instance(instanceCounter++, "walls", 0.0f, 0.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+                    Instance* wallsNode = new Instance(instanceCounter++, "walls", "empty", 0.0f, 0.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
 
-                    Instance* floorPlane = new Instance(instanceCounter++, "floor", 0.0f, 0.0f, 0.0f, vbh_floor, ibh_floor);
+                    Instance* floorPlane = new Instance(instanceCounter++, "floor", "floor", 0.0f, 0.0f, 0.0f, vbh_floor, ibh_floor);
                     wallsNode->addChild(floorPlane);
-                    Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", 0.0f, 0.0f, 0.0f, vbh_ceiling, ibh_ceiling);
+                    Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", "ceiling", 0.0f, 0.0f, 0.0f, vbh_ceiling, ibh_ceiling);
                     wallsNode->addChild(ceilingPlane);
-                    Instance* backPlane = new Instance(instanceCounter++, "back", 0.0f, 0.0f, 0.0f, vbh_back, ibh_back);
+                    Instance* backPlane = new Instance(instanceCounter++, "back", "back", 0.0f, 0.0f, 0.0f, vbh_back, ibh_back);
                     wallsNode->addChild(backPlane);
-                    Instance* leftPlane = new Instance(instanceCounter++, "left_wall", 0.0f, 0.0f, 0.0f, vbh_left, ibh_left);
+                    Instance* leftPlane = new Instance(instanceCounter++, "left_wall", "left", 0.0f, 0.0f, 0.0f, vbh_left, ibh_left);
                     wallsNode->addChild(leftPlane);
-                    Instance* rightPlane = new Instance(instanceCounter++, "right_wall", 0.0f, 0.0f, 0.0f, vbh_right, ibh_right);
+                    Instance* rightPlane = new Instance(instanceCounter++, "right_wall", "right", 0.0f, 0.0f, 0.0f, vbh_right, ibh_right);
                     wallsNode->addChild(rightPlane);
 
-                    Instance* innerCube = new Instance(instanceCounter++, "inner_cube", 0.0f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
-                    Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", 1.1f, 1.0f, -0.9f, vbh_innerCube, ibh_innerCube);
+                    Instance* innerCube = new Instance(instanceCounter++, "inner_cube", "innerCube", 0.3f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
+                    Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", "innerCube", 1.1f, 1.0f, -0.9f, vbh_innerCube, ibh_innerCube);
                     innerRectBox->scale[0] = 0.8f;
                     innerRectBox->scale[1] = 2.0f;
                     innerRectBox->scale[2] = 0.8f;
@@ -1138,17 +1347,17 @@ int main(void)
                 }
                 else if (spawnPrimitive == 7)
                 {
-                    spawnInstance(camera, "teapot", vbh_teapot, ibh_teapot, instances);
+                    spawnInstance(camera, "teapot", "teapot", vbh_teapot, ibh_teapot, instances);
                     std::cout << "Teapot spawned" << std::endl;
                 }
                 else if (spawnPrimitive == 8)
                 {
-                    spawnInstance(camera, "bunny", vbh_bunny, ibh_bunny, instances);
+                    spawnInstance(camera, "bunny", "bunny", vbh_bunny, ibh_bunny, instances);
                     std::cout << "Bunny spawned" << std::endl;
                 }
                 else if (spawnPrimitive == 9)
                 {
-                    spawnInstance(camera, "lucy", vbh_lucy, ibh_lucy, instances);
+                    spawnInstance(camera, "lucy", "lucy", vbh_lucy, ibh_lucy, instances);
                     std::cout << "Lucy spawned" << std::endl;
                 }
 			}
@@ -1300,33 +1509,77 @@ int main(void)
 		{
             if (spawnPrimitive == 0)
             {
-                spawnInstance(camera, "cube", vbh_cube, ibh_cube, instances);
+                spawnInstance(camera, "cube", "cube", vbh_cube, ibh_cube, instances);
                 std::cout << "Cube spawned" << std::endl;
             }
             else if (spawnPrimitive == 1)
             {
-                spawnInstance(camera, "capsule", vbh_capsule, ibh_capsule, instances);
+                spawnInstance(camera, "capsule", "capsule", vbh_capsule, ibh_capsule, instances);
                 std::cout << "Capsule spawned" << std::endl;
             }
             else if (spawnPrimitive == 2)
             {
-                spawnInstance(camera, "cylinder", vbh_cylinder, ibh_cylinder, instances);
+                spawnInstance(camera, "cylinder", "cylinder", vbh_cylinder, ibh_cylinder, instances);
                 std::cout << "Cylinder spawned" << std::endl;
             }
             else if (spawnPrimitive == 3)
             {
-                spawnInstance(camera, "sphere", vbh_sphere, ibh_sphere, instances);
+                spawnInstance(camera, "sphere", "sphere", vbh_sphere, ibh_sphere, instances);
                 std::cout << "Sphere spawned" << std::endl;
             }
             else if (spawnPrimitive == 4)
             {
-                spawnInstance(camera, "plane", vbh_plane, ibh_plane, instances);
+                spawnInstance(camera, "plane", "plane", vbh_plane, ibh_plane, instances);
                 std::cout << "Plane spawned" << std::endl;
             }
             else if (spawnPrimitive == 5)
             {
-                spawnInstance(camera, "mesh", vbh_mesh, ibh_mesh, instances);
+                spawnInstance(camera, "mesh", "mesh", vbh_mesh, ibh_mesh, instances);
                 std::cout << "Test Import spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 6)
+            {
+                // --- Spawn Cornell Box with Hierarchy ---
+                Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", 8.0f, 0.0f, -5.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+                // Create a walls node (dummy instance without geometry)
+                Instance* wallsNode = new Instance(instanceCounter++, "walls", "empty", 0.0f, 0.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+
+                Instance* floorPlane = new Instance(instanceCounter++, "floor", "floor", 0.0f, 0.0f, 0.0f, vbh_floor, ibh_floor);
+                wallsNode->addChild(floorPlane);
+                Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", "ceiling", 0.0f, 0.0f, 0.0f, vbh_ceiling, ibh_ceiling);
+                wallsNode->addChild(ceilingPlane);
+                Instance* backPlane = new Instance(instanceCounter++, "back", "back", 0.0f, 0.0f, 0.0f, vbh_back, ibh_back);
+                wallsNode->addChild(backPlane);
+                Instance* leftPlane = new Instance(instanceCounter++, "left_wall", "left", 0.0f, 0.0f, 0.0f, vbh_left, ibh_left);
+                wallsNode->addChild(leftPlane);
+                Instance* rightPlane = new Instance(instanceCounter++, "right_wall", "right", 0.0f, 0.0f, 0.0f, vbh_right, ibh_right);
+                wallsNode->addChild(rightPlane);
+
+                Instance* innerCube = new Instance(instanceCounter++, "inner_cube", "innerCube", 0.3f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
+                Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", "innerCube", 1.1f, 1.0f, -0.9f, vbh_innerCube, ibh_innerCube);
+                innerRectBox->scale[0] = 0.8f;
+                innerRectBox->scale[1] = 2.0f;
+                innerRectBox->scale[2] = 0.8f;
+                cornellBox->addChild(wallsNode);
+                cornellBox->addChild(innerCube);
+                cornellBox->addChild(innerRectBox);
+                instances.push_back(cornellBox);
+                std::cout << "Cornell Box spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 7)
+            {
+                spawnInstance(camera, "teapot", "teapot", vbh_teapot, ibh_teapot, instances);
+                std::cout << "Teapot spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 8)
+            {
+                spawnInstance(camera, "bunny", "bunny", vbh_bunny, ibh_bunny, instances);
+                std::cout << "Bunny spawned" << std::endl;
+            }
+            else if (spawnPrimitive == 9)
+            {
+                spawnInstance(camera, "lucy", "lucy", vbh_lucy, ibh_lucy, instances);
+                std::cout << "Lucy spawned" << std::endl;
             }
 		}
 
