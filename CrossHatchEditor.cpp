@@ -608,8 +608,40 @@ void saveInstance(std::ofstream& file, const Instance* instance,
         saveInstance(file, child, availableTextures, instance->id);
     }
 }
+void SaveImportedObjMap(const std::unordered_map<std::string, std::string>& map, const std::string& filePath)
+{
+    std::ofstream ofs(filePath);
+    if (!ofs)
+    {
+        std::cerr << "Failed to open file for writing: " << filePath << std::endl;
+        return;
+    }
+    // Write each mapping as: key [whitespace] value
+    for (const auto& entry : map)
+    {
+        ofs << entry.first << " " << entry.second << "\n";
+    }
+    ofs.close();
+}
+std::unordered_map<std::string, std::string> LoadImportedObjMap(const std::string& filePath)
+{
+    std::unordered_map<std::string, std::string> map;
+    std::ifstream ifs(filePath);
+    if (!ifs)
+    {
+        std::cerr << "Failed to open file for reading: " << filePath << std::endl;
+        return map;
+    }
+    std::string key, path;
+    while (ifs >> key >> path)
+    {
+        map[key] = path;
+    }
+    ifs.close();
+    return map;
+}
 
-void saveSceneToFile(std::vector<Instance*>& instances, const std::vector<TextureOption>& availableTextures)
+void saveSceneToFile(std::vector<Instance*>& instances, const std::vector<TextureOption>& availableTextures, const std::unordered_map<std::string, std::string>& importedObjMap)
 {
     std::string saveFilePath = openFileDialog(true); // Open save dialog
     if (saveFilePath.empty()) return; // Exit if no file was chosen
@@ -629,20 +661,26 @@ void saveSceneToFile(std::vector<Instance*>& instances, const std::vector<Textur
 
     file.close();
     std::cout << "Scene saved to " << saveFilePath << std::endl;
+
+    std::string importedObjMapPath = fs::path(saveFilePath).stem().string() + "_imp_obj_map.txt";
+    SaveImportedObjMap(importedObjMap, importedObjMapPath);
+    std::cout << "Imported obj paths saved to " << importedObjMapPath << std::endl;
 }
 
-void loadSceneFromFile(std::vector<Instance*>& instances,
+std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Instance*>& instances,
     const std::vector<TextureOption>& availableTextures,
     const std::unordered_map<std::string, std::pair<bgfx::VertexBufferHandle, bgfx::IndexBufferHandle>>& bufferMap)
 {
     std::string loadFilePath = openFileDialog(false);
-    if (loadFilePath.empty()) return;
+    std::string importedObjMapPath = fs::path(loadFilePath).stem().string() + "_imp_obj_map.txt";
+    std::unordered_map<std::string, std::string> importedObjMap = LoadImportedObjMap(importedObjMapPath);
+    if (loadFilePath.empty()) return importedObjMap;
 
     std::ifstream file(loadFilePath);
     if (!file.is_open())
     {
         std::cerr << "Failed to load scene!" << std::endl;
-        return;
+        return importedObjMap;
     }
 
     // Clear existing instances
@@ -679,6 +717,14 @@ void loadSceneFromFile(std::vector<Instance*>& instances,
         {
             vbh = it->second.first;
             ibh = it->second.second;
+        }
+        else {
+            auto i = importedObjMap.find(type);
+            if (i != importedObjMap.end())
+            {
+                MeshData meshData = loadMesh(i->second);
+                createMeshBuffers(meshData, vbh, ibh);
+            }
         }
 
         // Create instance
@@ -729,6 +775,7 @@ void loadSceneFromFile(std::vector<Instance*>& instances,
 
     file.close();
     std::cout << "Scene loaded from " << loadFilePath << std::endl;
+    return importedObjMap;
 }
 
 
@@ -779,7 +826,7 @@ std::string OpenFileDialog(HWND owner, const char* filter)
     ofn.lpstrFilter = filter;
     ofn.lpstrFile = fileName;
     ofn.nMaxFile = MAX_PATH;
-    ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
+    ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_HIDEREADONLY | OFN_NOCHANGEDIR;
     ofn.lpstrDefExt = "obj";
 
     if (GetOpenFileName(&ofn))
@@ -1021,6 +1068,7 @@ int main(void)
 	bufferMap["lucy"] = { vbh_lucy, ibh_lucy };
 
 
+    std::unordered_map<std::string, std::string> importedObjMap;
     //Load OBJ file
     /*std::vector<ObjLoader::Vertex> suzanneVertices;
     std::vector<uint16_t> suzanneIndices;
@@ -1225,14 +1273,14 @@ int main(void)
                     //std::string loadFilePath = openFileDialog(false); // Open load dialog
                     //if (!loadFilePath.empty())
                     //    loadSceneText(loadFilePath, instances, availableTextures);
-					loadSceneFromFile(instances, availableTextures, bufferMap);
+                    importedObjMap = loadSceneFromFile(instances, availableTextures, bufferMap);
                 }
                 if (ImGui::MenuItem("Save", "Ctrl+S")) 
                 { 
                     //std::string saveFilePath = openFileDialog(true); // Open save dialog
                     //if (!saveFilePath.empty())
                     //    saveScene(saveFilePath, instances, availableTextures);
-					saveSceneToFile(instances, availableTextures);
+					saveSceneToFile(instances, availableTextures, importedObjMap);
                 }
                 if (ImGui::MenuItem("Import OBJ"))
                 {
@@ -1250,9 +1298,13 @@ int main(void)
                         bgfx::VertexBufferHandle vbh_imported;
                         bgfx::IndexBufferHandle ibh_imported;
                         createMeshBuffers(importedMesh, vbh_imported, ibh_imported);
+                        // Create a key based on the file name (without extension).
+                        std::string fileName = fs::path(normalizedRelPath).stem().string();
                         // Spawn the imported mesh as an instance.
-                        spawnInstance(camera, "imported_obj", vbh_imported, ibh_imported, instances);
+                        spawnInstance(camera, "imported_obj", fileName, vbh_imported, ibh_imported, instances);
                         std::cout << "imported obj spawned" << std::endl;
+                        // Add to our map: key is fileName, value is normalizedRelPath.
+                        importedObjMap[fileName] = normalizedRelPath;
                     }
                 }
                 if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
