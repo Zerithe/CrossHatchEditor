@@ -807,6 +807,11 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
 
     file.close();
     std::cout << "Scene loaded from " << loadFilePath << std::endl;
+    for (const auto* inst : instances)
+    {
+        instanceCounter = std::max(instanceCounter, inst->id);
+    }
+    instanceCounter++;
     return importedObjMap;
 }
 
