@@ -459,7 +459,7 @@ bool IsWhite(const float color[4], float epsilon = 0.001f)
         std::fabs(color[3] - 1.0f) < epsilon;
 }
 // Recursive draw function for hierarchy.
-void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::UniformHandle u_diffuseTex, bgfx::UniformHandle u_objectColor,
+void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram,bgfx::ProgramHandle lightDebugProgram, bgfx::UniformHandle u_diffuseTex, bgfx::UniformHandle u_objectColor,
     bgfx::TextureHandle defaultWhiteTexture, bgfx::TextureHandle inheritedTexture, const float* parentColor = nullptr, const float* parentTransform = nullptr)
 {
     float local[16];
@@ -515,7 +515,12 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::U
             textureToUse = defaultWhiteTexture;
         }
         bgfx::setTexture(1, u_diffuseTex, textureToUse);
-        bgfx::submit(0, program);
+        if (instance->isLight) {
+            bgfx::submit(0, lightDebugProgram);
+        }
+        else {
+            bgfx::submit(0, defaultProgram);
+        }
     }
     // Determine what color to pass to children.
     // If the effective color is white, then children should use their own objectColor.
@@ -531,7 +536,7 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle program, bgfx::U
     // Recursively draw children.
     for (const Instance* child : instance->children)
     {
-        drawInstance(child, program, u_diffuseTex, u_objectColor, defaultWhiteTexture, newInheritedTexture, childParentColor, world);
+        drawInstance(child, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, newInheritedTexture, childParentColor, world);
     }
 }
 // Recursive deletion for hierarchy.
@@ -632,7 +637,10 @@ void saveInstance(std::ofstream& file, const Instance* instance,
         << instance->rotation[0] << " " << instance->rotation[1] << " " << instance->rotation[2] << " "
         << instance->scale[0] << " " << instance->scale[1] << " " << instance->scale[2] << " "
         << instance->objectColor[0] << " " << instance->objectColor[1] << " " << instance->objectColor[2] << " " << instance->objectColor[3] << " "
-        << textureName << " " << parentID << "\n"; // Save `type` and parentID
+        << textureName << " " << parentID << " " << static_cast<int>(instance->lightProps.type) << " " << instance->lightProps.direction[0] << " " 
+        << instance->lightProps.direction[1] << " " << instance->lightProps.direction[2] << " " << instance->lightProps.intensity << " " 
+        << instance->lightProps.range << " " << instance->lightProps.coneAngle << " " << instance->lightProps.color[0] << " " 
+        << instance->lightProps.color[1] << " " << instance->lightProps.color[2] << " " << instance->lightProps.color[3] << "\n"; // Save `type` and parentID
 
     // Recursively save children
     for (const Instance* child : instance->children)
@@ -730,16 +738,19 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
     while (std::getline(file, line))
     {
         std::istringstream iss(line);
-        int id, parentID;
+        int id, parentID, lightType;
         std::string type, name, textureName;
-        float pos[3], rot[3], scale[3], color[4];
+        float pos[3], rot[3], scale[3], color[4], lightDirection[3], intensity, range, coneAngle, lightColor[4];
 
         iss >> id >> type >> name
             >> pos[0] >> pos[1] >> pos[2]
             >> rot[0] >> rot[1] >> rot[2]
             >> scale[0] >> scale[1] >> scale[2]
             >> color[0] >> color[1] >> color[2] >> color[3]
-            >> textureName >> parentID;
+            >> textureName >> parentID >> lightType 
+            >> lightDirection[0] >> lightDirection[1] >> lightDirection[2] 
+            >> intensity >> range >> coneAngle 
+            >> lightColor[0] >> lightColor[1] >> lightColor[2] >> lightColor[3];
 
         // Fetch correct buffers using `type`
         bgfx::VertexBufferHandle vbh = BGFX_INVALID_HANDLE;
@@ -766,7 +777,15 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
         instance->scale[0] = scale[0]; instance->scale[1] = scale[1]; instance->scale[2] = scale[2];
         instance->objectColor[0] = color[0]; instance->objectColor[1] = color[1];
         instance->objectColor[2] = color[2]; instance->objectColor[3] = color[3];
-
+        instance->lightProps.type = static_cast<LightType>(lightType);
+        instance->lightProps.direction[0] = lightDirection[0]; instance->lightProps.direction[1] = lightDirection[1]; instance->lightProps.direction[2] = lightDirection[2];
+        instance->lightProps.intensity = intensity;
+        instance->lightProps.range = range;
+        instance->lightProps.coneAngle = coneAngle;
+        instance->lightProps.color[0] = lightColor[0]; instance->lightProps.color[1] = lightColor[1]; instance->lightProps.color[2] = lightColor[2]; instance->lightProps.color[3] = lightColor[3];
+        if (instance->type == "light") {
+            instance->isLight = true;
+        }
         // Assign texture
         instance->diffuseTexture = BGFX_INVALID_HANDLE;
         if (textureName != "none")
@@ -955,6 +974,44 @@ void renderInstancePickingRecursive(const Instance* instance, const float* paren
 const int MAX_LIGHTS = 16;
 static bgfx::UniformHandle u_lights;   // array of vec4's (MAX_LIGHTS*4)
 static bgfx::UniformHandle u_numLights;  // vec4 (x holds number of lights)
+
+void collectLights(const Instance* inst, float* lightsData, int& numLights)
+{
+    if (!inst)
+        return;
+
+    if (inst->isLight)
+    {
+        if (numLights >= MAX_LIGHTS)
+            return;
+        int base = numLights * 16;
+        lightsData[base + 0] = static_cast<float>(inst->lightProps.type); // type
+        lightsData[base + 1] = inst->lightProps.intensity;
+        lightsData[base + 2] = 0.0f;
+        lightsData[base + 3] = 0.0f;
+        lightsData[base + 4] = inst->position[0];
+        lightsData[base + 5] = inst->position[1];
+        lightsData[base + 6] = inst->position[2];
+        lightsData[base + 7] = 1.0f;
+        lightsData[base + 8] = inst->lightProps.direction[0];
+        lightsData[base + 9] = inst->lightProps.direction[1];
+        lightsData[base + 10] = inst->lightProps.direction[2];
+        lightsData[base + 11] = inst->lightProps.coneAngle;
+        lightsData[base + 12] = inst->lightProps.color[0];
+        lightsData[base + 13] = inst->lightProps.color[1];
+        lightsData[base + 14] = inst->lightProps.color[2];
+        lightsData[base + 15] = inst->lightProps.range;
+        numLights++;
+    }
+
+    // Process children
+    for (const Instance* child : inst->children)
+    {
+        if (numLights >= MAX_LIGHTS)
+            break;
+        collectLights(child, lightsData, numLights);
+    }
+}
 
 int main(void)
 {
@@ -1203,6 +1260,7 @@ int main(void)
 	bufferMap["teapot"] = { vbh_teapot, ibh_teapot };
 	bufferMap["bunny"] = { vbh_bunny, ibh_bunny };
 	bufferMap["lucy"] = { vbh_lucy, ibh_lucy };
+    bufferMap["light"] = { vbh_sphere, ibh_sphere };
 
 
     std::unordered_map<std::string, std::string> importedObjMap;
@@ -1871,28 +1929,9 @@ int main(void)
         float lightsData[MAX_LIGHTS * 16]; // 16 floats per light.
         int numLights = 0;
         for (const Instance* inst : instances) {
-            if (inst->isLight) {
-                if (numLights >= MAX_LIGHTS)
-                    break;
-                int base = numLights * 16;
-                lightsData[base + 0] = static_cast<float>(inst->lightProps.type); // type
-                lightsData[base + 1] = inst->lightProps.intensity;
-                lightsData[base + 2] = 0.0f;
-                lightsData[base + 3] = 0.0f;
-                lightsData[base + 4] = inst->position[0];
-                lightsData[base + 5] = inst->position[1];
-                lightsData[base + 6] = inst->position[2];
-                lightsData[base + 7] = 1.0f;
-                lightsData[base + 8] = inst->lightProps.direction[0];
-                lightsData[base + 9] = inst->lightProps.direction[1];
-                lightsData[base + 10] = inst->lightProps.direction[2];
-                lightsData[base + 11] = inst->lightProps.coneAngle;
-                lightsData[base + 12] = inst->lightProps.color[0];
-                lightsData[base + 13] = inst->lightProps.color[1];
-                lightsData[base + 14] = inst->lightProps.color[2];
-                lightsData[base + 15] = inst->lightProps.range;
-                numLights++;
-            }
+            if (numLights >= MAX_LIGHTS)
+                break;
+            collectLights(inst, lightsData, numLights);
         }
         // Set u_lights uniform with (numLights * 4) vec4's.
         bgfx::setUniform(u_lights, lightsData, numLights * 4);
@@ -1981,18 +2020,7 @@ int main(void)
                 model[15] = 1.0f;
                 bgfx::setTransform(model);
 
-                
-                // Draw each top-level instance recursively:
-                //drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor,defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor);
-                // Use the debug program if this instance is a light, else use the normal program.
-                if (instance->isLight)
-                {
-                    drawInstance(instance, lightDebugProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor);
-                }
-                else
-                {
-                    drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
-                }
+                drawInstance(instance, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
             }
         }
         else
@@ -2012,18 +2040,7 @@ int main(void)
 
                 bgfx::setTransform(model);
 
-
-                // Draw each top-level instance recursively:
-                //drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor);
-                // Use the debug program if this instance is a light, else use the normal program.
-                if (instance->isLight)
-                {
-                    drawInstance(instance, lightDebugProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor);
-                }
-                else
-                {
-                    drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
-                }
+                drawInstance(instance, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
             }
         }
 
