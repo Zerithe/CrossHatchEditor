@@ -703,6 +703,7 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
     const std::vector<TextureOption>& availableTextures,
     const std::unordered_map<std::string, std::pair<bgfx::VertexBufferHandle, bgfx::IndexBufferHandle>>& bufferMap)
 {
+    selectedInstance = nullptr;
     std::string loadFilePath = openFileDialog(false);
     std::string importedObjMapPath = fs::path(loadFilePath).stem().string() + "_imp_obj_map.txt";
     std::unordered_map<std::string, std::string> importedObjMap = LoadImportedObjMap(importedObjMapPath);
