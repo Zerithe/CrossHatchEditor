@@ -179,9 +179,9 @@ void computeNormals(std::vector<PosColorVertex>& vertices, const std::vector<uin
         Vec3 edge2 = { v2.x - v0.x, v2.y - v0.y, v2.z - v0.z };
 
         Vec3 normal = {
-            edge1.y * edge2.z - edge1.z * edge2.y,
-            edge1.z * edge2.x - edge1.x * edge2.z,
-            edge1.x * edge2.y - edge1.y * edge2.x
+            edge2.y* edge1.z - edge2.z * edge1.y,
+            edge2.z* edge1.x - edge2.x * edge1.z,
+            edge2.x* edge1.y - edge2.y * edge1.x
         };
 
         float length = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
