@@ -7,6 +7,7 @@ double InputManager::m_mouseX = 0.0;
 double InputManager::m_mouseY = 0.0;
 bool InputManager::m_FirstMouse = true;
 bool InputManager::isCursorDisabled = true;
+bool InputManager::skipPickingPass = false;
 std::unordered_map<int, bool> InputManager::keyStates;
 
 void InputManager::initialize(GLFWwindow* window)
@@ -61,6 +62,9 @@ void InputManager::update(Camera& camera, float deltaTime)
 	if (isMouseClicked(GLFW_MOUSE_BUTTON_RIGHT))
 	{
 		isCursorDisabled = !isCursorDisabled;
+		if (!isCursorDisabled) {
+			skipPickingPass = true;
+		}
 		std::cout << "Cursor disabled: " << isCursorDisabled << std::endl;
 	}
 
@@ -127,4 +131,15 @@ void InputManager::getMouseMovement(double* x, double* y)
 
 	m_mouseX = xpos;
 	m_mouseY = ypos;
+}
+double InputManager::getMouseX() {
+	double xpos, ypos;
+	glfwGetCursorPos(m_window, &xpos, &ypos);
+	return xpos;
+}
+
+double InputManager::getMouseY() {
+	double xpos, ypos;
+	glfwGetCursorPos(m_window, &xpos, &ypos);
+	return ypos;
 }

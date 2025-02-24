@@ -59,7 +59,19 @@ bgfx::UniformHandle u_lightDir;
 bgfx::UniformHandle u_lightColor;
 bgfx::UniformHandle u_viewPos;
 //bgfx::UniformHandle u_scale;
+// Define the picking render target dimensions.
+#define PICKING_DIM 128
 
+static bgfx::TextureHandle s_pickingRT = BGFX_INVALID_HANDLE;
+static bgfx::TextureHandle s_pickingRTDepth = BGFX_INVALID_HANDLE;
+static bgfx::FrameBufferHandle s_pickingFB = BGFX_INVALID_HANDLE;
+static bgfx::TextureHandle s_pickingReadTex = BGFX_INVALID_HANDLE;
+static uint8_t s_pickingBlitData[PICKING_DIM * PICKING_DIM * 4] = { 0 };
+
+// Uniform for the picking shader that outputs the object ID as color.
+static bgfx::UniformHandle u_id = BGFX_INVALID_HANDLE;
+// Program handle for the picking pass.
+static bgfx::ProgramHandle pickingProgram = BGFX_INVALID_HANDLE;
 
 struct Instance
 {
@@ -872,12 +884,71 @@ std::string ConvertBackslashesToForward(const std::string& path)
     return result;
 }
 
+Instance* findInstanceById(const std::vector<Instance*>& instances, int id)
+{
+    for (Instance* inst : instances)
+    {
+        if (inst->id == id)
+            return inst;
+        // Recursively check children.
+        Instance* childResult = findInstanceById(inst->children, id);
+        if (childResult != nullptr)
+            return childResult;
+    }
+    return nullptr;
+}
+
+void renderInstancePickingRecursive(const Instance* instance, const float* parentTransform, uint32_t viewID)
+{
+    // Compute the local transform.
+    float local[16];
+    bx::mtxSRT(local,
+        instance->scale[0], instance->scale[1], instance->scale[2],
+        instance->rotation[0], instance->rotation[1], instance->rotation[2],
+        instance->position[0], instance->position[1], instance->position[2]
+    );
+
+    // Compute the world transform by combining the parent's transform (if any) with the local.
+    float world[16];
+    if (parentTransform)
+    {
+        bx::mtxMul(world, parentTransform, local);
+    }
+    else
+    {
+        std::memcpy(world, local, sizeof(world));
+    }
+
+    bgfx::setTransform(world);
+
+    // Encode the instance's unique ID into a color.
+    float idColor[4] = { instance->id / 255.0f, 0.0f, 0.0f, 1.0f };
+    bgfx::setUniform(u_id, idColor);
+
+    // Submit the geometry if valid.
+    const bgfx::VertexBufferHandle invalidVbh = BGFX_INVALID_HANDLE;
+    const bgfx::IndexBufferHandle invalidIbh = BGFX_INVALID_HANDLE;
+    // Draw geometry if valid.
+    if (instance->vertexBuffer.idx != invalidVbh.idx &&
+        instance->indexBuffer.idx != invalidIbh.idx)
+    {
+        bgfx::setVertexBuffer(0, instance->vertexBuffer);
+        bgfx::setIndexBuffer(instance->indexBuffer);
+        bgfx::submit(viewID, pickingProgram);
+    }
+
+    // Recursively render children with the new world transform.
+    for (const Instance* child : instance->children)
+    {
+        renderInstancePickingRecursive(child, world, viewID);
+    }
+}
+
 //-----------------------------------------------------------------------------
 // Uniforms for light data (for shader)
 const int MAX_LIGHTS = 16;
 static bgfx::UniformHandle u_lights;   // array of vec4's (MAX_LIGHTS*4)
 static bgfx::UniformHandle u_numLights;  // vec4 (x holds number of lights)
-
 
 int main(void)
 {
@@ -928,6 +999,40 @@ int main(void)
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
+
+    // Load shaders
+    // Create an off-screen picking render target (color)
+    s_pickingRT = bgfx::createTexture2D(PICKING_DIM, PICKING_DIM, false, 1,
+        bgfx::TextureFormat::RGBA8,
+        BGFX_TEXTURE_RT | BGFX_SAMPLER_MIN_POINT| BGFX_SAMPLER_MAG_POINT | BGFX_SAMPLER_MIP_POINT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
+    );
+    // Create a depth texture for the picking RT.
+    s_pickingRTDepth = bgfx::createTexture2D(PICKING_DIM, PICKING_DIM, false, 1,
+        bgfx::TextureFormat::D32F,
+        BGFX_TEXTURE_RT | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT | BGFX_SAMPLER_MIP_POINT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
+    );
+    bgfx::TextureHandle rt[2] =
+    {
+        s_pickingRT,
+        s_pickingRTDepth
+    };
+    // Create a framebuffer using both the color and depth textures.
+    s_pickingFB = bgfx::createFrameBuffer(BX_COUNTOF(rt), rt, true);
+
+    // Create a CPU-readback texture for blitting.
+    s_pickingReadTex = bgfx::createTexture2D(PICKING_DIM, PICKING_DIM, false, 1,
+        bgfx::TextureFormat::RGBA8,
+        BGFX_TEXTURE_BLIT_DST | BGFX_TEXTURE_READ_BACK | BGFX_SAMPLER_MAG_POINT | BGFX_SAMPLER_MIP_POINT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
+    );
+
+    // Create the uniform for picking – this will be set per-object.
+    u_id = bgfx::createUniform("u_id", bgfx::UniformType::Vec4);
+
+    // Load the picking shader program.
+    // (Assumes you have compiled picking shaders "vs_picking_shaded.bin" and "fs_picking_id.bin")
+    bgfx::ShaderHandle vsPick = loadShader("shaders\\vs_picking_shaded.bin");
+    bgfx::ShaderHandle fsPick = loadShader("shaders\\fs_picking_id.bin");
+    pickingProgram = bgfx::createProgram(vsPick, fsPick, true);
 
     bgfx::VertexLayout layout;
     layout.begin()
@@ -1209,7 +1314,7 @@ int main(void)
     cornellBox->addChild(innerCube);
     cornellBox->addChild(innerRectBox);
     instances.push_back(cornellBox);
-
+    
     spawnInstance(camera, "teapot", "teapot", vbh_teapot, ibh_teapot, instances);
     instances.back()->position[0] = 3.0f;
     instances.back()->position[1] = -1.0f;
@@ -1559,7 +1664,7 @@ int main(void)
             modelMovement = !modelMovement;
             std::cout << "Model movement: " << modelMovement << std::endl;
         }
-
+        /*
         //call spawnInstance when key is pressed based on spawnPrimitive value
 		if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && InputManager::getCursorDisabled())
 		{
@@ -1638,8 +1743,107 @@ int main(void)
                 std::cout << "Lucy spawned" << std::endl;
             }
 		}
+        */
+        // --- Object Picking Pass ---
+        // Only execute picking when the left mouse button is clicked and ImGui is not capturing the mouse.
+        if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && !ImGui::GetIO().WantCaptureMouse && !InputManager::getCursorDisabled())
+        {
+            if (InputManager::getSkipPickingPass) {
+                // Use a dedicated view ID for picking (choose one not used by your normal rendering)
+                const uint32_t PICKING_VIEW_ID = 0;
+                bgfx::setViewFrameBuffer(PICKING_VIEW_ID, s_pickingFB);
+                bgfx::setViewRect(PICKING_VIEW_ID, 0, 0, PICKING_DIM, PICKING_DIM);
 
-        
+                // Use the same camera for the picking pass.
+                float view[16];
+                bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
+                float proj[16];
+                bx::mtxProj(proj, 60.0f, float(WNDW_WIDTH) / float(WNDW_HEIGHT), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+                bgfx::setViewTransform(PICKING_VIEW_ID, view, proj);
+
+                // Render each instance with the picking shader.
+                for (const Instance* instance : instances)
+                {
+                    renderInstancePickingRecursive(instance, nullptr, PICKING_VIEW_ID);
+                }
+
+                // Blit the picking render target to the CPU-readable texture.
+                const uint32_t PICKING_BLIT_VIEW = 2;
+                bgfx::blit(PICKING_BLIT_VIEW, s_pickingReadTex, 0, 0, s_pickingRT);
+                // Submit a frame to ensure the blit is complete.
+                bgfx::frame();
+
+                // Read back the texture data into s_pickingBlitData.
+                bgfx::readTexture(s_pickingReadTex, s_pickingBlitData);
+
+                // Detach the picking framebuffer by setting it to BGFX_INVALID_HANDLE.
+                bgfx::setViewFrameBuffer(0, BGFX_INVALID_HANDLE);
+                // Reset the viewport to cover the full window.
+                bgfx::setViewRect(0, 0, 0, WNDW_WIDTH, WNDW_HEIGHT);
+                // Reset the view transforms for your normal scene.
+                bgfx::setViewTransform(0, view, proj);
+            }
+            // Use a dedicated view ID for picking (choose one not used by your normal rendering)
+            const uint32_t PICKING_VIEW_ID = 0;
+            bgfx::setViewFrameBuffer(PICKING_VIEW_ID, s_pickingFB);
+            bgfx::setViewRect(PICKING_VIEW_ID, 0, 0, PICKING_DIM, PICKING_DIM);
+
+            // Use the same camera for the picking pass.
+            float view[16];
+            bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
+            float proj[16];
+            bx::mtxProj(proj, 60.0f, float(WNDW_WIDTH) / float(WNDW_HEIGHT), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+            bgfx::setViewTransform(PICKING_VIEW_ID, view, proj);
+
+            // Render each instance with the picking shader.
+            for (const Instance* instance : instances)
+            {
+                renderInstancePickingRecursive(instance, nullptr, PICKING_VIEW_ID);
+            }
+
+            // Blit the picking render target to the CPU-readable texture.
+            const uint32_t PICKING_BLIT_VIEW = 2;
+            bgfx::blit(PICKING_BLIT_VIEW, s_pickingReadTex, 0, 0, s_pickingRT);
+            // Submit a frame to ensure the blit is complete.
+            bgfx::frame();
+            
+            // Read back the texture data into s_pickingBlitData.
+            bgfx::readTexture(s_pickingReadTex, s_pickingBlitData);
+
+            // Convert the current mouse position to coordinates in the picking RT.
+            int mouseX = static_cast<int>(InputManager::getMouseX());
+            int mouseY = static_cast<int>(InputManager::getMouseY());
+
+            // Flip Y coordinate if needed:
+            mouseY = WNDW_HEIGHT - mouseY;
+            int pickX = (mouseX * PICKING_DIM) / WNDW_WIDTH;
+            int pickY = (mouseY * PICKING_DIM) / WNDW_HEIGHT;
+
+            // Clamp the coordinates.
+            pickX = std::max(0, std::min(pickX, PICKING_DIM - 1));
+            pickY = std::max(0, std::min(pickY, PICKING_DIM - 1));
+
+            // Read the pixel (RGBA8: 4 bytes per pixel)
+            int pixelIndex = (pickY * PICKING_DIM + pickX) * 4;
+            uint8_t r = s_pickingBlitData[pixelIndex + 0];
+
+            // Decode the ID from the red channel.
+            int pickedID = r;
+
+            // Search through instances to find the one with this ID.
+            Instance* pickedInstance = findInstanceById(instances, pickedID);
+            if (pickedInstance)
+            {
+                selectedInstance = pickedInstance;
+                std::cout << "Picked object: " << selectedInstance->name << std::endl;
+            }
+            // Detach the picking framebuffer by setting it to BGFX_INVALID_HANDLE.
+            bgfx::setViewFrameBuffer(0, BGFX_INVALID_HANDLE);
+            // Reset the viewport to cover the full window.
+            bgfx::setViewRect(0, 0, 0, WNDW_WIDTH, WNDW_HEIGHT);
+            // Reset the view transforms for your normal scene.
+            bgfx::setViewTransform(0, view, proj);
+        }
 
         if (InputManager::isKeyToggled(GLFW_KEY_BACKSPACE) && !instances.empty())
         {
@@ -1708,7 +1912,7 @@ int main(void)
 
         bgfx::touch(0);
 
-
+        
         float viewPos[4] = { camera.position.x, camera.position.y, camera.position.z, 1.0f };
 
         //bgfx::setUniform(u_lightDir, lightDir);
