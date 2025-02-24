@@ -11,13 +11,15 @@ public:
 	static void destroy();
 
 	static void update(Camera& camera, float deltaTime);
-
+	static double getMouseX();
+	static double getMouseY();
 	static bool isKeyPressed(int key);
 	static bool isKeyToggled(int key);
 	static bool isMouseClicked(int key);
 	static void getMouseMovement(double* x, double* y);
 
 	static bool getCursorDisabled() { return isCursorDisabled; }
+	static bool getSkipPickingPass() { return skipPickingPass; }
 
 private:
 	InputManager() = default;
@@ -29,5 +31,6 @@ private:
 	static double m_mouseY;
 	static bool m_FirstMouse;
 	static bool isCursorDisabled;
+	static bool skipPickingPass;
 	static std::unordered_map<int, bool> keyStates;
 };
