@@ -48,6 +48,8 @@ namespace fs = std::filesystem;
 #include <imgui_internal.h>
 #include "Logger.h"
 
+#include "Light.h"
+//#include "DebugDraw.h"
 
 #define WNDW_WIDTH 1600
 #define WNDW_HEIGHT 900
@@ -75,6 +77,10 @@ struct Instance
     float objectColor[4];
     // NEW: optional diffuse texture for the object.
     bgfx::TextureHandle diffuseTexture = BGFX_INVALID_HANDLE;
+
+    // --- New for lights ---
+    bool isLight = false;
+    LightProperties lightProps; // Valid if isLight == true.
 
     std::vector<Instance*> children; // Hierarchy: child instances
     Instance* parent = nullptr;      // pointer to parent
@@ -280,15 +286,6 @@ MeshData loadMesh(const std::string& filePath) {
                 vertex.abgr = 0xffffffff; // Default color
             }
 
-            /*std::ostringstream key;
-
-            key << vertex.x << "," << vertex.y << "," << vertex.z;
-
-            if (uniqueVertices.count(key.str()) == 0) {
-                uniqueVertices[key.str()] = static_cast<uint16_t>(vertices.size());
-                vertices.push_back(vertex);
-            }*/
-
             vertices.push_back(vertex);
         }
 
@@ -418,6 +415,29 @@ static void spawnInstance(Camera camera, const std::string& instanceName, const 
     instances.push_back(new Instance(instanceCounter++, fullName, instanceType, x, y, z, vbh, ibh));
     std::cout << "New instance created at (" << x << ", " << y << ", " << z << ")" << std::endl;
 }
+
+static void spawnLight(const Camera& camera, bgfx::VertexBufferHandle vbh_sphere, bgfx::IndexBufferHandle ibh_sphere, std::vector<Instance*>& instances)
+{
+    float spawnDistance = 5.0f;
+    float x = camera.position.x + camera.front.x * spawnDistance;
+    float y = camera.position.y + camera.front.y * spawnDistance;
+    float z = camera.position.z + camera.front.z * spawnDistance;
+    std::string lightName = "light" + std::to_string(instanceCounter);
+    Instance* lightInst = new Instance(instanceCounter++, lightName, "light", x, y, z, vbh_sphere, ibh_sphere);
+    lightInst->isLight = true;
+    // Set default light properties (point light)
+    lightInst->lightProps.type = LightType::Point;
+    lightInst->lightProps.intensity = 1.0f;
+    lightInst->lightProps.range = 15.0f;
+    lightInst->lightProps.coneAngle = 0.0f;
+    lightInst->lightProps.color[0] = 1.0f; lightInst->lightProps.color[1] = 1.0f;
+    lightInst->lightProps.color[2] = 1.0f; lightInst->lightProps.color[3] = 1.0f;
+    // Make the visual representation small.
+    lightInst->scale[0] = lightInst->scale[1] = lightInst->scale[2] = 0.2f;
+    instances.push_back(lightInst);
+    std::cout << "Spawned light " << lightName << " at (" << x << ", " << y << ", " << z << ")\n";
+}
+
 // Helper function to determine if a color is (approximately) white.
 bool IsWhite(const float color[4], float epsilon = 0.001f)
 {
@@ -852,6 +872,13 @@ std::string ConvertBackslashesToForward(const std::string& path)
     return result;
 }
 
+//-----------------------------------------------------------------------------
+// Uniforms for light data (for shader)
+const int MAX_LIGHTS = 16;
+static bgfx::UniformHandle u_lights;   // array of vec4's (MAX_LIGHTS*4)
+static bgfx::UniformHandle u_numLights;  // vec4 (x holds number of lights)
+
+
 int main(void)
 {
     // Initialize GLFW
@@ -901,7 +928,6 @@ int main(void)
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
-    // Load shaders
 
     bgfx::VertexLayout layout;
     layout.begin()
@@ -1069,23 +1095,13 @@ int main(void)
 
 
     std::unordered_map<std::string, std::string> importedObjMap;
-    //Load OBJ file
-    /*std::vector<ObjLoader::Vertex> suzanneVertices;
-    std::vector<uint16_t> suzanneIndices;
-    if (!ObjLoader::loadObj("meshes/helicopter.obj", suzanneVertices, suzanneIndices)) {
-        std::cerr << "Failed to load OBJ file" << std::endl;
-        return -1;
-    }
-
-    bgfx::VertexBufferHandle vbh_mesh = ObjLoader::createVertexBuffer(suzanneVertices);
-    bgfx::IndexBufferHandle ibh_mesh = ObjLoader::createIndexBuffer(suzanneIndices);*/
 
     //Enable debug output
     bgfx::setDebug(BGFX_DEBUG_TEXT); // <-- Add this line here
 
     bgfx::setViewRect(0, 0, 0, WNDW_WIDTH, WNDW_HEIGHT);
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
-
+    
     glfwSetKeyCallback(window, glfw_keyCallback);
     InputManager::initialize(window);
 
@@ -1113,8 +1129,9 @@ int main(void)
     u_diffuseTex = bgfx::createUniform("u_diffuseTex", bgfx::UniformType::Sampler);
 
     // Create uniforms (do this once)
-    u_lightDir = bgfx::createUniform("u_lightDir", bgfx::UniformType::Vec4);
-    u_lightColor = bgfx::createUniform("u_lightColor", bgfx::UniformType::Vec4);
+    u_lights = bgfx::createUniform("u_lights", bgfx::UniformType::Vec4, MAX_LIGHTS * 4);
+    u_numLights = bgfx::createUniform("u_numLights", bgfx::UniformType::Vec4);
+
     u_viewPos = bgfx::createUniform("u_viewPos", bgfx::UniformType::Vec4);
 
     bgfx::UniformHandle u_inkColor = bgfx::createUniform("u_inkColor", bgfx::UniformType::Vec4);
@@ -1157,11 +1174,16 @@ int main(void)
     }
 
     // Load shaders and create program once
-    bgfx::ShaderHandle vsh = loadShader("shaders\\v_out17.bin");
-    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out18.bin");
+    bgfx::ShaderHandle vsh = loadShader("shaders\\v_out21.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out21.bin");
 
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
-    
+
+    // Load the debug light shader:
+    bgfx::ShaderHandle debugVsh = loadShader("shaders\\v_lightdebug_out1.bin");
+    bgfx::ShaderHandle debugFsh = loadShader("shaders\\f_lightdebug_out1.bin");
+    bgfx::ProgramHandle lightDebugProgram = bgfx::createProgram(debugVsh, debugFsh, true);
+
     // --- Spawn Cornell Box with Hierarchy ---
     Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", 8.0f, 0.0f, -5.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
     // Create a walls node (dummy instance without geometry)
@@ -1225,41 +1247,6 @@ int main(void)
 		ImGui::NewFrame();
 
         ImGuiViewport* viewport = ImGui::GetMainViewport();
-   //     ImGui::SetNextWindowPos(viewport->Pos);
-   //     ImGui::SetNextWindowSize(viewport->Size);
-   //     ImGui::SetNextWindowViewport(viewport->ID);
-
-   //     ImGuiWindowFlags dockspace_flags = ImGuiWindowFlags_NoDocking;
-   //     dockspace_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
-   //     dockspace_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
-
-   //     ImGui::Begin("Dockspace Window", nullptr, dockspace_flags);
-   //     ImGui::DockSpace(ImGui::GetID("MainDockspace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
-   //     ImGui::End();
-
-   //     static bool firstTime = true;
-   //     if (firstTime)
-   //     {
-   //         firstTime = false;
-			//ImGuiID dockspace_id = ImGui::GetID("MainDockspace");
-   //         ImGui::DockBuilderRemoveNode(dockspace_id);
-			//ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
-			//ImGui::DockBuilderSetNodeSize(dockspace_id, ImGui::GetMainViewport()->Size);
-
-			//ImGuiID dock_main_id = dockspace_id;
-
-   //         // First, split the main dock space to create a right-side docking area
-   //         ImGuiID dock_right = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.3f, nullptr, &dock_main_id);
-
-   //         // Now, split the right-side docking area **vertically**
-   //         ImGuiID dock_top = ImGui::DockBuilderSplitNode(dock_right, ImGuiDir_Left, 0.5f, nullptr, &dock_right);
-
-   //         // Dock windows to the right side, stacked vertically
-   //         ImGui::DockBuilderDockWindow("CrossHatchEditor", dock_top);  // Top half
-   //         ImGui::DockBuilderDockWindow("Object List", dock_right);     // Bottom half
-
-			//ImGui::DockBuilderFinish(dockspace_id);
-   //     }
 		
         //IMGUI WINDOW FOR CONTROLS
         //FOR REFERENCE USE THIS: https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html
@@ -1324,7 +1311,7 @@ int main(void)
 		ImGui::Text("F1 - Toggle stats");
 
 		ImGui::Checkbox("Toggle Object Movement", &modelMovement);
-        if (ImGui::CollapsingHeader("Spawn Objects"))
+        if (ImGui::CollapsingHeader("Spawn Objects"), ImGuiTreeNodeFlags_DefaultOpen)
         {
 			ImGui::RadioButton("Cube", &spawnPrimitive, 0);
 			ImGui::RadioButton("Capsule", &spawnPrimitive, 1);
@@ -1423,27 +1410,14 @@ int main(void)
 				std::cout << "Last Instance removed" << std::endl;
 			}
         }
-		if (ImGui::CollapsingHeader("Lighting"))
-		{
-			ImGui::ColorEdit3("Light Color", lightColor);
-            if (ImGui::Button("Randomize Light Color"))
+        if (ImGui::CollapsingHeader("Spawn Lights"), ImGuiTreeNodeFlags_DefaultOpen)
+        {
+            if (ImGui::Button("Spawn Light"))
             {
-                lightColor[0] = getRandomFloat(); // Random red
-                lightColor[1] = getRandomFloat(); // Random green
-                lightColor[2] = getRandomFloat(); // Random blue
-                lightColor[3] = 1.0f;
+                spawnLight(camera, vbh_sphere, ibh_sphere, instances);
             }
-			//lightdir is drag float3
-			ImGui::DragFloat3("Light Direction", lightDir, 0.01f, 0.0f, 0.0f);
-			//randomize light direction
-			if (ImGui::Button("Randomize Light Direction"))
-			{
-				lightDir[0] = getRandomFloat();
-				lightDir[1] = getRandomFloat();
-				lightDir[2] = getRandomFloat();
-				lightDir[3] = 0.0f;
-			}
-		}
+        }
+
 		ImGui::End();
 
         Logger::GetInstance().DrawImGuiLogger();
@@ -1452,7 +1426,7 @@ int main(void)
         static int selectedInstanceIndex = -1;
     
     
-		if (ImGui::CollapsingHeader("Object List"))
+		if (ImGui::CollapsingHeader("Object List"), ImGuiTreeNodeFlags_DefaultOpen)
 		{
             // For each top-level instance, show its tree.
             for (Instance* instance : instances)
@@ -1472,43 +1446,73 @@ int main(void)
                 ImGui::DragFloat3("Translation", selectedInstance->position, 0.1f);
                 ImGui::DragFloat3("Rotation (radians)", selectedInstance->rotation, 0.1f);
                 ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
-                //Object color Selection
-                ImGui::Separator();
-                ImGui::ColorEdit3("Object Color", selectedInstance->objectColor);
-                // --- Diffuse Texture Selection ---
-                ImGui::Separator();
-                ImGui::Text("Texture:");
-
-                // Use a static variable to hold the currently selected index
-                // (If no texture is selected, set to -1)
-                static int selectedTextureIndex = -1;
-
-                // Create a combo box listing all available textures plus "None"
-                if (ImGui::BeginCombo("##DiffuseTexture",
-                    (selectedTextureIndex >= 0) ? availableTextures[selectedTextureIndex].name.c_str() : "None"))
+                if (selectedInstance->isLight)
                 {
-                    // Option "None": no diffuse texture is applied.
-                    if (ImGui::Selectable("None", selectedTextureIndex == -1))
+                    ImGui::Separator();
+                    ImGui::Text("Light Properties:");
+                    const char* lightTypes[] = { "Directional", "Point", "Spot" };
+                    int currentType = static_cast<int>(selectedInstance->lightProps.type);
+                    if (ImGui::Combo("Light Type", &currentType, lightTypes, IM_ARRAYSIZE(lightTypes)))
                     {
-                        selectedTextureIndex = -1;
-                        selectedInstance->diffuseTexture = BGFX_INVALID_HANDLE;
+                        selectedInstance->lightProps.type = static_cast<LightType>(currentType);
                     }
-                    // List each available texture.
-                    for (int i = 0; i < availableTextures.size(); i++)
+                    if (selectedInstance->lightProps.type == LightType::Directional ||
+                        selectedInstance->lightProps.type == LightType::Spot)
                     {
-                        bool is_selected = (selectedTextureIndex == i);
-                        if (ImGui::Selectable(availableTextures[i].name.c_str(), is_selected))
+                        ImGui::DragFloat3("Light Direction", selectedInstance->lightProps.direction, 0.1f);
+                    }
+                    if (selectedInstance->lightProps.type == LightType::Point ||
+                        selectedInstance->lightProps.type == LightType::Spot)
+                    {
+                        ImGui::DragFloat3("Light Position", selectedInstance->position, 0.1f);
+                        ImGui::DragFloat("Range", &selectedInstance->lightProps.range, 0.1f, 0.0f, 100.0f);
+                    }
+                    ImGui::ColorEdit4("Light Color", selectedInstance->lightProps.color);
+                    ImGui::DragFloat("Intensity", &selectedInstance->lightProps.intensity, 0.1f, 0.0f, 10.0f);
+                    if (selectedInstance->lightProps.type == LightType::Spot)
+                    {
+                        ImGui::DragFloat("Cone Angle", &selectedInstance->lightProps.coneAngle, 0.1f, 0.0f, 3.14f);
+                    }
+                }
+                else {
+                    //Object color Selection
+                    ImGui::Separator();
+                    ImGui::ColorEdit3("Object Color", selectedInstance->objectColor);
+                    // --- Diffuse Texture Selection ---
+                    ImGui::Separator();
+                    ImGui::Text("Texture:");
+
+                    // Use a static variable to hold the currently selected index
+                    // (If no texture is selected, set to -1)
+                    static int selectedTextureIndex = -1;
+
+                    // Create a combo box listing all available textures plus "None"
+                    if (ImGui::BeginCombo("##DiffuseTexture",
+                        (selectedTextureIndex >= 0) ? availableTextures[selectedTextureIndex].name.c_str() : "None"))
+                    {
+                        // Option "None": no diffuse texture is applied.
+                        if (ImGui::Selectable("None", selectedTextureIndex == -1))
                         {
-                            selectedTextureIndex = i;
-                            // Update the selected instance’s diffuse texture handle.
-                            selectedInstance->diffuseTexture = availableTextures[i].handle;
-                            std::cout << "Instance " << selectedInstance->name << " diffuseTexture handle: "
-                                << selectedInstance->diffuseTexture.idx << std::endl;
+                            selectedTextureIndex = -1;
+                            selectedInstance->diffuseTexture = BGFX_INVALID_HANDLE;
                         }
-                        if (is_selected)
-                            ImGui::SetItemDefaultFocus();
+                        // List each available texture.
+                        for (int i = 0; i < availableTextures.size(); i++)
+                        {
+                            bool is_selected = (selectedTextureIndex == i);
+                            if (ImGui::Selectable(availableTextures[i].name.c_str(), is_selected))
+                            {
+                                selectedTextureIndex = i;
+                                // Update the selected instance’s diffuse texture handle.
+                                selectedInstance->diffuseTexture = availableTextures[i].handle;
+                                std::cout << "Instance " << selectedInstance->name << " diffuseTexture handle: "
+                                    << selectedInstance->diffuseTexture.idx << std::endl;
+                            }
+                            if (is_selected)
+                                ImGui::SetItemDefaultFocus();
+                        }
+                        ImGui::EndCombo();
                     }
-                    ImGui::EndCombo();
                 }
 
                 // You can add a button to remove the selected instance from the hierarchy.
@@ -1646,39 +1650,6 @@ int main(void)
             std::cout << "Last Instance removed" << std::endl;
         }
 
-        if(InputManager::isKeyToggled(GLFW_KEY_C))
-        {
-            lightColor[0] = getRandomFloat(); // Random red
-            lightColor[1] = getRandomFloat(); // Random green
-            lightColor[2] = getRandomFloat(); // Random blue
-            lightColor[3] = 1.0f;
-
-        }
-
-        if (InputManager::isKeyToggled(GLFW_KEY_X))
-        {
-            lightColor[0] = 0.5f;
-            lightColor[1] = 0.5f;
-            lightColor[2] = 0.5f;
-            lightColor[3] = 1.0f;
-        }
-
-        if (InputManager::isKeyToggled(GLFW_KEY_V))
-        {
-            lightDir[0] = getRandomFloat();
-            lightDir[1] = getRandomFloat();
-            lightDir[2] = getRandomFloat();
-            lightDir[3] = 0.0f;
-        }
-
-        if (InputManager::isKeyToggled(GLFW_KEY_Z))
-        {
-            lightDir[0] = 0.0f;
-            lightDir[1] = 1.0f;
-            lightDir[2] = 1.0f;
-            lightDir[3] = 0.0f;
-        }
-
         int width = static_cast<int>(viewport->Size.x);
         int height = static_cast<int>(viewport->Size.y);
 
@@ -1686,6 +1657,37 @@ int main(void)
 		{
 			continue;
 		}
+        
+        float lightsData[MAX_LIGHTS * 16]; // 16 floats per light.
+        int numLights = 0;
+        for (const Instance* inst : instances) {
+            if (inst->isLight) {
+                if (numLights >= MAX_LIGHTS)
+                    break;
+                int base = numLights * 16;
+                lightsData[base + 0] = static_cast<float>(inst->lightProps.type); // type
+                lightsData[base + 1] = inst->lightProps.intensity;
+                lightsData[base + 2] = 0.0f;
+                lightsData[base + 3] = 0.0f;
+                lightsData[base + 4] = inst->position[0];
+                lightsData[base + 5] = inst->position[1];
+                lightsData[base + 6] = inst->position[2];
+                lightsData[base + 7] = 1.0f;
+                lightsData[base + 8] = inst->lightProps.direction[0];
+                lightsData[base + 9] = inst->lightProps.direction[1];
+                lightsData[base + 10] = inst->lightProps.direction[2];
+                lightsData[base + 11] = inst->lightProps.coneAngle;
+                lightsData[base + 12] = inst->lightProps.color[0];
+                lightsData[base + 13] = inst->lightProps.color[1];
+                lightsData[base + 14] = inst->lightProps.color[2];
+                lightsData[base + 15] = inst->lightProps.range;
+                numLights++;
+            }
+        }
+        // Set u_lights uniform with (numLights * 4) vec4's.
+        bgfx::setUniform(u_lights, lightsData, numLights * 4);
+        float numLightsArr[4] = { static_cast<float>(numLights), 0, 0, 0 };
+        bgfx::setUniform(u_numLights, numLightsArr);
 
         bgfx::reset(width, height, BGFX_RESET_VSYNC);
         bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
@@ -1709,8 +1711,9 @@ int main(void)
 
         float viewPos[4] = { camera.position.x, camera.position.y, camera.position.z, 1.0f };
 
-        bgfx::setUniform(u_lightDir, lightDir);
-        bgfx::setUniform(u_lightColor, lightColor);
+        //bgfx::setUniform(u_lightDir, lightDir);
+        //bgfx::setUniform(u_lightColor, lightColor);
+
         bgfx::setUniform(u_viewPos, viewPos);
 
         float cameraPos[4] = { camera.position.x, camera.position.y, camera.position.z, 1.0f };
@@ -1721,29 +1724,10 @@ int main(void)
         bgfx::setUniform(u_e, epsilon);
         bgfx::setTexture(0, u_noiseTex, noiseTexture); // Bind the noise texture to texture stage 0.
 
-        //bgfx::UniformHandle u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
         
         // Example parameter values
         float params[4] = { 0.02f, 15.0f, 0.0f, 0.0f }; // e = 0.02 (tolerance), scale = 15.0
         bgfx::setUniform(u_params, params);
-
-
-
-        //bgfx::ShaderHandle vsh = loadShader("shaders\\v_out14.bin");
-        //bgfx::ShaderHandle fsh = loadShader("shaders\\f_out14.bin");
-        //bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
-
-
-        /*bgfx::dbgTextClear();
-        bgfx::dbgTextPrintf(0, 1, 0x4f, "Crosshatching Editor Ver 0.1");
-        bgfx::dbgTextPrintf(0, 2, 0x4f, "Nothing here yet...");
-        bgfx::dbgTextPrintf(0, 3, 0x0f, "Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
-        bgfx::dbgTextPrintf(0, 4, 0x0f, "M - Toggle Object Movement");
-        bgfx::dbgTextPrintf(0, 5, 0x0f, "C - Randomize Light Color");
-        bgfx::dbgTextPrintf(0, 6, 0x0f, "X - Reset Light Color");
-        bgfx::dbgTextPrintf(0, 7, 0x0f, "V - Randomize Light Direction");
-        bgfx::dbgTextPrintf(0, 8, 0x0f, "Z - Reset Light Direction");
-        bgfx::dbgTextPrintf(0, 9, 0x0f, "F1 - Toggle stats");*/
 
         // Enable stats or debug text
         bgfx::setDebug(s_showStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
@@ -1786,10 +1770,19 @@ int main(void)
                 model[14] = instance->position[2];
                 model[15] = 1.0f;
                 bgfx::setTransform(model);
-                
 
+                
                 // Draw each top-level instance recursively:
-                drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor,defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor);
+                //drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor,defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor);
+                // Use the debug program if this instance is a light, else use the normal program.
+                if (instance->isLight)
+                {
+                    drawInstance(instance, lightDebugProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor);
+                }
+                else
+                {
+                    drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
+                }
             }
         }
         else
@@ -1811,7 +1804,16 @@ int main(void)
 
 
                 // Draw each top-level instance recursively:
-                drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor);
+                //drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor);
+                // Use the debug program if this instance is a light, else use the normal program.
+                if (instance->isLight)
+                {
+                    drawInstance(instance, lightDebugProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor);
+                }
+                else
+                {
+                    drawInstance(instance, defaultProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
+                }
             }
         }
 
@@ -1827,11 +1829,6 @@ int main(void)
 
         bx::mtxSRT(mtx, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
         bgfx::setTransform(mtx);
-
-		/*bgfx::setVertexBuffer(0, vbh_sphere);
-		bgfx::setIndexBuffer(ibh_sphere);
-		bgfx::submit(0, defaultProgram);*/
-
 
         // End frame
 		ImGui::Render();
