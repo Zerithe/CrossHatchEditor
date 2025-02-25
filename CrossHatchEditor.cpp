@@ -1084,9 +1084,9 @@ int main(void)
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_Implbgfx_Init(255);
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    /*ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));*/
 
 
     // Load shaders
@@ -1435,6 +1435,14 @@ int main(void)
 
     Logger::GetInstance();
 
+    static bgfx::FrameBufferHandle g_frameBuffer = BGFX_INVALID_HANDLE;
+    static bgfx::TextureHandle g_frameBufferTex = BGFX_INVALID_HANDLE;
+
+	ImGuiWindowFlags menu_flags = 0;
+	menu_flags |= ImGuiWindowFlags_MenuBar |
+        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoBackground;
+
     //MAIN LOOP
 	while (!glfwWindowShouldClose(window))
 	{
@@ -1446,27 +1454,51 @@ int main(void)
 		ImGui::NewFrame();
 
         ImGuiViewport* viewport = ImGui::GetMainViewport();
-		
-        //IMGUI WINDOW FOR CONTROLS
-        //FOR REFERENCE USE THIS: https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html
-        ImGui::Begin("CrossHatchEditor", p_open, window_flags);
+		ImGuiID dockspace_id = viewport->ID;
+		ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
+        
+        //for viewporting
+        /*
+        // Set up a full-screen window
+        ImGui::SetNextWindowPos(viewport->Pos);
+        ImGui::SetNextWindowSize(viewport->Size);
+        ImGui::SetNextWindowViewport(viewport->ID);
+
+        ImGuiWindowFlags docking_window_flags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar |
+            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
+            ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_MenuBar;
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+
+        ImGui::Begin("DockSpace Window", nullptr, docking_window_flags);
+        ImGui::PopStyleVar(3);
+
+        ImGuiID dockspace_id = ImGui::GetID("MainDockspace");
+        ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
+
+        ImGui::End();*/
+
+        ImGui::Begin("MenuBar", p_open, menu_flags);
         if (ImGui::BeginMenuBar())
-        { 
+        {
             if (ImGui::BeginMenu("File", true))
             {
-                if (ImGui::MenuItem("Open..")) 
+                if (ImGui::MenuItem("Open.."))
                 {
                     //std::string loadFilePath = openFileDialog(false); // Open load dialog
                     //if (!loadFilePath.empty())
                     //    loadSceneText(loadFilePath, instances, availableTextures);
                     importedObjMap = loadSceneFromFile(instances, availableTextures, bufferMap);
                 }
-                if (ImGui::MenuItem("Save", "Ctrl+S")) 
-                { 
+                if (ImGui::MenuItem("Save", "Ctrl+S"))
+                {
                     //std::string saveFilePath = openFileDialog(true); // Open save dialog
                     //if (!saveFilePath.empty())
                     //    saveScene(saveFilePath, instances, availableTextures);
-					saveSceneToFile(instances, availableTextures, importedObjMap);
+                    saveSceneToFile(instances, availableTextures, importedObjMap);
                 }
                 if (ImGui::MenuItem("Import OBJ"))
                 {
@@ -1496,18 +1528,14 @@ int main(void)
                 if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
                 ImGui::EndMenu();
             }
-			ImGui::EndMenuBar();
-		}
-		ImGui::Text("Crosshatch Editor Ver 0.2");
-		ImGui::Text("Some things here and there...");
-		ImGui::Text("Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
-        ImGui::Text("Right Click - Detach Mouse from Camera");
-		ImGui::Text("M - Toggle Object Movement");
-		ImGui::Text("C - Randomize Light Color");
-		ImGui::Text("X - Reset Light Color");
-		ImGui::Text("V - Randomize Light Direction");
-		ImGui::Text("Z - Reset Light Direction");
-		ImGui::Text("F1 - Toggle stats");
+            ImGui::EndMenuBar();
+        }
+		ImGui::End();
+		
+        //IMGUI WINDOW FOR CONTROLS
+        //FOR REFERENCE USE THIS: https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html
+        ImGui::Begin("CrossHatchEditor", p_open, window_flags);
+		
 
 		ImGui::Checkbox("Toggle Object Movement", &modelMovement);
         ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
@@ -1756,16 +1784,44 @@ int main(void)
         {
             // ColorEdit4 allows you to edit a vec4 (RGBA)
             ImGui::ColorEdit4("Ink Color", inkColor);
+            ImGui::SetNextItemWidth(100);
             ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
+            ImGui::SetNextItemWidth(100);
             ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
             ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
+            ImGui::SetNextItemWidth(100);
             ImGui::DragFloat("Line Angle 2", &lineAngle2, 0.1f, 0.0f, TAU);
-
+            ImGui::SetNextItemWidth(100);
             ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+            ImGui::SetNextItemWidth(100);
             ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, 0.1f, 10.0f);
         }
 		ImGui::End();
           
+        ImGui::Begin("Info", p_open, window_flags);
+        ImGui::Text("Crosshatch Editor Demo Build");
+        ImGui::Text("FPS: %.1f ", ImGui::GetIO().Framerate);
+        //ImGui::Text("Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
+        ImGui::Text("");
+        ImGui::End();
+
+		ImGui::Begin("Controls", p_open, window_flags);
+        ImGui::Text("Controls:");
+		ImGui::Text("WASD - Move Camera");
+		ImGui::Text("Mouse - Look Around");
+		ImGui::Text("Shift - Move Down");
+		ImGui::Text("Space - Move Up");
+        ImGui::Text("Left Click - Select Object");
+        ImGui::Text("Right Click - Detach Mouse from Camera");
+        ImGui::Text("M - Toggle Object Movement");
+        ImGui::Text("C - Randomize Light Color");
+        ImGui::Text("X - Reset Light Color");
+        ImGui::Text("V - Randomize Light Direction");
+        ImGui::Text("Z - Reset Light Direction");
+        ImGui::Text("F1 - Toggle bgfx stats");
+		ImGui::End();
+
         //handle inputs
         InputManager::update(camera, 0.016f);
 
@@ -1774,6 +1830,9 @@ int main(void)
             modelMovement = !modelMovement;
             std::cout << "Model movement: " << modelMovement << std::endl;
         }
+
+
+
         /*
         //call spawnInstance when key is pressed based on spawnPrimitive value
 		if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && InputManager::getCursorDisabled())
@@ -1854,6 +1913,16 @@ int main(void)
             }
 		}
         */
+
+
+        int width = static_cast<int>(viewport->Size.x);
+        int height = static_cast<int>(viewport->Size.y);
+
+        if (width == 0 || height == 0)
+        {
+            continue;
+        }
+
         // --- Object Picking Pass ---
         // Only execute picking when the left mouse button is clicked and ImGui is not capturing the mouse.
         if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && !ImGui::GetIO().WantCaptureMouse && !InputManager::getCursorDisabled())
@@ -1868,7 +1937,7 @@ int main(void)
                 float view[16];
                 bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
                 float proj[16];
-                bx::mtxProj(proj, 60.0f, float(WNDW_WIDTH) / float(WNDW_HEIGHT), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+                bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
                 bgfx::setViewTransform(PICKING_VIEW_ID, view, proj);
 
                 // Render each instance with the picking shader.
@@ -1889,7 +1958,7 @@ int main(void)
                 // Detach the picking framebuffer by setting it to BGFX_INVALID_HANDLE.
                 bgfx::setViewFrameBuffer(0, BGFX_INVALID_HANDLE);
                 // Reset the viewport to cover the full window.
-                bgfx::setViewRect(0, 0, 0, WNDW_WIDTH, WNDW_HEIGHT);
+                bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
                 // Reset the view transforms for your normal scene.
                 bgfx::setViewTransform(0, view, proj);
                 InputManager::toggleSkipPickingPass();
@@ -1903,7 +1972,7 @@ int main(void)
             float view[16];
             bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
             float proj[16];
-            bx::mtxProj(proj, 60.0f, float(WNDW_WIDTH) / float(WNDW_HEIGHT), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+            bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
             bgfx::setViewTransform(PICKING_VIEW_ID, view, proj);
 
             // Render each instance with the picking shader.
@@ -1926,9 +1995,9 @@ int main(void)
             int mouseY = static_cast<int>(InputManager::getMouseY());
 
             // Flip Y coordinate if needed:
-            mouseY = WNDW_HEIGHT - mouseY;
-            int pickX = (mouseX * PICKING_DIM) / WNDW_WIDTH;
-            int pickY = (mouseY * PICKING_DIM) / WNDW_HEIGHT;
+            mouseY = height - mouseY;
+            int pickX = (mouseX * PICKING_DIM) / width;
+            int pickY = (mouseY * PICKING_DIM) / height;
 
             // Clamp the coordinates.
             pickX = std::max(0, std::min(pickX, PICKING_DIM - 1));
@@ -1951,27 +2020,19 @@ int main(void)
             // Detach the picking framebuffer by setting it to BGFX_INVALID_HANDLE.
             bgfx::setViewFrameBuffer(0, BGFX_INVALID_HANDLE);
             // Reset the viewport to cover the full window.
-            bgfx::setViewRect(0, 0, 0, WNDW_WIDTH, WNDW_HEIGHT);
+            bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
             // Reset the view transforms for your normal scene.
             bgfx::setViewTransform(0, view, proj);
         }
 
-        if (InputManager::isKeyToggled(GLFW_KEY_BACKSPACE) && !instances.empty())
-        {
-            Instance* inst = instances.back();
-            instances.pop_back();
-            //instanceCounter--;
-            delete inst;
-            std::cout << "Last Instance removed" << std::endl;
-        }
-
-        int width = static_cast<int>(viewport->Size.x);
-        int height = static_cast<int>(viewport->Size.y);
-
-		if (width == 0 || height == 0)
-		{
-			continue;
-		}
+        //if (InputManager::isKeyToggled(GLFW_KEY_BACKSPACE) && !instances.empty())
+        //{
+        //    Instance* inst = instances.back();
+        //    instances.pop_back();
+        //    //instanceCounter--;
+        //    delete inst;
+        //    std::cout << "Last Instance removed" << std::endl;
+        //}
         
         float lightsData[MAX_LIGHTS * 16]; // 16 floats per light.
         int numLights = 0;
