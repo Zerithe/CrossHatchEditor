@@ -62,6 +62,21 @@ bgfx::UniformHandle u_viewPos;
 // Define the picking render target dimensions.
 #define PICKING_DIM 128
 
+// (Define TAU in C++ too)
+const float TAU = 6.28318530718f;
+// Declare static variables to hold our crosshatch parameters:
+static float epsilonValue = 0.02f;       // default epsilon
+static float strokeMultiplier = 5.0f;      // default stroke multiplier
+static float lineAngle1 = TAU / 8.0f;        // default first hatch angle factor
+static float lineAngle2 = TAU / 16.0f;       // default second hatch angle factor
+
+// These static variables will hold the extra parameter values.
+static float patternScale = 1.0f;   // default: no scaling
+static float lineThickness = 1.0f;  // default: no change
+// You can leave the remaining components as 0 (or later repurpose them)
+static float extraParamZ = 0.0f;
+static float extraParamW = 0.0f;
+
 static bgfx::TextureHandle s_pickingRT = BGFX_INVALID_HANDLE;
 static bgfx::TextureHandle s_pickingRTDepth = BGFX_INVALID_HANDLE;
 static bgfx::FrameBufferHandle s_pickingFB = BGFX_INVALID_HANDLE;
@@ -94,6 +109,10 @@ struct Instance
     bool isLight = false;
     LightProperties lightProps; // Valid if isLight == true.
 
+    // NEW: For light objects only – determines if the debug visual (the sphere)
+    // is drawn. (Default true.)
+    bool showDebugVisual = true;
+
     std::vector<Instance*> children; // Hierarchy: child instances
     Instance* parent = nullptr;      // pointer to parent
 
@@ -109,6 +128,8 @@ struct Instance
         scale[0] = scale[1] = scale[2] = 1.0f;
         // Initialize the object color to white (no override)
         objectColor[0] = 1.0f; objectColor[1] = 1.0f; objectColor[2] = 1.0f; objectColor[3] = 1.0f;
+        // For light objects, default to drawing the debug visual.
+        showDebugVisual = true;
     }
     void addChild(Instance* child) {
         children.push_back(child);
@@ -441,7 +462,7 @@ static void spawnLight(const Camera& camera, bgfx::VertexBufferHandle vbh_sphere
     lightInst->lightProps.type = LightType::Point;
     lightInst->lightProps.intensity = 1.0f;
     lightInst->lightProps.range = 15.0f;
-    lightInst->lightProps.coneAngle = 0.0f;
+    lightInst->lightProps.coneAngle = 1.0f;
     lightInst->lightProps.color[0] = 1.0f; lightInst->lightProps.color[1] = 1.0f;
     lightInst->lightProps.color[2] = 1.0f; lightInst->lightProps.color[3] = 1.0f;
     // Make the visual representation small.
@@ -515,11 +536,19 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram,b
             textureToUse = defaultWhiteTexture;
         }
         bgfx::setTexture(1, u_diffuseTex, textureToUse);
-        if (instance->isLight) {
-            bgfx::submit(0, lightDebugProgram);
+        // If the instance is a light and its debug visual is turned off,
+        // skip drawing the sphere representation.
+        if (instance->type == "light" && !instance->showDebugVisual)
+        {
+            // Do nothing (or you might draw an alternative marker).
         }
-        else {
-            bgfx::submit(0, defaultProgram);
+        else
+        {
+            // If this instance is a light, use the debug shader; otherwise, use default.
+            if (instance->type == "light")
+                bgfx::submit(0, lightDebugProgram);
+            else
+                bgfx::submit(0, defaultProgram);
         }
     }
     // Determine what color to pass to children.
@@ -1310,6 +1339,10 @@ int main(void)
     bgfx::UniformHandle u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
     bgfx::UniformHandle u_objectColor = bgfx::createUniform("u_objectColor", bgfx::UniformType::Vec4);
 
+    // Create a uniform for extra parameters as a vec4.
+    bgfx::UniformHandle u_extraParams = bgfx::createUniform("u_extraParams", bgfx::UniformType::Vec4);
+
+
     // SHADER TEXTURE
     bgfx::TextureHandle noiseTexture = loadTextureDDS("shaders\\noise1.dds");
 
@@ -1344,7 +1377,7 @@ int main(void)
 
     // Load shaders and create program once
     bgfx::ShaderHandle vsh = loadShader("shaders\\v_out21.bin");
-    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out21.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out24.bin");
 
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
 
@@ -1480,7 +1513,8 @@ int main(void)
 		ImGui::Text("F1 - Toggle stats");
 
 		ImGui::Checkbox("Toggle Object Movement", &modelMovement);
-        if (ImGui::CollapsingHeader("Spawn Objects"), ImGuiTreeNodeFlags_DefaultOpen)
+        ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+        if (ImGui::CollapsingHeader("Spawn Objects"))
         {
 			ImGui::RadioButton("Cube", &spawnPrimitive, 0);
 			ImGui::RadioButton("Capsule", &spawnPrimitive, 1);
@@ -1579,7 +1613,8 @@ int main(void)
 				std::cout << "Last Instance removed" << std::endl;
 			}
         }
-        if (ImGui::CollapsingHeader("Spawn Lights"), ImGuiTreeNodeFlags_DefaultOpen)
+        ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+        if (ImGui::CollapsingHeader("Spawn Lights"))
         {
             if (ImGui::Button("Spawn Light"))
             {
@@ -1593,9 +1628,9 @@ int main(void)
 
 		ImGui::Begin("Object List", p_open, window_flags);
         static int selectedInstanceIndex = -1;
-    
-    
-		if (ImGui::CollapsingHeader("Object List"), ImGuiTreeNodeFlags_DefaultOpen)
+        
+        ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+		if (ImGui::CollapsingHeader("Object List"))
 		{
             // For each top-level instance, show its tree.
             for (Instance* instance : instances)
@@ -1641,6 +1676,12 @@ int main(void)
                     if (selectedInstance->lightProps.type == LightType::Spot)
                     {
                         ImGui::DragFloat("Cone Angle", &selectedInstance->lightProps.coneAngle, 0.1f, 0.0f, 3.14f);
+                    }
+                    // Add a checkbox to show or hide the debug visual of the light.
+                    bool debugVisible = selectedInstance->showDebugVisual;
+                    if (ImGui::Checkbox("Show Light Debug Visual", &debugVisible))
+                    {
+                        selectedInstance->showDebugVisual = debugVisible;
                     }
                 }
                 else {
@@ -1713,10 +1754,18 @@ int main(void)
                 }
              }
         }
-        if (ImGui::CollapsingHeader("Crosshatch Ink"))
+        ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+        if (ImGui::CollapsingHeader("Crosshatch Settings"))
         {
             // ColorEdit4 allows you to edit a vec4 (RGBA)
             ImGui::ColorEdit4("Ink Color", inkColor);
+            ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
+            ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+            ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
+            ImGui::DragFloat("Line Angle 2", &lineAngle2, 0.1f, 0.0f, TAU);
+
+            ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+            ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, 0.1f, 10.0f);
         }
 		ImGui::End();
           
@@ -1970,13 +2019,23 @@ int main(void)
         
         bgfx::setUniform(u_inkColor, inkColor);
         bgfx::setUniform(u_cameraPos, cameraPos);
-        bgfx::setUniform(u_e, epsilon);
+        // Set epsilon uniform:
+        float epsilonUniform[4] = { epsilonValue, 0.0f, 0.0f, 0.0f };
+        bgfx::setUniform(u_e, epsilonUniform);
         bgfx::setTexture(0, u_noiseTex, noiseTexture); // Bind the noise texture to texture stage 0.
 
         
         // Example parameter values
-        float params[4] = { 0.02f, 15.0f, 0.0f, 0.0f }; // e = 0.02 (tolerance), scale = 15.0
-        bgfx::setUniform(u_params, params);
+        //float params[4] = { 0.02f, 15.0f, 0.0f, 0.0f }; // e = 0.02 (tolerance), scale = 15.0
+        // Set u_params uniform:
+        float paramsUniform[4] = { 0.0f, strokeMultiplier, lineAngle1, lineAngle2 };
+        bgfx::setUniform(u_params, paramsUniform);
+
+        // Prepare an array of 4 floats.
+        float extraParamsUniform[4] = { patternScale, lineThickness, extraParamZ, extraParamW };
+        // Set the uniform for extra parameters.
+        bgfx::setUniform(u_extraParams, extraParamsUniform);
+
 
         // Enable stats or debug text
         bgfx::setDebug(s_showStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
