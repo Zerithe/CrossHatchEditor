@@ -545,10 +545,7 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram,b
         else
         {
             // If this instance is a light, use the debug shader; otherwise, use default.
-            if (instance->type == "light")
-                bgfx::submit(0, lightDebugProgram);
-            else
-                bgfx::submit(0, defaultProgram);
+            bgfx::submit(0, (instance->type == "light") ? lightDebugProgram : defaultProgram);
         }
     }
     // Determine what color to pass to children.
@@ -1895,6 +1892,7 @@ int main(void)
                 bgfx::setViewRect(0, 0, 0, WNDW_WIDTH, WNDW_HEIGHT);
                 // Reset the view transforms for your normal scene.
                 bgfx::setViewTransform(0, view, proj);
+                InputManager::toggleSkipPickingPass();
             }
             // Use a dedicated view ID for picking (choose one not used by your normal rendering)
             const uint32_t PICKING_VIEW_ID = 0;

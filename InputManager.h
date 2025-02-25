@@ -20,6 +20,7 @@ public:
 
 	static bool getCursorDisabled() { return isCursorDisabled; }
 	static bool getSkipPickingPass() { return skipPickingPass; }
+	static void toggleSkipPickingPass() { skipPickingPass = !skipPickingPass; }
 
 private:
 	InputManager() = default;
