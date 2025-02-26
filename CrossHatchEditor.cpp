@@ -2174,10 +2174,7 @@ int main(void)
 
             bgfx::setTransform(model);
 
-            drawInstance(instance, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
-        }
-                drawInstance(instance, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, u_tint, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
-            }
+            drawInstance(instance, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, u_tint, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
         }
 
         // Update your vertex layout to include normals
