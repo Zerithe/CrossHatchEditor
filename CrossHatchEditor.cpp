@@ -480,7 +480,7 @@ bool IsWhite(const float color[4], float epsilon = 0.001f)
         std::fabs(color[3] - 1.0f) < epsilon;
 }
 // Recursive draw function for hierarchy.
-void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram,bgfx::ProgramHandle lightDebugProgram, bgfx::UniformHandle u_diffuseTex, bgfx::UniformHandle u_objectColor,
+void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram,bgfx::ProgramHandle lightDebugProgram, bgfx::UniformHandle u_diffuseTex, bgfx::UniformHandle u_objectColor, bgfx::UniformHandle u_tint,
     bgfx::TextureHandle defaultWhiteTexture, bgfx::TextureHandle inheritedTexture, const float* parentColor = nullptr, const float* parentTransform = nullptr)
 {
     float local[16];
@@ -510,6 +510,10 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram,b
 
     // Set the object override color uniform.
     bgfx::setUniform(u_objectColor, effectiveColor);
+
+    const float tintBasic[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    const float tintHighlighted[4] = { 0.3f, 0.3f, 2.0f, 1.0f };
+    bgfx::setUniform(u_tint, selectedInstance == instance ? tintHighlighted : tintBasic);
     const bgfx::VertexBufferHandle invalidVbh = BGFX_INVALID_HANDLE;
     const bgfx::IndexBufferHandle invalidIbh = BGFX_INVALID_HANDLE;
     // Draw geometry if valid.
@@ -562,7 +566,7 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram,b
     // Recursively draw children.
     for (const Instance* child : instance->children)
     {
-        drawInstance(child, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, newInheritedTexture, childParentColor, world);
+        drawInstance(child, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, u_tint, defaultWhiteTexture, newInheritedTexture, childParentColor, world);
     }
 }
 // Recursive deletion for hierarchy.
@@ -1338,6 +1342,7 @@ int main(void)
     bgfx::UniformHandle u_noiseTex = bgfx::createUniform("u_noiseTex", bgfx::UniformType::Sampler);
     bgfx::UniformHandle u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
     bgfx::UniformHandle u_objectColor = bgfx::createUniform("u_objectColor", bgfx::UniformType::Vec4);
+    bgfx::UniformHandle u_tint = bgfx::createUniform("u_tint", bgfx::UniformType::Vec4);
 
     // Create a uniform for extra parameters as a vec4.
     bgfx::UniformHandle u_extraParams = bgfx::createUniform("u_extraParams", bgfx::UniformType::Vec4);
@@ -1377,7 +1382,7 @@ int main(void)
 
     // Load shaders and create program once
     bgfx::ShaderHandle vsh = loadShader("shaders\\v_out21.bin");
-    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out24.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out25.bin");
 
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
 
@@ -1398,8 +1403,10 @@ int main(void)
     Instance* backPlane = new Instance(instanceCounter++, "back", "back", 0.0f, 0.0f, 0.0f, vbh_back, ibh_back);
     wallsNode->addChild(backPlane);
     Instance* leftPlane = new Instance(instanceCounter++, "left_wall", "left", 0.0f, 0.0f, 0.0f, vbh_left, ibh_left);
+    leftPlane->objectColor[0] = 1.0f; leftPlane->objectColor[1] = 0.0f; leftPlane->objectColor[2] = 0.0f; leftPlane->objectColor[3] = 1.0f;
     wallsNode->addChild(leftPlane);
     Instance* rightPlane = new Instance(instanceCounter++, "right_wall", "right", 0.0f, 0.0f, 0.0f, vbh_right, ibh_right);
+    rightPlane->objectColor[0] = 0.0f; rightPlane->objectColor[1] = 1.0f; rightPlane->objectColor[2] = 0.0f; rightPlane->objectColor[3] = 1.0f;
     wallsNode->addChild(rightPlane);
 
     Instance* innerCube = new Instance(instanceCounter++, "inner_cube", "innerCube", 0.3f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
@@ -2148,6 +2155,8 @@ int main(void)
         bgfx::setVertexBuffer(0, vbh_plane);
         bgfx::setIndexBuffer(ibh_plane);
         bgfx::setTexture(1, u_diffuseTex, planeTexture); // Bind the fixed plane texture:
+        const float tintBasic[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+        bgfx::setUniform(u_tint, tintBasic);
         bgfx::submit(0, defaultProgram);
 
         for (const auto& instance : instances)
@@ -2166,6 +2175,9 @@ int main(void)
             bgfx::setTransform(model);
 
             drawInstance(instance, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
+        }
+                drawInstance(instance, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, u_tint, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
+            }
         }
 
         // Update your vertex layout to include normals
