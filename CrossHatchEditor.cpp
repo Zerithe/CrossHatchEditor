@@ -30,6 +30,9 @@ namespace fs = std::filesystem;
 #include <bx/readerwriter.h>
 #include <bx/string.h>
 
+#include <algorithm>
+#include <string>
+
 //include embedded shaders
 
 #include <bgfx/defines.h>
@@ -74,7 +77,7 @@ static float lineAngle2 = TAU / 16.0f;       // default second hatch angle facto
 static float patternScale = 1.0f;   // default: no scaling
 static float lineThickness = 1.0f;  // default: no change
 // You can leave the remaining components as 0 (or later repurpose them)
-static float extraParamZ = 0.0f;
+static float transparencyValue = 0.5f; //transparency value of lines or extraParamZ
 static float extraParamW = 0.0f;
 
 static bgfx::TextureHandle s_pickingRT = BGFX_INVALID_HANDLE;
@@ -430,6 +433,27 @@ bgfx::TextureHandle loadTextureDDS(const char* _filePath)
     return bgfx::createTexture(mem);
 }
 
+// This helper function currently only accepts DDS files at the moment
+// In the future modify it to support additional image formats
+bgfx::TextureHandle loadTextureFile(const char* _filePath)
+{
+    std::string path(_filePath);
+    // Get the file extension and convert it to lowercase.
+    std::string ext = fs::path(path).extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+
+    if (ext == ".dds")
+    {
+        // Use your existing DDS loader.
+        return loadTextureDDS(_filePath);
+    }
+    else
+    {
+        std::cerr << "Error: Only DDS files are supported at this time. "
+            << "Received file with extension: " << ext << std::endl;
+        return BGFX_INVALID_HANDLE;
+    }
+}
 
 static int instanceCounter = 0;
 
@@ -1382,7 +1406,7 @@ int main(void)
 
     // Load shaders and create program once
     bgfx::ShaderHandle vsh = loadShader("shaders\\v_out21.bin");
-    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out25.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out26.bin");
 
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
 
@@ -1510,6 +1534,60 @@ int main(void)
                     //    saveScene(saveFilePath, instances, availableTextures);
                     saveSceneToFile(instances, availableTextures, importedObjMap);
                 }
+                if (ImGui::MenuItem("Import OBJ"))
+                {
+                    // Use a filter for OBJ files and all files.
+                    std::string absPath = OpenFileDialog(glfwGetWin32Window(window), "OBJ Files\0*.obj\0All Files\0*.*\0");
+                    std::string relPath = GetRelativePath(absPath);
+                    std::string normalizedRelPath = ConvertBackslashesToForward(relPath);
+                    std::cout << "filePath: " << normalizedRelPath << std::endl;
+                    if (!normalizedRelPath.empty())
+                    {
+                        // Load the mesh from the selected file.
+                        MeshData importedMesh = loadMesh(normalizedRelPath);
+                        std::cout << "Imported mesh vertices: " << importedMesh.vertices.size()
+                            << ", indices: " << importedMesh.indices.size() << std::endl;
+                        bgfx::VertexBufferHandle vbh_imported;
+                        bgfx::IndexBufferHandle ibh_imported;
+                        createMeshBuffers(importedMesh, vbh_imported, ibh_imported);
+                        // Create a key based on the file name (without extension).
+                        std::string fileName = fs::path(normalizedRelPath).stem().string();
+                        // Spawn the imported mesh as an instance.
+                        spawnInstance(camera, "imported_obj", fileName, vbh_imported, ibh_imported, instances);
+                        std::cout << "imported obj spawned" << std::endl;
+                        // Add to our map: key is fileName, value is normalizedRelPath.
+                        importedObjMap[fileName] = normalizedRelPath;
+                    }
+                }
+                if (ImGui::MenuItem("Import Texture"))
+                {
+                    // Open a file dialog to select a texture file.
+                    std::string texFilePath = openFileDialog(false);
+                    if (!texFilePath.empty())
+                    {
+                        // Optionally, convert backslashes to forward slashes.
+                        std::string normalizedPath = ConvertBackslashesToForward(texFilePath);
+                        std::cout << "Importing texture from: " << normalizedPath << std::endl;
+                        // Load the texture (currently only DDS files are supported).
+                        bgfx::TextureHandle newTexture = loadTextureFile(normalizedPath.c_str());
+                        if (newTexture.idx != bgfx::kInvalidHandle)
+                        {
+                            // Create a TextureOption entry for the new texture.
+                            TextureOption texOpt;
+                            texOpt.name = fs::path(normalizedPath).stem().string();
+                            texOpt.handle = newTexture;
+                            availableTextures.push_back(texOpt);
+                            std::cout << "Texture '" << texOpt.name << "' imported, handle: "
+                                << texOpt.handle.idx << std::endl;
+                        }
+                        else
+                        {
+                            std::cout << "Failed to load texture." << std::endl;
+                        }
+                    }
+                }
+
+                if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
 				if (ImGui::MenuItem("Exit"))
 				{
 					glfwSetWindowShouldClose(window, true);
@@ -1831,6 +1909,8 @@ int main(void)
             ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
             ImGui::SetNextItemWidth(100);
             ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, 0.1f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
         }
 		ImGui::End();
           
@@ -2140,7 +2220,7 @@ int main(void)
         bgfx::setUniform(u_params, paramsUniform);
 
         // Prepare an array of 4 floats.
-        float extraParamsUniform[4] = { patternScale, lineThickness, extraParamZ, extraParamW };
+        float extraParamsUniform[4] = { patternScale, lineThickness, transparencyValue, extraParamW };
         // Set the uniform for extra parameters.
         bgfx::setUniform(u_extraParams, extraParamsUniform);
 
