@@ -1503,6 +1503,97 @@ int main(void)
                     //    saveScene(saveFilePath, instances, availableTextures);
                     saveSceneToFile(instances, availableTextures, importedObjMap);
                 }
+				if (ImGui::MenuItem("Exit"))
+				{
+					glfwSetWindowShouldClose(window, true);
+				}
+
+                //if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
+                ImGui::EndMenu();
+            }
+            if (ImGui::BeginMenu("Add"))
+            {
+                if (ImGui::BeginMenu("Objects"))
+                {
+                    if (ImGui::MenuItem("Cube"))
+                    {
+                        spawnInstance(camera, "cube", "cube", vbh_cube, ibh_cube, instances);
+                        std::cout << "Cube spawned" << std::endl;
+                    }
+                    if (ImGui::MenuItem("Capsule"))
+                    {
+                        spawnInstance(camera, "capsule", "capsule", vbh_capsule, ibh_capsule, instances);
+                        std::cout << "Capsule spawned" << std::endl;
+                    }
+                    if (ImGui::MenuItem("Cylinder"))
+                    {
+                        spawnInstance(camera, "cylinder", "cylinder", vbh_cylinder, ibh_cylinder, instances);
+                        std::cout << "Cylinder spawned" << std::endl;
+                    }
+                    if (ImGui::MenuItem("Sphere"))
+                    {
+                        spawnInstance(camera, "sphere", "sphere", vbh_sphere, ibh_sphere, instances);
+                        std::cout << "Sphere spawned" << std::endl;
+                    }
+                    if (ImGui::MenuItem("Plane"))
+                    {
+                        spawnInstance(camera, "plane", "plane", vbh_plane, ibh_plane, instances);
+                        std::cout << "Plane spawned" << std::endl;
+                    }
+                    if (ImGui::MenuItem("Suzanne"))
+                    {
+                        spawnInstance(camera, "mesh", "mesh", vbh_mesh, ibh_mesh, instances);
+                        std::cout << "Suzanne spawned" << std::endl;
+                    }
+                    if (ImGui::MenuItem("Cornell Box"))
+                    {
+                        // --- Spawn Cornell Box with Hierarchy ---
+                        Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", 8.0f, 0.0f, -5.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+                        // Create a walls node (dummy instance without geometry)
+                        Instance* wallsNode = new Instance(instanceCounter++, "walls", "empty", 0.0f, 0.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+                        Instance* floorPlane = new Instance(instanceCounter++, "floor", "floor", 0.0f, 0.0f, 0.0f, vbh_floor, ibh_floor);
+                        wallsNode->addChild(floorPlane);
+                        Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", "ceiling", 0.0f, 0.0f, 0.0f, vbh_ceiling, ibh_ceiling);
+                        wallsNode->addChild(ceilingPlane);
+                        Instance* backPlane = new Instance(instanceCounter++, "back", "back", 0.0f, 0.0f, 0.0f, vbh_back, ibh_back);
+                        wallsNode->addChild(backPlane);
+                        Instance* leftPlane = new Instance(instanceCounter++, "left_wall", "left", 0.0f, 0.0f, 0.0f, vbh_left, ibh_left);
+                        wallsNode->addChild(leftPlane);
+                        Instance* rightPlane = new Instance(instanceCounter++, "right_wall", "right", 0.0f, 0.0f, 0.0f, vbh_right, ibh_right);
+                        wallsNode->addChild(rightPlane);
+                        Instance* innerCube = new Instance(instanceCounter++, "inner_cube", "innerCube", 0.3f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
+                        Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", "innerCube", 1.1f, 1.0f, -0.9f, vbh_innerCube, ibh_innerCube);
+                        innerRectBox->scale[0] = 0.8f;
+                        innerRectBox->scale[1] = 2.0f;
+                        innerRectBox->scale[2] = 0.8f;
+                        cornellBox->addChild(wallsNode);
+                        cornellBox->addChild(innerCube);
+                        cornellBox->addChild(innerRectBox);
+                        instances.push_back(cornellBox);
+                        std::cout << "Cornell Box spawned" << std::endl;
+                    }
+                    if (ImGui::MenuItem("Teapot"))
+                    {
+                        spawnInstance(camera, "teapot", "teapot", vbh_teapot, ibh_teapot, instances);
+                        std::cout << "Teapot spawned" << std::endl;
+                    }
+                    if (ImGui::MenuItem("Bunny"))
+                    {
+                        spawnInstance(camera, "bunny", "bunny", vbh_bunny, ibh_bunny, instances);
+                        std::cout << "Bunny spawned" << std::endl;
+                    }
+                    if (ImGui::MenuItem("Lucy"))
+                    {
+                        spawnInstance(camera, "lucy", "lucy", vbh_lucy, ibh_lucy, instances);
+                        std::cout << "Lucy spawned" << std::endl;
+                    }
+					ImGui::EndMenu();
+                }
+				if (ImGui::MenuItem("Lights"))
+				{
+                    spawnLight(camera, vbh_sphere, ibh_sphere, instances);
+					std::cout << "Light spawned" << std::endl;
+				}
                 if (ImGui::MenuItem("Import OBJ"))
                 {
                     // Use a filter for OBJ files and all files.
@@ -1528,150 +1619,54 @@ int main(void)
                         importedObjMap[fileName] = normalizedRelPath;
                     }
                 }
-                if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
-                ImGui::EndMenu();
-            }
+
+				ImGui::EndMenu();
+			}
+			if (ImGui::BeginMenu("Edit"))
+			{
+				if (ImGui::MenuItem("Undo", "WIP"))
+				{
+					//undo
+				}
+				if (ImGui::MenuItem("Redo", "WIP"))
+				{
+					//redo
+				}
+                if (ImGui::MenuItem("Delete Last Instance"))
+                {
+                    Instance* inst = instances.back();
+                    instances.pop_back();
+                    //instanceCounter--;
+                    delete inst;
+                    selectedInstance = nullptr;
+                    std::cout << "Last Instance removed" << std::endl;
+                }
+				if (ImGui::MenuItem("Clear All Instances"))
+				{
+					for (Instance* inst : instances)
+					{
+						delete inst;
+					}
+					instances.clear();
+					selectedInstance = nullptr;
+					std::cout << "All Instances cleared" << std::endl;
+				}
+				ImGui::EndMenu();
+			}
+
             ImGui::EndMenuBar();
         }
 		ImGui::End();
 		
         //IMGUI WINDOW FOR CONTROLS
         //FOR REFERENCE USE THIS: https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html
-        ImGui::Begin("CrossHatchEditor", p_open, window_flags);
-		
+        ImGui::Begin("Inspector", p_open, window_flags);
 
-		ImGui::Checkbox("Toggle Object Movement", &modelMovement);
-        ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
-        if (ImGui::CollapsingHeader("Spawn Objects"))
+        // If an instance is selected, show its transform controls.
+        if (selectedInstance)
         {
-			ImGui::RadioButton("Cube", &spawnPrimitive, 0);
-			ImGui::RadioButton("Capsule", &spawnPrimitive, 1);
-			ImGui::RadioButton("Cylinder", &spawnPrimitive, 2);
-			ImGui::RadioButton("Sphere", &spawnPrimitive, 3);
-			ImGui::RadioButton("Plane", &spawnPrimitive, 4);
-			ImGui::RadioButton("Test Import", &spawnPrimitive, 5);
-            ImGui::RadioButton("Cornell Box", &spawnPrimitive, 6);
-            ImGui::RadioButton("Teapot", &spawnPrimitive, 7);
-            ImGui::RadioButton("Bunny", &spawnPrimitive, 8);
-            ImGui::RadioButton("Lucy", &spawnPrimitive, 9);
-			if (ImGui::Button("Spawn Object"))
-			{
-				if (spawnPrimitive == 0)
-				{
-					spawnInstance(camera, "cube", "cube", vbh_cube, ibh_cube, instances);
-					std::cout << "Cube spawned" << std::endl;
-				}
-				else if (spawnPrimitive == 1)
-				{
-					spawnInstance(camera, "capsule", "capsule", vbh_capsule, ibh_capsule, instances);
-					std::cout << "Capsule spawned" << std::endl;
-				}
-				else if (spawnPrimitive == 2)
-				{
-					spawnInstance(camera, "cylinder", "cylinder", vbh_cylinder, ibh_cylinder, instances);
-					std::cout << "Cylinder spawned" << std::endl;
-				}
-				else if (spawnPrimitive == 3)
-				{
-					spawnInstance(camera, "sphere", "sphere", vbh_sphere, ibh_sphere, instances);
-					std::cout << "Sphere spawned" << std::endl;
-				}
-				else if (spawnPrimitive == 4)
-				{
-					spawnInstance(camera, "plane", "plane", vbh_plane, ibh_plane, instances);
-					std::cout << "Plane spawned" << std::endl;
-				}
-				else if (spawnPrimitive == 5)
-				{
-					spawnInstance(camera, "mesh", "mesh", vbh_mesh, ibh_mesh, instances);
-					std::cout << "Test Import spawned" << std::endl;
-				}
-                else if (spawnPrimitive == 6)
-                {
-                    // --- Spawn Cornell Box with Hierarchy ---
-                    Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", 8.0f, 0.0f, -5.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
-                    // Create a walls node (dummy instance without geometry)
-                    Instance* wallsNode = new Instance(instanceCounter++, "walls", "empty", 0.0f, 0.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
-
-                    Instance* floorPlane = new Instance(instanceCounter++, "floor", "floor", 0.0f, 0.0f, 0.0f, vbh_floor, ibh_floor);
-                    wallsNode->addChild(floorPlane);
-                    Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", "ceiling", 0.0f, 0.0f, 0.0f, vbh_ceiling, ibh_ceiling);
-                    wallsNode->addChild(ceilingPlane);
-                    Instance* backPlane = new Instance(instanceCounter++, "back", "back", 0.0f, 0.0f, 0.0f, vbh_back, ibh_back);
-                    wallsNode->addChild(backPlane);
-                    Instance* leftPlane = new Instance(instanceCounter++, "left_wall", "left", 0.0f, 0.0f, 0.0f, vbh_left, ibh_left);
-                    wallsNode->addChild(leftPlane);
-                    Instance* rightPlane = new Instance(instanceCounter++, "right_wall", "right", 0.0f, 0.0f, 0.0f, vbh_right, ibh_right);
-                    wallsNode->addChild(rightPlane);
-
-                    Instance* innerCube = new Instance(instanceCounter++, "inner_cube", "innerCube", 0.3f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
-                    Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", "innerCube", 1.1f, 1.0f, -0.9f, vbh_innerCube, ibh_innerCube);
-                    innerRectBox->scale[0] = 0.8f;
-                    innerRectBox->scale[1] = 2.0f;
-                    innerRectBox->scale[2] = 0.8f;
-                    cornellBox->addChild(wallsNode);
-                    cornellBox->addChild(innerCube);
-                    cornellBox->addChild(innerRectBox);
-                    instances.push_back(cornellBox);
-                    std::cout << "Cornell Box spawned" << std::endl;
-                }
-                else if (spawnPrimitive == 7)
-                {
-                    spawnInstance(camera, "teapot", "teapot", vbh_teapot, ibh_teapot, instances);
-                    std::cout << "Teapot spawned" << std::endl;
-                }
-                else if (spawnPrimitive == 8)
-                {
-                    spawnInstance(camera, "bunny", "bunny", vbh_bunny, ibh_bunny, instances);
-                    std::cout << "Bunny spawned" << std::endl;
-                }
-                else if (spawnPrimitive == 9)
-                {
-                    spawnInstance(camera, "lucy", "lucy", vbh_lucy, ibh_lucy, instances);
-                    std::cout << "Lucy spawned" << std::endl;
-                }
-			}
-			if (ImGui::Button("Remove Last Instance"))
-			{
-                Instance* inst = instances.back();
-				instances.pop_back();
-                //instanceCounter--;
-                delete inst;
-                selectedInstance = nullptr;
-				std::cout << "Last Instance removed" << std::endl;
-			}
-        }
-        ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
-        if (ImGui::CollapsingHeader("Spawn Lights"))
-        {
-            if (ImGui::Button("Spawn Light"))
-            {
-                spawnLight(camera, vbh_sphere, ibh_sphere, instances);
-            }
-        }
-
-		ImGui::End();
-
-        Logger::GetInstance().DrawImGuiLogger();
-
-		ImGui::Begin("Object List", p_open, window_flags);
-        static int selectedInstanceIndex = -1;
-        
-        ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
-		if (ImGui::CollapsingHeader("Object List"))
-		{
-            // For each top-level instance, show its tree.
-            for (Instance* instance : instances)
-            {
-                ShowInstanceTree(instance, selectedInstance, instances);
-
-            }
-
-            // Now, show the drop target region for reparenting to top-level.
-            ShowTopLevelDropTarget(instances);
-
-            // If an instance is selected, show its transform controls.
-            if (selectedInstance)
+            ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+            if (ImGui::CollapsingHeader("Transform"))
             {
                 ImGui::Separator();
                 ImGui::Text("Selected: %s", selectedInstance->name.c_str());
@@ -1680,37 +1675,41 @@ int main(void)
                 ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
                 if (selectedInstance->isLight)
                 {
-                    ImGui::Separator();
-                    ImGui::Text("Light Properties:");
-                    const char* lightTypes[] = { "Directional", "Point", "Spot" };
-                    int currentType = static_cast<int>(selectedInstance->lightProps.type);
-                    if (ImGui::Combo("Light Type", &currentType, lightTypes, IM_ARRAYSIZE(lightTypes)))
-                    {
-                        selectedInstance->lightProps.type = static_cast<LightType>(currentType);
-                    }
-                    if (selectedInstance->lightProps.type == LightType::Directional ||
-                        selectedInstance->lightProps.type == LightType::Spot)
-                    {
-                        ImGui::DragFloat3("Light Direction", selectedInstance->lightProps.direction, 0.1f);
-                    }
-                    if (selectedInstance->lightProps.type == LightType::Point ||
-                        selectedInstance->lightProps.type == LightType::Spot)
-                    {
-                        ImGui::DragFloat3("Light Position", selectedInstance->position, 0.1f);
-                        ImGui::DragFloat("Range", &selectedInstance->lightProps.range, 0.1f, 0.0f, 100.0f);
-                    }
-                    ImGui::ColorEdit4("Light Color", selectedInstance->lightProps.color);
-                    ImGui::DragFloat("Intensity", &selectedInstance->lightProps.intensity, 0.1f, 0.0f, 10.0f);
-                    if (selectedInstance->lightProps.type == LightType::Spot)
-                    {
-                        ImGui::DragFloat("Cone Angle", &selectedInstance->lightProps.coneAngle, 0.1f, 0.0f, 3.14f);
-                    }
-                    // Add a checkbox to show or hide the debug visual of the light.
-                    bool debugVisible = selectedInstance->showDebugVisual;
-                    if (ImGui::Checkbox("Show Light Debug Visual", &debugVisible))
-                    {
-                        selectedInstance->showDebugVisual = debugVisible;
-                    }
+                    ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+                   if(ImGui::CollapsingHeader("Light Settings"))
+                   {
+                       ImGui::Separator();
+                       ImGui::Text("Light Properties:");
+                       const char* lightTypes[] = { "Directional", "Point", "Spot" };
+                       int currentType = static_cast<int>(selectedInstance->lightProps.type);
+                       if (ImGui::Combo("Light Type", &currentType, lightTypes, IM_ARRAYSIZE(lightTypes)))
+                       {
+                           selectedInstance->lightProps.type = static_cast<LightType>(currentType);
+                       }
+                       if (selectedInstance->lightProps.type == LightType::Directional ||
+                           selectedInstance->lightProps.type == LightType::Spot)
+                       {
+                           ImGui::DragFloat3("Light Direction", selectedInstance->lightProps.direction, 0.1f);
+                       }
+                       if (selectedInstance->lightProps.type == LightType::Point ||
+                           selectedInstance->lightProps.type == LightType::Spot)
+                       {
+                           ImGui::DragFloat3("Light Position", selectedInstance->position, 0.1f);
+                           ImGui::DragFloat("Range", &selectedInstance->lightProps.range, 0.1f, 0.0f, 100.0f);
+                       }
+                       ImGui::ColorEdit4("Light Color", selectedInstance->lightProps.color);
+                       ImGui::DragFloat("Intensity", &selectedInstance->lightProps.intensity, 0.1f, 0.0f, 10.0f);
+                       if (selectedInstance->lightProps.type == LightType::Spot)
+                       {
+                           ImGui::DragFloat("Cone Angle", &selectedInstance->lightProps.coneAngle, 0.1f, 0.0f, 3.14f);
+                       }
+                       // Add a checkbox to show or hide the debug visual of the light.
+                       bool debugVisible = selectedInstance->showDebugVisual;
+                       if (ImGui::Checkbox("Show Light Debug Visual", &debugVisible))
+                       {
+                           selectedInstance->showDebugVisual = debugVisible;
+                       }
+                   }
                 }
                 else {
                     //Object color Selection
@@ -1780,9 +1779,35 @@ int main(void)
                     deleteInstance(selectedInstance);
                     selectedInstance = nullptr;
                 }
-             }
+            }
         }
+
+		ImGui::End();
+
+        Logger::GetInstance().DrawImGuiLogger();
+
+		ImGui::Begin("Object List", p_open, window_flags);
+        static int selectedInstanceIndex = -1;
+        
         ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+		if (ImGui::CollapsingHeader("Object List"))
+		{
+            // For each top-level instance, show its tree.
+            for (Instance* instance : instances)
+            {
+                ShowInstanceTree(instance, selectedInstance, instances);
+
+            }
+
+            // Now, show the drop target region for reparenting to top-level.
+            ShowTopLevelDropTarget(instances);
+
+            
+        }
+		ImGui::End();
+
+		ImGui::Begin("Cross Hatch Settings", p_open, window_flags);
+		ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
         if (ImGui::CollapsingHeader("Crosshatch Settings"))
         {
             // ColorEdit4 allows you to edit a vec4 (RGBA)
@@ -1804,7 +1829,17 @@ int main(void)
           
         ImGui::Begin("Info", p_open, window_flags);
         ImGui::Text("Crosshatch Editor Demo Build");
+		ImGui::Text("Press F1 to toggle bgfx stats");
         ImGui::Text("FPS: %.1f ", ImGui::GetIO().Framerate);
+		ImGui::Text("Frame Time: %.3f ms", 1000.0f / ImGui::GetIO().Framerate);
+        ImGui::Separator();
+		ImGui::Text("Rendered Instances: %d", instances.size());
+		ImGui::Text("Selected Instance: %s", selectedInstance ? selectedInstance->name.c_str() : "None");
+		ImGui::Text("Selected Instance ID: %d", selectedInstance ? selectedInstance->id : -1);
+        ImGui::Text("Selected Instance Parent: %s", selectedInstance&& selectedInstance->parent ? selectedInstance->parent->name.c_str() : "None");
+		ImGui::Text("Selected Instance Children: %d", selectedInstance ? selectedInstance->children.size() : 0);
+        ImGui::Separator();
+		ImGui::Text("Camera Position: %.2f, %.2f, %.2f", camera.position.x, camera.position.y, camera.position.z);
         //ImGui::Text("Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
         ImGui::Text("");
         ImGui::End();
@@ -1817,7 +1852,6 @@ int main(void)
 		ImGui::Text("Space - Move Up");
         ImGui::Text("Left Click - Select Object");
         ImGui::Text("Right Click - Detach Mouse from Camera");
-        ImGui::Text("M - Toggle Object Movement");
         ImGui::Text("C - Randomize Light Color");
         ImGui::Text("X - Reset Light Color");
         ImGui::Text("V - Randomize Light Direction");
@@ -2116,58 +2150,22 @@ int main(void)
         bgfx::setTexture(1, u_diffuseTex, planeTexture); // Bind the fixed plane texture:
         bgfx::submit(0, defaultProgram);
 
-        if (modelMovement)
+        for (const auto& instance : instances)
         {
-            for (const Instance* instance : instances)
-            {
-                float model[16];
-                // Calculate the forward vector pointing towards the camera
-                bx::Vec3 modelToCamera = bx::normalize(bx::Vec3(camera.position.x - instance->position[0],
-                    camera.position.y - instance->position[1],
-                    camera.position.z - instance->position[2]));
+            float model[16];
+            //bx::mtxTranslate(model, instance.position[0], instance.position[1], instance.position[2]);
 
+            // Build a Scale-Rotate-Translate matrix.
+            // Note: bx::mtxSRT expects parameters in the order:
+            // (result, scaleX, scaleY, scaleZ, rotX, rotY, rotZ, transX, transY, transZ)
+            bx::mtxSRT(model,
+                instance->scale[0], instance->scale[1], instance->scale[2],
+                instance->rotation[0], instance->rotation[1], instance->rotation[2],
+                instance->position[0], instance->position[1], instance->position[2]);
 
-                // Define the up vector
-                bx::Vec3 up = { 0.0f, 1.0f, 0.0f };
+            bgfx::setTransform(model);
 
-                // Calculate the right vector (orthogonal to forward and up)
-                bx::Vec3 right = bx::normalize(bx::cross(up, modelToCamera));
-
-                // Recalculate the up vector to ensure orthogonality
-                up = bx::normalize(bx::cross(modelToCamera, right));
-
-                // Build the model matrix with the orientation facing the camera
-                model[0] = right.x;   model[1] = right.y;   model[2] = right.z;   model[3] = 0.0f;
-                model[4] = up.x;      model[5] = up.y;      model[6] = up.z;      model[7] = 0.0f;
-                model[8] = modelToCamera.x; model[9] = modelToCamera.y; model[10] = modelToCamera.z; model[11] = 0.0f;
-                model[12] = instance->position[0];
-                model[13] = instance->position[1];
-                model[14] = instance->position[2];
-                model[15] = 1.0f;
-                bgfx::setTransform(model);
-
-                drawInstance(instance, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
-            }
-        }
-        else
-        {
-            for (const auto& instance : instances)
-            {
-                float model[16];
-                //bx::mtxTranslate(model, instance.position[0], instance.position[1], instance.position[2]);
-
-                // Build a Scale-Rotate-Translate matrix.
-                // Note: bx::mtxSRT expects parameters in the order:
-                // (result, scaleX, scaleY, scaleZ, rotX, rotY, rotZ, transX, transY, transZ)
-                bx::mtxSRT(model,
-                    instance->scale[0], instance->scale[1], instance->scale[2],
-                    instance->rotation[0], instance->rotation[1], instance->rotation[2],
-                    instance->position[0], instance->position[1], instance->position[2]);
-
-                bgfx::setTransform(model);
-
-                drawInstance(instance, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
-            }
+            drawInstance(instance, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
         }
 
         // Update your vertex layout to include normals

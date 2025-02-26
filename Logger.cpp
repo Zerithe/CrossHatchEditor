@@ -32,9 +32,11 @@ void Logger::DrawImGuiLogger() {
     std::lock_guard<std::mutex> lock(logMutex);
 
     ImGui::Begin("Log Console");
-    if (ImGui::Button("Clear")) {
+    
+    //not working
+    /*if (ImGui::Button("Clear")) {
         Clear();
-    }
+    }*/
 
     ImGui::Separator();
 
