@@ -592,7 +592,10 @@ void ShowInstanceTree(Instance* instance, Instance*& selectedInstance, std::vect
     bool nodeOpen = ImGui::TreeNodeEx((void*)instance, flags, "%s", instance->name.c_str());
     if (ImGui::IsItemClicked())
     {
-        selectedInstance = instance;
+        if (selectedInstance == instance)
+            selectedInstance = nullptr;
+        else
+            selectedInstance = instance;
     }
     // Begin drag source
     if (ImGui::BeginDragDropSource())
@@ -1945,8 +1948,13 @@ int main(void)
             Instance* pickedInstance = findInstanceById(instances, pickedID);
             if (pickedInstance)
             {
-                selectedInstance = pickedInstance;
-                std::cout << "Picked object: " << selectedInstance->name << std::endl;
+                if (selectedInstance == pickedInstance) {
+                    selectedInstance = nullptr;
+                }
+                else {
+                    selectedInstance = pickedInstance;
+                    std::cout << "Picked object: " << selectedInstance->name << std::endl;
+                }
             }
             // Detach the picking framebuffer by setting it to BGFX_INVALID_HANDLE.
             bgfx::setViewFrameBuffer(0, BGFX_INVALID_HANDLE);
