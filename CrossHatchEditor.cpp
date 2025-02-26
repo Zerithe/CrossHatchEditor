@@ -1586,8 +1586,6 @@ int main(void)
                         }
                     }
                 }
-
-                if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
 				if (ImGui::MenuItem("Exit"))
 				{
 					glfwSetWindowShouldClose(window, true);
@@ -2277,8 +2275,15 @@ int main(void)
 	}
     for (const auto& instance : instances)
     {
-        bgfx::destroy(instance->vertexBuffer);
-        bgfx::destroy(instance->indexBuffer);
+        const bgfx::VertexBufferHandle invalidVbh = BGFX_INVALID_HANDLE;
+        const bgfx::IndexBufferHandle invalidIbh = BGFX_INVALID_HANDLE;
+		// Destroy the vertex and index buffers if they are valid.
+        if (instance->vertexBuffer.idx != invalidVbh.idx &&
+            instance->indexBuffer.idx != invalidIbh.idx)
+        {
+            bgfx::destroy(instance->vertexBuffer);
+		    bgfx::destroy(instance->indexBuffer);
+		}
         deleteInstance(instance);
     }
 
@@ -2286,9 +2291,6 @@ int main(void)
 	bgfx::destroy(ibh_plane);
 	bgfx::destroy(vbh_sphere);
 	bgfx::destroy(ibh_sphere);
-    bgfx::destroy(u_lightColor);
-	bgfx::destroy(u_lightDir);
-	bgfx::destroy(u_viewPos);
 	bgfx::destroy(vbh_cube);
 	bgfx::destroy(ibh_cube);
 	bgfx::destroy(vbh_capsule);
@@ -2301,7 +2303,8 @@ int main(void)
     bgfx::destroy(ibh_cornell);
     bgfx::destroy(vbh_innerCube);
     bgfx::destroy(ibh_innerCube);
-	//bgfx::destroy(defaultProgram);
+	bgfx::destroy(defaultProgram);
+	bgfx::destroy(lightDebugProgram);
     ImGui_ImplGlfw_Shutdown();
 	
     bgfx::shutdown();
