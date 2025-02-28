@@ -22,6 +22,8 @@ public:
 	static bool getSkipPickingPass() { return skipPickingPass; }
 	static void toggleSkipPickingPass() { skipPickingPass = !skipPickingPass; }
 
+	static bool isMiddleMousePressed(); 
+
 private:
 	InputManager() = default;
 	~InputManager() = default;
@@ -34,4 +36,6 @@ private:
 	static bool isCursorDisabled;
 	static bool skipPickingPass;
 	static std::unordered_map<int, bool> keyStates;
+
+	static bool m_middleMousePressed;
 };

@@ -1947,7 +1947,7 @@ int main(void)
         //handle inputs
         InputManager::update(camera, 0.016f);
 
-        if (InputManager::isKeyToggled(GLFW_KEY_M))
+        if (InputManager::isMiddleMousePressed())
         {
             modelMovement = !modelMovement;
             std::cout << "Model movement: " << modelMovement << std::endl;
@@ -2047,7 +2047,7 @@ int main(void)
 
         // --- Object Picking Pass ---
         // Only execute picking when the left mouse button is clicked and ImGui is not capturing the mouse.
-        if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && !ImGui::GetIO().WantCaptureMouse && !InputManager::getCursorDisabled())
+        if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && !ImGui::GetIO().WantCaptureMouse)
         {
             if (InputManager::getSkipPickingPass) {
                 // Use a dedicated view ID for picking (choose one not used by your normal rendering)
