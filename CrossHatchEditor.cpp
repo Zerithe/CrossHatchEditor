@@ -55,6 +55,7 @@ namespace fs = std::filesystem;
 //#include "DebugDraw.h"
 #include <ImGuizmo.h>
 #include <cmath> // for rad2deg, deg2rad, etc.
+#include <cfloat> // For FLT_MAX and FLT_MIN
 
 static float RadToDeg(float rad) { return rad * (180.0f / 3.14159265358979f); }
 static float DegToRad(float deg) { return deg * (3.14159265358979f / 180.0f); }
@@ -326,6 +327,12 @@ MeshData loadMesh(const std::string& filePath) {
     std::vector<PosColorVertex> vertices;
     std::vector<uint16_t> indices;
 
+    // used for making origin of imported objects at 0 0 0 to center gizmo
+    // works for both single mesh and multi mesh objects
+    // Global bounding box for the entire model.
+    float globalMinX = FLT_MAX, globalMinY = FLT_MAX, globalMinZ = FLT_MAX;
+    float globalMaxX = -FLT_MAX, globalMaxY = -FLT_MAX, globalMaxZ = -FLT_MAX;
+
     // Iterate through all meshes in the scene
     for (unsigned int meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex) {
         aiMesh* mesh = scene->mMeshes[meshIndex];
@@ -337,6 +344,14 @@ MeshData loadMesh(const std::string& filePath) {
             vertex.x = mesh->mVertices[i].x;
             vertex.y = mesh->mVertices[i].y;
             vertex.z = mesh->mVertices[i].z;
+
+            // Update global bounding box.
+            if (vertex.x < globalMinX) globalMinX = vertex.x;
+            if (vertex.y < globalMinY) globalMinY = vertex.y;
+            if (vertex.z < globalMinZ) globalMinZ = vertex.z;
+            if (vertex.x > globalMaxX) globalMaxX = vertex.x;
+            if (vertex.y > globalMaxY) globalMaxY = vertex.y;
+            if (vertex.z > globalMaxZ) globalMaxZ = vertex.z;
 
             // Retrieve normals if available
             if (mesh->HasNormals()) {
@@ -387,6 +402,18 @@ MeshData loadMesh(const std::string& filePath) {
         if (!mesh->HasNormals()) {
             computeNormals(vertices, indices);
         }
+    }
+
+    // Compute the global center.
+    float centerX = (globalMinX + globalMaxX) * 0.5f;
+    float centerY = (globalMinY + globalMaxY) * 0.5f;
+    float centerZ = (globalMinZ + globalMaxZ) * 0.5f;
+
+    // Second pass: recenter all vertices by subtracting the global center.
+    for (auto& v : vertices) {
+        v.x -= centerX;
+        v.y -= centerY;
+        v.z -= centerZ;
     }
 
     return { vertices, indices };
@@ -2307,7 +2334,8 @@ int main(void)
         bgfx::setDebug(s_showStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 
         float planeModel[16];
-        bx::mtxIdentity(planeModel);
+        //bx::mtxIdentity(planeModel);
+        bx::mtxTranslate(planeModel, 0.0f, -4.0f, 0.0f); // Adjust -1.0f to your desired offset
         bgfx::setTransform(planeModel);
 
         bgfx::setVertexBuffer(0, vbh_plane);
