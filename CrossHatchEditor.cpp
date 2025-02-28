@@ -162,6 +162,27 @@ struct Vec3 {
     float x, y, z;
 };
 
+void BuildWorldMatrix(const Instance* inst, float* outMatrix) {
+    float local[16]; 
+    float translation[3] = { inst->position[0], inst->position[1], inst->position[2] }; 
+    float rotationDeg[3] = { RadToDeg(inst->rotation[0]), RadToDeg(inst->rotation[1]), RadToDeg(inst->rotation[2]) };
+    float scale[3] = { inst->scale[0], inst->scale[1], inst->scale[2] };
+    // Build the local transform matrix.
+    ImGuizmo::RecomposeMatrixFromComponents(translation, rotationDeg, scale, local);
+
+    if (inst->parent)
+    {
+        float parentWorld[16];
+        // Recursively compute the parent's world matrix.
+        BuildWorldMatrix(inst->parent, parentWorld);
+        // Multiply parent's world matrix with the local transform.
+        bx::mtxMul(outMatrix, local, parentWorld);
+    }
+    else
+    {
+        memcpy(outMatrix, local, sizeof(float) * 16);
+    }
+}
 void BuildMatrixFromInstance_ImGuizmo(const Instance* inst, float* outMatrix)
 {
     // 1) Copy your instance’s data into the arrays ImGuizmo expects:
@@ -207,7 +228,7 @@ void DrawGizmoForSelected(Instance* selectedInstance, const float* view, const f
 
     // 1) Build matrix from your object:
     float matrix[16];
-    BuildMatrixFromInstance_ImGuizmo(selectedInstance, matrix);
+	BuildWorldMatrix(selectedInstance, matrix);
 
     // 2) Setup ImGuizmo
     ImGuiIO& io = ImGui::GetIO();
@@ -1070,7 +1091,7 @@ void renderInstancePickingRecursive(const Instance* instance, const float* paren
     float world[16];
     if (parentTransform)
     {
-        bx::mtxMul(world, parentTransform, local);
+        bx::mtxMul(world, local, parentTransform);
     }
     else
     {
@@ -1494,26 +1515,37 @@ int main(void)
     // --- Spawn Cornell Box with Hierarchy ---
     Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", 8.0f, 0.0f, -5.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
     // Create a walls node (dummy instance without geometry)
-    Instance* wallsNode = new Instance(instanceCounter++, "walls", "empty", 0.0f, 0.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+    Instance* wallsNode = new Instance(instanceCounter++, "walls", "empty", 0.0f, -1.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+	wallsNode->scale[0] = 0.2f;
+    wallsNode->scale[1] = 0.2f;
+    wallsNode->scale[2] = 0.2f;
 
-    Instance* floorPlane = new Instance(instanceCounter++, "floor", "floor", 0.0f, 0.0f, 0.0f, vbh_floor, ibh_floor);
+    Instance* floorPlane = new Instance(instanceCounter++, "floor", "plane", 0.0f, -6.0f, 0.0f, vbh_plane, ibh_plane);
     wallsNode->addChild(floorPlane);
-    Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", "ceiling", 0.0f, 0.0f, 0.0f, vbh_ceiling, ibh_ceiling);
+    Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", "plane", 0.0f, 14.0f, 0.0f, vbh_plane, ibh_plane);
     wallsNode->addChild(ceilingPlane);
-    Instance* backPlane = new Instance(instanceCounter++, "back", "back", 0.0f, 0.0f, 0.0f, vbh_back, ibh_back);
+    Instance* backPlane = new Instance(instanceCounter++, "back", "plane", 0.0f, 4.0f, -10.0f, vbh_plane, ibh_plane);
+	backPlane->rotation[0] = 1.57f;
     wallsNode->addChild(backPlane);
-    Instance* leftPlane = new Instance(instanceCounter++, "left_wall", "left", 0.0f, 0.0f, 0.0f, vbh_left, ibh_left);
+    Instance* leftPlane = new Instance(instanceCounter++, "left_wall", "plane", 10.0f, 4.0f, 0.0f, vbh_plane, ibh_plane);
     leftPlane->objectColor[0] = 1.0f; leftPlane->objectColor[1] = 0.0f; leftPlane->objectColor[2] = 0.0f; leftPlane->objectColor[3] = 1.0f;
+	leftPlane->rotation[2] = 1.57f;
     wallsNode->addChild(leftPlane);
-    Instance* rightPlane = new Instance(instanceCounter++, "right_wall", "right", 0.0f, 0.0f, 0.0f, vbh_right, ibh_right);
+    Instance* rightPlane = new Instance(instanceCounter++, "right_wall", "plane", -10.0f, 4.0f, 0.0f, vbh_plane, ibh_plane);
     rightPlane->objectColor[0] = 0.0f; rightPlane->objectColor[1] = 1.0f; rightPlane->objectColor[2] = 0.0f; rightPlane->objectColor[3] = 1.0f;
+	rightPlane->rotation[2] = 1.57f;
     wallsNode->addChild(rightPlane);
 
-    Instance* innerCube = new Instance(instanceCounter++, "inner_cube", "innerCube", 0.3f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
-    Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", "innerCube", 1.1f, 1.0f, -0.9f, vbh_innerCube, ibh_innerCube);
-    innerRectBox->scale[0] = 0.8f;
-    innerRectBox->scale[1] = 2.0f;
-    innerRectBox->scale[2] = 0.8f;
+    Instance* innerCube = new Instance(instanceCounter++, "inner_cube", "cube", 0.8f, -1.5f, 0.4f, vbh_cube, ibh_cube);
+    innerCube->rotation[1] = 0.2f;
+	innerCube->scale[0] = 0.6f;
+	innerCube->scale[1] = 0.6f;
+	innerCube->scale[2] = 0.6f;
+    Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", "cube", -1.0f, -0.7f, 0.4f, vbh_cube, ibh_cube);
+	innerRectBox->rotation[1] = -0.3f;
+    innerRectBox->scale[0] = 0.6f;
+    innerRectBox->scale[1] = 1.5f;
+    innerRectBox->scale[2] = 0.6f;
     cornellBox->addChild(wallsNode);
     cornellBox->addChild(innerCube);
     cornellBox->addChild(innerRectBox);
@@ -1709,25 +1741,45 @@ int main(void)
                     }
                     if (ImGui::MenuItem("Cornell Box"))
                     {
+                        float spawnDistance = 5.0f;
+                        // Position for new instance, e.g., random or predefined position
+                        float x = camera.position.x + camera.front.x * spawnDistance;
+                        float y = camera.position.y + camera.front.y * spawnDistance;
+                        float z = camera.position.z + camera.front.z * spawnDistance;
                         // --- Spawn Cornell Box with Hierarchy ---
-                        Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", 8.0f, 0.0f, -5.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+                        Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", x, y, z, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
                         // Create a walls node (dummy instance without geometry)
-                        Instance* wallsNode = new Instance(instanceCounter++, "walls", "empty", 0.0f, 0.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
-                        Instance* floorPlane = new Instance(instanceCounter++, "floor", "floor", 0.0f, 0.0f, 0.0f, vbh_floor, ibh_floor);
+                        Instance* wallsNode = new Instance(instanceCounter++, "walls", "empty", 0.0f, -1.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+                        wallsNode->scale[0] = 0.2f;
+                        wallsNode->scale[1] = 0.2f;
+                        wallsNode->scale[2] = 0.2f;
+
+                        Instance* floorPlane = new Instance(instanceCounter++, "floor", "plane", 0.0f, -6.0f, 0.0f, vbh_plane, ibh_plane);
                         wallsNode->addChild(floorPlane);
-                        Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", "ceiling", 0.0f, 0.0f, 0.0f, vbh_ceiling, ibh_ceiling);
+                        Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", "plane", 0.0f, 14.0f, 0.0f, vbh_plane, ibh_plane);
                         wallsNode->addChild(ceilingPlane);
-                        Instance* backPlane = new Instance(instanceCounter++, "back", "back", 0.0f, 0.0f, 0.0f, vbh_back, ibh_back);
+                        Instance* backPlane = new Instance(instanceCounter++, "back", "plane", 0.0f, 4.0f, -10.0f, vbh_plane, ibh_plane);
+                        backPlane->rotation[0] = 1.57f;
                         wallsNode->addChild(backPlane);
-                        Instance* leftPlane = new Instance(instanceCounter++, "left_wall", "left", 0.0f, 0.0f, 0.0f, vbh_left, ibh_left);
+                        Instance* leftPlane = new Instance(instanceCounter++, "left_wall", "plane", 10.0f, 4.0f, 0.0f, vbh_plane, ibh_plane);
+                        leftPlane->objectColor[0] = 1.0f; leftPlane->objectColor[1] = 0.0f; leftPlane->objectColor[2] = 0.0f; leftPlane->objectColor[3] = 1.0f;
+                        leftPlane->rotation[2] = 1.57f;
                         wallsNode->addChild(leftPlane);
-                        Instance* rightPlane = new Instance(instanceCounter++, "right_wall", "right", 0.0f, 0.0f, 0.0f, vbh_right, ibh_right);
+                        Instance* rightPlane = new Instance(instanceCounter++, "right_wall", "plane", -10.0f, 4.0f, 0.0f, vbh_plane, ibh_plane);
+                        rightPlane->objectColor[0] = 0.0f; rightPlane->objectColor[1] = 1.0f; rightPlane->objectColor[2] = 0.0f; rightPlane->objectColor[3] = 1.0f;
+                        rightPlane->rotation[2] = 1.57f;
                         wallsNode->addChild(rightPlane);
-                        Instance* innerCube = new Instance(instanceCounter++, "inner_cube", "innerCube", 0.3f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
-                        Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", "innerCube", 1.1f, 1.0f, -0.9f, vbh_innerCube, ibh_innerCube);
-                        innerRectBox->scale[0] = 0.8f;
-                        innerRectBox->scale[1] = 2.0f;
-                        innerRectBox->scale[2] = 0.8f;
+
+                        Instance* innerCube = new Instance(instanceCounter++, "inner_cube", "cube", 0.8f, -1.5f, 0.4f, vbh_cube, ibh_cube);
+                        innerCube->rotation[1] = 0.2f;
+                        innerCube->scale[0] = 0.6f;
+                        innerCube->scale[1] = 0.6f;
+                        innerCube->scale[2] = 0.6f;
+                        Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", "cube", -1.0f, -0.7f, 0.4f, vbh_cube, ibh_cube);
+                        innerRectBox->rotation[1] = -0.3f;
+                        innerRectBox->scale[0] = 0.6f;
+                        innerRectBox->scale[1] = 1.5f;
+                        innerRectBox->scale[2] = 0.6f;
                         cornellBox->addChild(wallsNode);
                         cornellBox->addChild(innerCube);
                         cornellBox->addChild(innerRectBox);
@@ -1749,6 +1801,11 @@ int main(void)
                         spawnInstance(camera, "lucy", "lucy", vbh_lucy, ibh_lucy, instances);
                         std::cout << "Lucy spawned" << std::endl;
                     }
+					if (ImGui::MenuItem("Empty"))
+					{
+                        spawnInstance(camera, "empty", "empty", BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE, instances);
+						std::cout << "Empty object spawned" << std::endl;
+					}
 					ImGui::EndMenu();
                 }
 				if (ImGui::MenuItem("Lights"))
@@ -2394,7 +2451,7 @@ int main(void)
 		}
         deleteInstance(instance);
     }
-
+    
     bgfx::destroy(vbh_plane);
 	bgfx::destroy(ibh_plane);
 	bgfx::destroy(vbh_sphere);
