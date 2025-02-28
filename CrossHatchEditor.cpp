@@ -591,7 +591,7 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram,b
 
     float world[16];
     if (parentTransform)
-        bx::mtxMul(world, parentTransform, local);
+        bx::mtxMul(world, local, parentTransform);
     else
         std::memcpy(world, local, sizeof(world));
 
