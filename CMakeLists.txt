@@ -97,6 +97,22 @@ target_include_directories(CrossHatchEditor PRIVATE ${ASSIMP_ROOT_DIR}/include)
 target_link_directories(CrossHatchEditor PRIVATE ${ASSIMP_ROOT_DIR}/lib)
 target_link_libraries(CrossHatchEditor PRIVATE assimp-vc143-mtd)
 
+set(IMGUIZMO_PATH "${CMAKE_CURRENT_SOURCE_DIR}/ImGuizmo")
+# Add ImGuizmo as a static library.
+add_library(ImGuizmo STATIC
+    "${IMGUIZMO_PATH}/ImGuizmo.h"
+    "${IMGUIZMO_PATH}/ImGuizmo.cpp"
+    # Optionally, if you also want the .h in the build, though usually .h is not compiled:
+    # "${IMGUIZMO_PATH}/ImGuizmo.h"
+)
+# Tell ImGuizmo where to find its own headers AND the imgui headers.
+target_include_directories(ImGuizmo PUBLIC
+    "${IMGUIZMO_PATH}"
+    "${IMGUI_PATH}"
+)
+# Now link ImGuizmo:
+target_link_libraries(CrossHatchEditor PRIVATE ImGuizmo)
+
 add_custom_command(TARGET CrossHatchEditor POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${ASSIMP_ROOT_DIR}/bin/assimp-vc143-mtd.dll"  # Replace with the actual path to assimp.dll

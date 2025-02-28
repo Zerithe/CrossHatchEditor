@@ -53,6 +53,14 @@ namespace fs = std::filesystem;
 
 #include "Light.h"
 //#include "DebugDraw.h"
+#include <ImGuizmo.h>
+#include <cmath> // for rad2deg, deg2rad, etc.
+#include <cfloat> // For FLT_MAX and FLT_MIN
+
+static float RadToDeg(float rad) { return rad * (180.0f / 3.14159265358979f); }
+static float DegToRad(float deg) { return deg * (3.14159265358979f / 180.0f); }
+static ImGuizmo::OPERATION currentGizmoOperation = ImGuizmo::TRANSLATE;
+static ImGuizmo::MODE currentGizmoMode = ImGuizmo::WORLD;
 
 #define WNDW_WIDTH 1600
 #define WNDW_HEIGHT 900
@@ -154,28 +162,70 @@ struct Vec3 {
     float x, y, z;
 };
 
-// Moves the instance by (dx, dy, dz)
-void translateInstance(Instance& instance, float dx, float dy, float dz)
+void BuildMatrixFromInstance_ImGuizmo(const Instance* inst, float* outMatrix)
 {
-    instance.position[0] += dx;
-    instance.position[1] += dy;
-    instance.position[2] += dz;
+    // 1) Copy your instance’s data into the arrays ImGuizmo expects:
+    float translation[3] = { inst->position[0], inst->position[1], inst->position[2] };
+    float rotationDeg[3] = {
+        RadToDeg(inst->rotation[0]),
+        RadToDeg(inst->rotation[1]),
+        RadToDeg(inst->rotation[2])
+    };
+    float scl[3] = { inst->scale[0], inst->scale[1], inst->scale[2] };
+
+    // 2) Build the matrix:
+    ImGuizmo::RecomposeMatrixFromComponents(translation, rotationDeg, scl, outMatrix);
 }
 
-// Rotates the instance by the given delta angles (in radians)
-void rotateInstance(Instance& instance, float dAngleX, float dAngleY, float dAngleZ)
+void DecomposeMatrixToInstance_ImGuizmo(const float* matrix, Instance* inst)
 {
-    instance.rotation[0] += dAngleX;
-    instance.rotation[1] += dAngleY;
-    instance.rotation[2] += dAngleZ;
+    float translation[3];
+    float rotationDeg[3];
+    float scl[3];
+
+    ImGuizmo::DecomposeMatrixToComponents(matrix, translation, rotationDeg, scl);
+
+    // Copy them back:
+    inst->position[0] = translation[0];
+    inst->position[1] = translation[1];
+    inst->position[2] = translation[2];
+
+    // Convert degrees to radians if your system is in radians:
+    inst->rotation[0] = DegToRad(rotationDeg[0]);
+    inst->rotation[1] = DegToRad(rotationDeg[1]);
+    inst->rotation[2] = DegToRad(rotationDeg[2]);
+
+    inst->scale[0] = scl[0];
+    inst->scale[1] = scl[1];
+    inst->scale[2] = scl[2];
 }
 
-// Scales the instance by the given factors (multiplicatively)
-void scaleInstance(Instance& instance, float factorX, float factorY, float factorZ)
+void DrawGizmoForSelected(Instance* selectedInstance, const float* view, const float* proj)
 {
-    instance.scale[0] *= factorX;
-    instance.scale[1] *= factorY;
-    instance.scale[2] *= factorZ;
+    if (!selectedInstance)
+        return;
+
+    // 1) Build matrix from your object:
+    float matrix[16];
+    BuildMatrixFromInstance_ImGuizmo(selectedInstance, matrix);
+
+    // 2) Setup ImGuizmo
+    ImGuiIO& io = ImGui::GetIO();
+    ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+
+    // 3) Manipulate
+    bool changed = ImGuizmo::Manipulate(
+        view, proj,
+        currentGizmoOperation,
+        currentGizmoMode,
+        matrix
+    );
+
+    // 4) If changed, decompose back:
+    if (changed)
+    {
+        DecomposeMatrixToInstance_ImGuizmo(matrix, selectedInstance);
+    }
 }
 
 //transfer to ObjLoader.cpp
@@ -277,6 +327,12 @@ MeshData loadMesh(const std::string& filePath) {
     std::vector<PosColorVertex> vertices;
     std::vector<uint16_t> indices;
 
+    // used for making origin of imported objects at 0 0 0 to center gizmo
+    // works for both single mesh and multi mesh objects
+    // Global bounding box for the entire model.
+    float globalMinX = FLT_MAX, globalMinY = FLT_MAX, globalMinZ = FLT_MAX;
+    float globalMaxX = -FLT_MAX, globalMaxY = -FLT_MAX, globalMaxZ = -FLT_MAX;
+
     // Iterate through all meshes in the scene
     for (unsigned int meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex) {
         aiMesh* mesh = scene->mMeshes[meshIndex];
@@ -288,6 +344,14 @@ MeshData loadMesh(const std::string& filePath) {
             vertex.x = mesh->mVertices[i].x;
             vertex.y = mesh->mVertices[i].y;
             vertex.z = mesh->mVertices[i].z;
+
+            // Update global bounding box.
+            if (vertex.x < globalMinX) globalMinX = vertex.x;
+            if (vertex.y < globalMinY) globalMinY = vertex.y;
+            if (vertex.z < globalMinZ) globalMinZ = vertex.z;
+            if (vertex.x > globalMaxX) globalMaxX = vertex.x;
+            if (vertex.y > globalMaxY) globalMaxY = vertex.y;
+            if (vertex.z > globalMaxZ) globalMaxZ = vertex.z;
 
             // Retrieve normals if available
             if (mesh->HasNormals()) {
@@ -338,6 +402,18 @@ MeshData loadMesh(const std::string& filePath) {
         if (!mesh->HasNormals()) {
             computeNormals(vertices, indices);
         }
+    }
+
+    // Compute the global center.
+    float centerX = (globalMinX + globalMaxX) * 0.5f;
+    float centerY = (globalMinY + globalMaxY) * 0.5f;
+    float centerZ = (globalMinZ + globalMaxZ) * 0.5f;
+
+    // Second pass: recenter all vertices by subtracting the global center.
+    for (auto& v : vertices) {
+        v.x -= centerX;
+        v.y -= centerY;
+        v.z -= centerZ;
     }
 
     return { vertices, indices };
@@ -1487,6 +1563,9 @@ int main(void)
 		ImGui_Implbgfx_NewFrame();
 		ImGui::NewFrame();
 
+        //transformation gizmo
+        ImGuizmo::BeginFrame();
+
         ImGuiViewport* viewport = ImGui::GetMainViewport();
 		ImGuiID dockspace_id = viewport->ID;
 		ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
@@ -1748,14 +1827,42 @@ int main(void)
         // If an instance is selected, show its transform controls.
         if (selectedInstance)
         {
+            int width = static_cast<int>(viewport->Size.x);
+            int height = static_cast<int>(viewport->Size.y);
+            float view[16];
+            bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
+
+            float proj[16];
+            bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+
+            DrawGizmoForSelected(selectedInstance, view, proj);
+
             ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
-            if (ImGui::CollapsingHeader("Transform"))
+            if (ImGui::CollapsingHeader("Transform Controls/Gizmo"))
             {
                 ImGui::Separator();
                 ImGui::Text("Selected: %s", selectedInstance->name.c_str());
+                if (ImGui::RadioButton("Translate", currentGizmoOperation == ImGuizmo::TRANSLATE))
+                    currentGizmoOperation = ImGuizmo::TRANSLATE;
+                ImGui::SameLine();
+                if (ImGui::RadioButton("Rotate", currentGizmoOperation == ImGuizmo::ROTATE))
+                    currentGizmoOperation = ImGuizmo::ROTATE;
+                ImGui::SameLine();
+                if (ImGui::RadioButton("Scale", currentGizmoOperation == ImGuizmo::SCALE))
+                    currentGizmoOperation = ImGuizmo::SCALE;
+
                 ImGui::DragFloat3("Translation", selectedInstance->position, 0.1f);
                 ImGui::DragFloat3("Rotation (radians)", selectedInstance->rotation, 0.1f);
                 ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
+
+                if (currentGizmoOperation != ImGuizmo::SCALE) {
+                    if (ImGui::RadioButton("World", currentGizmoMode == ImGuizmo::WORLD))
+                        currentGizmoMode = ImGuizmo::WORLD;
+                    ImGui::SameLine();
+                    if (ImGui::RadioButton("Local", currentGizmoMode == ImGuizmo::LOCAL))
+                        currentGizmoMode = ImGuizmo::LOCAL;
+                }
+
                 if (selectedInstance->isLight)
                 {
                     ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
@@ -2227,7 +2334,8 @@ int main(void)
         bgfx::setDebug(s_showStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 
         float planeModel[16];
-        bx::mtxIdentity(planeModel);
+        //bx::mtxIdentity(planeModel);
+        bx::mtxTranslate(planeModel, 0.0f, -4.0f, 0.0f); // Adjust -1.0f to your desired offset
         bgfx::setTransform(planeModel);
 
         bgfx::setVertexBuffer(0, vbh_plane);

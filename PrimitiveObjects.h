@@ -12,17 +12,27 @@ struct PosColorVertex {
     float u, v;  // texture coordinates
 };
 
+// Double–sided plane: 8 vertices (first 4 for front, next 4 for back)
 static PosColorVertex planeVertices[] = {
-    // x, y, z, nx, ny, nz, abgr,  u,    v
-    { -10.0f, -5.0f, -10.0f, 0.0f, 1.0f, 0.0f, 0xff888888, 0.0f, 0.0f },
-    {  10.0f, -5.0f, -10.0f, 0.0f, 1.0f, 0.0f, 0xff888888, 1.0f, 0.0f },
-    { -10.0f, -5.0f,  10.0f, 0.0f, 1.0f, 0.0f, 0xff888888, 0.0f, 1.0f },
-    {  10.0f, -5.0f,  10.0f, 0.0f, 1.0f, 0.0f, 0xff888888, 1.0f, 1.0f }
+    // Front face (normal pointing up, as before)
+    { -10.0f, 0.0f, -10.0f, 0.0f,  1.0f,  0.0f, 0xff888888, 0.0f, 0.0f },
+    {  10.0f, 0.0f, -10.0f, 0.0f,  1.0f,  0.0f, 0xff888888, 1.0f, 0.0f },
+    { -10.0f, 0.0f,  10.0f, 0.0f,  1.0f,  0.0f, 0xff888888, 0.0f, 1.0f },
+    {  10.0f, 0.0f,  10.0f, 0.0f,  1.0f,  0.0f, 0xff888888, 1.0f, 1.0f },
+    // Back face (duplicate vertices with inverted normals)
+    { -10.0f, 0.0f, -10.0f, 0.0f, -1.0f,  0.0f, 0xff888888, 0.0f, 0.0f },
+    {  10.0f, 0.0f, -10.0f, 0.0f, -1.0f,  0.0f, 0xff888888, 1.0f, 0.0f },
+    { -10.0f, 0.0f,  10.0f, 0.0f, -1.0f,  0.0f, 0xff888888, 0.0f, 1.0f },
+    {  10.0f, 0.0f,  10.0f, 0.0f, -1.0f,  0.0f, 0xff888888, 1.0f, 1.0f }
 };
 
 static const uint16_t planeIndices[] = {
+    // Front face uses vertices 0-3:
     0, 1, 2,
-    1, 3, 2
+    1, 3, 2,
+    // Back face uses vertices 4-7 (note reversed winding order for proper back–face orientation):
+    4, 6, 5,
+    5, 6, 7
 };
 
 // Define 24 vertices for the cube (4 vertices per face for 6 faces)

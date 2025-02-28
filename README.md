@@ -43,3 +43,10 @@ cd assimp
 cmake CMakeLists.txt
 cmake --build .
 ```
+
+### imguizmo
+
+- inside the root directory input the following commands:
+```
+git clone https://github.com/CedricGuillemet/ImGuizmo
+```
