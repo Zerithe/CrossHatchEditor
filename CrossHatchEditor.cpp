@@ -226,15 +226,22 @@ void DrawGizmoForSelected(Instance* selectedInstance, const float* view, const f
     if (!selectedInstance)
         return;
 
-    // 1) Build matrix from your object:
+    // 1) Build world matrix from the selected instance (correctly accounting for parent hierarchy)
     float matrix[16];
-	BuildWorldMatrix(selectedInstance, matrix);
+    BuildWorldMatrix(selectedInstance, matrix);
 
     // 2) Setup ImGuizmo
     ImGuiIO& io = ImGui::GetIO();
     ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
 
-    // 3) Manipulate
+    // 3) Store the original object's local transform before manipulation
+    float localMatrix[16];
+    bx::mtxSRT(localMatrix,
+        selectedInstance->scale[0], selectedInstance->scale[1], selectedInstance->scale[2],
+        selectedInstance->rotation[0], selectedInstance->rotation[1], selectedInstance->rotation[2],
+        selectedInstance->position[0], selectedInstance->position[1], selectedInstance->position[2]);
+
+    // 4) Manipulate the world matrix
     bool changed = ImGuizmo::Manipulate(
         view, proj,
         currentGizmoOperation,
@@ -242,13 +249,50 @@ void DrawGizmoForSelected(Instance* selectedInstance, const float* view, const f
         matrix
     );
 
-    // 4) If changed, decompose back:
+    // 5) If changed, convert world matrix back to local space
     if (changed)
     {
-        DecomposeMatrixToInstance_ImGuizmo(matrix, selectedInstance);
+        if (selectedInstance->parent)
+        {
+            // Get parent's world matrix
+            float parentWorld[16];
+            BuildWorldMatrix(selectedInstance->parent, parentWorld);
+
+            // Calculate parent's inverse matrix
+            float parentInverse[16];
+            bx::mtxInverse(parentInverse, parentWorld);
+
+            // Convert world-space result back to local space
+            float newLocalMatrix[16];
+            bx::mtxMul(newLocalMatrix, matrix, parentInverse);
+
+            // Extract the local transform values
+            float translation[3];
+            float rotationDeg[3];
+            float scale[3];
+            ImGuizmo::DecomposeMatrixToComponents(newLocalMatrix, translation, rotationDeg, scale);
+
+            // Apply the local transform values
+            selectedInstance->position[0] = translation[0];
+            selectedInstance->position[1] = translation[1];
+            selectedInstance->position[2] = translation[2];
+
+            // Convert degrees to radians if your system is in radians
+            selectedInstance->rotation[0] = DegToRad(rotationDeg[0]);
+            selectedInstance->rotation[1] = DegToRad(rotationDeg[1]);
+            selectedInstance->rotation[2] = DegToRad(rotationDeg[2]);
+
+            selectedInstance->scale[0] = scale[0];
+            selectedInstance->scale[1] = scale[1];
+            selectedInstance->scale[2] = scale[2];
+        }
+        else
+        {
+            // For root objects (no parent), just decompose directly
+            DecomposeMatrixToInstance_ImGuizmo(matrix, selectedInstance);
+        }
     }
 }
-
 //transfer to ObjLoader.cpp
 void computeNormals(std::vector<PosColorVertex>& vertices, const std::vector<uint16_t>& indices) {
 
