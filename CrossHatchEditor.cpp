@@ -2191,11 +2191,6 @@ int main(void)
         //handle inputs
         InputManager::update(camera, 0.016f);
 
-        if (InputManager::isMiddleMousePressed())
-        {
-            modelMovement = !modelMovement;
-            std::cout << "Model movement: " << modelMovement << std::endl;
-        }
 
 
 
