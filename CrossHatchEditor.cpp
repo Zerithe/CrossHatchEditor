@@ -722,6 +722,42 @@ void ShowInstanceTree(Instance* instance, Instance*& selectedInstance, std::vect
         else
             selectedInstance = instance;
     }
+
+    // Add right-click context menu for renaming
+    if (ImGui::BeginPopupContextItem())
+    {
+        static char nameBuffer[256];
+        if (ImGui::IsWindowAppearing())
+        {
+            // Copy the instance name to the buffer when the popup first appears
+            strncpy(nameBuffer, instance->name.c_str(), sizeof(nameBuffer) - 1);
+            nameBuffer[sizeof(nameBuffer) - 1] = '\0';  // Ensure null termination
+        }
+
+        ImGui::Text("Rename %s", instance->name.c_str());
+        ImGui::Separator();
+
+        ImGui::SetNextItemWidth(200);
+        if (ImGui::InputText("##rename", nameBuffer, sizeof(nameBuffer), ImGuiInputTextFlags_EnterReturnsTrue))
+        {
+            instance->name = std::string(nameBuffer);
+            ImGui::CloseCurrentPopup();
+        }
+
+        if (ImGui::Button("Apply"))
+        {
+            instance->name = std::string(nameBuffer);
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel"))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
+
     // Begin drag source
     if (ImGui::BeginDragDropSource())
     {
