@@ -626,6 +626,15 @@ static void spawnInstance(Camera camera, const std::string& instanceName, const 
     std::cout << "New instance created at (" << x << ", " << y << ", " << z << ")" << std::endl;
 }
 
+static void spawnInstanceAtCenter(const std::string& instanceName, const std::string& instanceType, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh, std::vector<Instance*>& instances)
+{
+    std::string fullName = instanceName + std::to_string(instanceCounter);
+
+    // Create a new instance with the current vertex and index buffers
+    instances.push_back(new Instance(instanceCounter++, fullName, instanceType, 0.0f, 0.0f, 0.0f, vbh, ibh));
+    std::cout << "New instance created at (" << 0 << ", " << 0 << ", " << 0 << ")" << std::endl;
+}
+
 static void spawnLight(const Camera& camera, bgfx::VertexBufferHandle vbh_sphere, bgfx::IndexBufferHandle ibh_sphere, std::vector<Instance*>& instances)
 {
     float spawnDistance = 5.0f;
@@ -1756,7 +1765,7 @@ int main(void)
                         // Create a key based on the file name (without extension).
                         std::string fileName = fs::path(normalizedRelPath).stem().string();
                         // Spawn the imported mesh as an instance.
-                        spawnInstance(camera, "imported_obj", fileName, vbh_imported, ibh_imported, instances);
+                        spawnInstanceAtCenter("imported_obj", fileName, vbh_imported, ibh_imported, instances);
                         std::cout << "imported obj spawned" << std::endl;
                         // Add to our map: key is fileName, value is normalizedRelPath.
                         importedObjMap[fileName] = normalizedRelPath;
@@ -1803,41 +1812,39 @@ int main(void)
                 {
                     if (ImGui::MenuItem("Cube"))
                     {
-                        spawnInstance(camera, "cube", "cube", vbh_cube, ibh_cube, instances);
+                        spawnInstanceAtCenter("cube", "cube", vbh_cube, ibh_cube, instances);
                         std::cout << "Cube spawned" << std::endl;
                     }
                     if (ImGui::MenuItem("Capsule"))
                     {
-                        spawnInstance(camera, "capsule", "capsule", vbh_capsule, ibh_capsule, instances);
+                        spawnInstanceAtCenter("capsule", "capsule", vbh_capsule, ibh_capsule, instances);
                         std::cout << "Capsule spawned" << std::endl;
                     }
                     if (ImGui::MenuItem("Cylinder"))
                     {
-                        spawnInstance(camera, "cylinder", "cylinder", vbh_cylinder, ibh_cylinder, instances);
+                        spawnInstanceAtCenter("cylinder", "cylinder", vbh_cylinder, ibh_cylinder, instances);
                         std::cout << "Cylinder spawned" << std::endl;
                     }
                     if (ImGui::MenuItem("Sphere"))
                     {
-                        spawnInstance(camera, "sphere", "sphere", vbh_sphere, ibh_sphere, instances);
+                        spawnInstanceAtCenter("sphere", "sphere", vbh_sphere, ibh_sphere, instances);
                         std::cout << "Sphere spawned" << std::endl;
                     }
                     if (ImGui::MenuItem("Plane"))
                     {
-                        spawnInstance(camera, "plane", "plane", vbh_plane, ibh_plane, instances);
+                        spawnInstanceAtCenter("plane", "plane", vbh_plane, ibh_plane, instances);
                         std::cout << "Plane spawned" << std::endl;
                     }
                     if (ImGui::MenuItem("Suzanne"))
                     {
-                        spawnInstance(camera, "mesh", "mesh", vbh_mesh, ibh_mesh, instances);
+                        spawnInstanceAtCenter("mesh", "mesh", vbh_mesh, ibh_mesh, instances);
                         std::cout << "Suzanne spawned" << std::endl;
                     }
                     if (ImGui::MenuItem("Cornell Box"))
                     {
-                        float spawnDistance = 5.0f;
-                        // Position for new instance, e.g., random or predefined position
-                        float x = camera.position.x + camera.front.x * spawnDistance;
-                        float y = camera.position.y + camera.front.y * spawnDistance;
-                        float z = camera.position.z + camera.front.z * spawnDistance;
+                        float x = 0.0f;
+                        float y = 0.0f;
+                        float z = 0.0f;
                         // --- Spawn Cornell Box with Hierarchy ---
                         Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", x, y, z, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
                         // Create a walls node (dummy instance without geometry)
@@ -1880,22 +1887,22 @@ int main(void)
                     }
                     if (ImGui::MenuItem("Teapot"))
                     {
-                        spawnInstance(camera, "teapot", "teapot", vbh_teapot, ibh_teapot, instances);
+                        spawnInstanceAtCenter("teapot", "teapot", vbh_teapot, ibh_teapot, instances);
                         std::cout << "Teapot spawned" << std::endl;
                     }
                     if (ImGui::MenuItem("Bunny"))
                     {
-                        spawnInstance(camera, "bunny", "bunny", vbh_bunny, ibh_bunny, instances);
+                        spawnInstanceAtCenter("bunny", "bunny", vbh_bunny, ibh_bunny, instances);
                         std::cout << "Bunny spawned" << std::endl;
                     }
                     if (ImGui::MenuItem("Lucy"))
                     {
-                        spawnInstance(camera, "lucy", "lucy", vbh_lucy, ibh_lucy, instances);
+                        spawnInstanceAtCenter("lucy", "lucy", vbh_lucy, ibh_lucy, instances);
                         std::cout << "Lucy spawned" << std::endl;
                     }
 					if (ImGui::MenuItem("Empty"))
 					{
-                        spawnInstance(camera, "empty", "empty", BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE, instances);
+                        spawnInstanceAtCenter("empty", "empty", BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE, instances);
 						std::cout << "Empty object spawned" << std::endl;
 					}
 					ImGui::EndMenu();
@@ -1924,7 +1931,7 @@ int main(void)
                         // Create a key based on the file name (without extension).
                         std::string fileName = fs::path(normalizedRelPath).stem().string();
                         // Spawn the imported mesh as an instance.
-                        spawnInstance(camera, "imported_obj", fileName, vbh_imported, ibh_imported, instances);
+                        spawnInstanceAtCenter("imported_obj", fileName, vbh_imported, ibh_imported, instances);
                         std::cout << "imported obj spawned" << std::endl;
                         // Add to our map: key is fileName, value is normalizedRelPath.
                         importedObjMap[fileName] = normalizedRelPath;
@@ -2057,40 +2064,29 @@ int main(void)
                     // --- Diffuse Texture Selection ---
                     ImGui::Separator();
                     ImGui::Text("Texture:");
-
-                    // Use a static variable to hold the currently selected index
-                    // (If no texture is selected, set to -1)
-                    static int selectedTextureIndex = -1;
-
-                    // Create a combo box listing all available textures plus "None"
-                    if (ImGui::BeginCombo("##DiffuseTexture",
-                        (selectedTextureIndex >= 0) ? availableTextures[selectedTextureIndex].name.c_str() : "None"))
+                    for (size_t i = 0; i < availableTextures.size(); i++) { 
+                        // Convert your BGFX texture handle to an ImGui texture ID.
+						ImTextureID texID = static_cast<ImTextureID>(static_cast<uintptr_t>(availableTextures[i].handle.idx));
+                        // Display each texture as an image button (64x64 pixels).
+                        if (ImGui::ImageButton(std::to_string(i).c_str(),texID, ImVec2(64, 64)))
+                        {
+                            // When clicked, update your selected texture.
+                            // For example, assign it to the currently selected instance.
+                            selectedInstance->diffuseTexture = availableTextures[i].handle;
+                        }
+                        if (i < availableTextures.size() - 1)
+                        {
+                            // Use SameLine to arrange buttons horizontally.
+                            ImGui::SameLine();
+                        }
+                    }
+					// Add a button to clear the selected texture.
+                    if (ImGui::Button("Clear Texture"))
                     {
-                        // Option "None": no diffuse texture is applied.
-                        if (ImGui::Selectable("None", selectedTextureIndex == -1))
-                        {
-                            selectedTextureIndex = -1;
-                            selectedInstance->diffuseTexture = BGFX_INVALID_HANDLE;
-                        }
-                        // List each available texture.
-                        for (int i = 0; i < availableTextures.size(); i++)
-                        {
-                            bool is_selected = (selectedTextureIndex == i);
-                            if (ImGui::Selectable(availableTextures[i].name.c_str(), is_selected))
-                            {
-                                selectedTextureIndex = i;
-                                // Update the selected instance’s diffuse texture handle.
-                                selectedInstance->diffuseTexture = availableTextures[i].handle;
-                                std::cout << "Instance " << selectedInstance->name << " diffuseTexture handle: "
-                                    << selectedInstance->diffuseTexture.idx << std::endl;
-                            }
-                            if (is_selected)
-                                ImGui::SetItemDefaultFocus();
-                        }
-                        ImGui::EndCombo();
+                        selectedInstance->diffuseTexture = BGFX_INVALID_HANDLE;
                     }
                 }
-
+                ImGui::Separator();
                 // You can add a button to remove the selected instance from the hierarchy.
                 if (ImGui::Button("Remove Selected"))
                 {
