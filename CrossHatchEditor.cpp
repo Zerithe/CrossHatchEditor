@@ -2052,40 +2052,29 @@ int main(void)
                     // --- Diffuse Texture Selection ---
                     ImGui::Separator();
                     ImGui::Text("Texture:");
-
-                    // Use a static variable to hold the currently selected index
-                    // (If no texture is selected, set to -1)
-                    static int selectedTextureIndex = -1;
-
-                    // Create a combo box listing all available textures plus "None"
-                    if (ImGui::BeginCombo("##DiffuseTexture",
-                        (selectedTextureIndex >= 0) ? availableTextures[selectedTextureIndex].name.c_str() : "None"))
+                    for (size_t i = 0; i < availableTextures.size(); i++) { 
+                        // Convert your BGFX texture handle to an ImGui texture ID.
+						ImTextureID texID = static_cast<ImTextureID>(static_cast<uintptr_t>(availableTextures[i].handle.idx));
+                        // Display each texture as an image button (64x64 pixels).
+                        if (ImGui::ImageButton(std::to_string(i).c_str(),texID, ImVec2(64, 64)))
+                        {
+                            // When clicked, update your selected texture.
+                            // For example, assign it to the currently selected instance.
+                            selectedInstance->diffuseTexture = availableTextures[i].handle;
+                        }
+                        if (i < availableTextures.size() - 1)
+                        {
+                            // Use SameLine to arrange buttons horizontally.
+                            ImGui::SameLine();
+                        }
+                    }
+					// Add a button to clear the selected texture.
+                    if (ImGui::Button("Clear Texture"))
                     {
-                        // Option "None": no diffuse texture is applied.
-                        if (ImGui::Selectable("None", selectedTextureIndex == -1))
-                        {
-                            selectedTextureIndex = -1;
-                            selectedInstance->diffuseTexture = BGFX_INVALID_HANDLE;
-                        }
-                        // List each available texture.
-                        for (int i = 0; i < availableTextures.size(); i++)
-                        {
-                            bool is_selected = (selectedTextureIndex == i);
-                            if (ImGui::Selectable(availableTextures[i].name.c_str(), is_selected))
-                            {
-                                selectedTextureIndex = i;
-                                // Update the selected instance’s diffuse texture handle.
-                                selectedInstance->diffuseTexture = availableTextures[i].handle;
-                                std::cout << "Instance " << selectedInstance->name << " diffuseTexture handle: "
-                                    << selectedInstance->diffuseTexture.idx << std::endl;
-                            }
-                            if (is_selected)
-                                ImGui::SetItemDefaultFocus();
-                        }
-                        ImGui::EndCombo();
+                        selectedInstance->diffuseTexture = BGFX_INVALID_HANDLE;
                     }
                 }
-
+                ImGui::Separator();
                 // You can add a button to remove the selected instance from the hierarchy.
                 if (ImGui::Button("Remove Selected"))
                 {
