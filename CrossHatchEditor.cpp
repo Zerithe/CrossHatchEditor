@@ -155,7 +155,7 @@ struct TextureOption {
 
 struct MeshData {
     std::vector<PosColorVertex> vertices;
-    std::vector<uint16_t> indices;
+    std::vector<uint32_t> indices;
 };
 
 struct Vec3 {
@@ -294,7 +294,7 @@ void DrawGizmoForSelected(Instance* selectedInstance, const float* view, const f
     }
 }
 //transfer to ObjLoader.cpp
-void computeNormals(std::vector<PosColorVertex>& vertices, const std::vector<uint16_t>& indices) {
+void computeNormals(std::vector<PosColorVertex>& vertices, const std::vector<uint32_t>& indices) {
 
     // Reset all normals to zero
     for (auto& vertex : vertices) {
@@ -306,9 +306,9 @@ void computeNormals(std::vector<PosColorVertex>& vertices, const std::vector<uin
     std::vector<Vec3> accumulatedNormals(vertices.size(), { 0.0f, 0.0f, 0.0f });
 
     for (size_t i = 0; i < indices.size(); i += 3) {
-        uint16_t i0 = indices[i];
-        uint16_t i1 = indices[i + 1];
-        uint16_t i2 = indices[i + 2];
+        uint32_t i0 = indices[i];
+        uint32_t i1 = indices[i + 1];
+        uint32_t i2 = indices[i + 2];
 
         Vec3 v0 = { vertices[i0].x, vertices[i0].y, vertices[i0].z };
         Vec3 v1 = { vertices[i1].x, vertices[i1].y, vertices[i1].z };
@@ -390,7 +390,7 @@ MeshData loadMesh(const std::string& filePath) {
     }
 
     std::vector<PosColorVertex> vertices;
-    std::vector<uint16_t> indices;
+    std::vector<uint32_t> indices;
 
     // used for making origin of imported objects at 0 0 0 to center gizmo
     // works for both single mesh and multi mesh objects
@@ -459,7 +459,7 @@ MeshData loadMesh(const std::string& filePath) {
             aiFace face = mesh->mFaces[i];
             // Reverse the winding order
             for (int j = face.mNumIndices - 1; j >= 0; j--) {
-                indices.push_back(baseIndex + face.mIndices[j]);
+                indices.push_back(static_cast<uint32_t>(baseIndex + face.mIndices[j]));
             }
         }
 
@@ -498,9 +498,21 @@ void createMeshBuffers(const MeshData& meshData, bgfx::VertexBufferHandle& vbh, 
         layout
     );
 
-    ibh = bgfx::createIndexBuffer(
-        bgfx::copy(meshData.indices.data(), sizeof(uint16_t) * meshData.indices.size())
-    );
+    // Detect if we need 32-bit indices
+    if (meshData.vertices.size() > std::numeric_limits<uint16_t>::max()) {
+        std::cout << "Using 32-bit index buffer due to high poly count.\n";
+        ibh = bgfx::createIndexBuffer(
+            bgfx::copy(meshData.indices.data(), sizeof(uint32_t) * meshData.indices.size()),
+            BGFX_BUFFER_INDEX32 // Enables 32-bit index buffer
+        );
+    }
+    else {
+        std::cout << "Using 16-bit index buffer for efficiency.\n";
+        std::vector<uint16_t> indices16(meshData.indices.begin(), meshData.indices.end());
+        ibh = bgfx::createIndexBuffer(
+            bgfx::copy(indices16.data(), sizeof(uint16_t) * indices16.size())
+        );
+    }
 }
 static void glfw_keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
