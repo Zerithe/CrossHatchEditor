@@ -57,6 +57,7 @@ namespace fs = std::filesystem;
 #include <cmath> // for rad2deg, deg2rad, etc.
 #include <cfloat> // For FLT_MAX and FLT_MIN
 
+static bool highlightVisible = true;
 static float RadToDeg(float rad) { return rad * (180.0f / 3.14159265358979f); }
 static float DegToRad(float deg) { return deg * (3.14159265358979f / 180.0f); }
 static ImGuizmo::OPERATION currentGizmoOperation = ImGuizmo::TRANSLATE;
@@ -697,9 +698,14 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram,b
     // Set the object override color uniform.
     bgfx::setUniform(u_objectColor, effectiveColor);
 
-    const float tintBasic[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-    const float tintHighlighted[4] = { 0.3f, 0.3f, 2.0f, 1.0f };
-    bgfx::setUniform(u_tint, selectedInstance == instance ? tintHighlighted : tintBasic);
+    const float tintBasic[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
+    const float tintHighlighted[4] = { 0.3f, 0.3f, 2.0f, 0.1f };
+    if (selectedInstance == instance && highlightVisible) {
+		bgfx::setUniform(u_tint, tintHighlighted);
+	}
+    else {
+        bgfx::setUniform(u_tint, tintBasic);
+    }
     const bgfx::VertexBufferHandle invalidVbh = BGFX_INVALID_HANDLE;
     const bgfx::IndexBufferHandle invalidIbh = BGFX_INVALID_HANDLE;
     // Draw geometry if valid.
@@ -1655,7 +1661,7 @@ int main(void)
 
     // Load shaders and create program once
     bgfx::ShaderHandle vsh = loadShader("shaders\\v_out21.bin");
-    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out26.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out27.bin");
 
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
 
@@ -2165,6 +2171,11 @@ int main(void)
                     deleteInstance(selectedInstance);
                     selectedInstance = nullptr;
                 }
+                bool highlighted = highlightVisible;
+                if (ImGui::Checkbox("Show highlight tint", &highlighted))
+                {
+                    highlightVisible = highlighted;
+                }
             }
         }
 
@@ -2532,7 +2543,7 @@ int main(void)
         bgfx::setVertexBuffer(0, vbh_plane);
         bgfx::setIndexBuffer(ibh_plane);
         bgfx::setTexture(1, u_diffuseTex, planeTexture); // Bind the fixed plane texture:
-        const float tintBasic[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+        const float tintBasic[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
         bgfx::setUniform(u_tint, tintBasic);
         bgfx::submit(0, defaultProgram);
 
