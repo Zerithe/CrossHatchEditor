@@ -1268,6 +1268,7 @@ void collectLights(const Instance* inst, float* lightsData, int& numLights)
     }
 }
 
+
 int main(void)
 {
     // Initialize GLFW
@@ -1686,520 +1687,540 @@ int main(void)
         ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoBackground;
 
+    bool takingScreenshot = false;
+
     //MAIN LOOP
 	while (!glfwWindowShouldClose(window))
 	{
         glfwPollEvents();
 
-        //imgui loop
-		ImGui_ImplGlfw_NewFrame();
-		ImGui_Implbgfx_NewFrame();
-		ImGui::NewFrame();
-
-        //transformation gizmo
-        ImGuizmo::BeginFrame();
-
         ImGuiViewport* viewport = ImGui::GetMainViewport();
-		ImGuiID dockspace_id = viewport->ID;
-		ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
-        
-        //for viewporting
-        /*
-        // Set up a full-screen window
-        ImGui::SetNextWindowPos(viewport->Pos);
-        ImGui::SetNextWindowSize(viewport->Size);
-        ImGui::SetNextWindowViewport(viewport->ID);
 
-        ImGuiWindowFlags docking_window_flags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar |
-            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
-            ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_MenuBar;
-
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-
-        ImGui::Begin("DockSpace Window", nullptr, docking_window_flags);
-        ImGui::PopStyleVar(3);
-
-        ImGuiID dockspace_id = ImGui::GetID("MainDockspace");
-        ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
-
-        ImGui::End();*/
-
-        ImGui::Begin("MenuBar", p_open, menu_flags);
-        if (ImGui::BeginMenuBar())
+        if (!takingScreenshot)
         {
-            if (ImGui::BeginMenu("File", true))
+            //imgui loop
+            ImGui_ImplGlfw_NewFrame();
+            ImGui_Implbgfx_NewFrame();
+            ImGui::NewFrame();
+
+            //transformation gizmo
+            ImGuizmo::BeginFrame();
+
+            
+            ImGuiID dockspace_id = viewport->ID;
+            ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
+
+            //for viewporting
+            /*
+            // Set up a full-screen window
+            ImGui::SetNextWindowPos(viewport->Pos);
+            ImGui::SetNextWindowSize(viewport->Size);
+            ImGui::SetNextWindowViewport(viewport->ID);
+
+            ImGuiWindowFlags docking_window_flags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar |
+                ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+                ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
+                ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_MenuBar;
+
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+
+            ImGui::Begin("DockSpace Window", nullptr, docking_window_flags);
+            ImGui::PopStyleVar(3);
+
+            ImGuiID dockspace_id = ImGui::GetID("MainDockspace");
+            ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
+
+            ImGui::End();*/
+
+            ImGui::Begin("MenuBar", p_open, menu_flags);
+            if (ImGui::BeginMenuBar())
             {
-                if (ImGui::MenuItem("Open.."))
+                if (ImGui::BeginMenu("File", true))
                 {
-                    //std::string loadFilePath = openFileDialog(false); // Open load dialog
-                    //if (!loadFilePath.empty())
-                    //    loadSceneText(loadFilePath, instances, availableTextures);
-                    importedObjMap = loadSceneFromFile(instances, availableTextures, bufferMap);
-                }
-                if (ImGui::MenuItem("Save", "Ctrl+S"))
-                {
-                    //std::string saveFilePath = openFileDialog(true); // Open save dialog
-                    //if (!saveFilePath.empty())
-                    //    saveScene(saveFilePath, instances, availableTextures);
-                    saveSceneToFile(instances, availableTextures, importedObjMap);
-                }
-                if (ImGui::MenuItem("Import OBJ"))
-                {
-                    // Use a filter for OBJ files and all files.
-                    std::string absPath = OpenFileDialog(glfwGetWin32Window(window), "OBJ Files\0*.obj\0All Files\0*.*\0");
-                    std::string relPath = GetRelativePath(absPath);
-                    std::string normalizedRelPath = ConvertBackslashesToForward(relPath);
-                    std::cout << "filePath: " << normalizedRelPath << std::endl;
-                    if (!normalizedRelPath.empty())
+                    if (ImGui::MenuItem("Open.."))
                     {
-                        // Load the mesh from the selected file.
-                        MeshData importedMesh = loadMesh(normalizedRelPath);
-                        std::cout << "Imported mesh vertices: " << importedMesh.vertices.size()
-                            << ", indices: " << importedMesh.indices.size() << std::endl;
-                        bgfx::VertexBufferHandle vbh_imported;
-                        bgfx::IndexBufferHandle ibh_imported;
-                        createMeshBuffers(importedMesh, vbh_imported, ibh_imported);
-                        // Create a key based on the file name (without extension).
-                        std::string fileName = fs::path(normalizedRelPath).stem().string();
-                        // Spawn the imported mesh as an instance.
-                        spawnInstanceAtCenter("imported_obj", fileName, vbh_imported, ibh_imported, instances);
-                        std::cout << "imported obj spawned" << std::endl;
-                        // Add to our map: key is fileName, value is normalizedRelPath.
-                        importedObjMap[fileName] = normalizedRelPath;
+                        //std::string loadFilePath = openFileDialog(false); // Open load dialog
+                        //if (!loadFilePath.empty())
+                        //    loadSceneText(loadFilePath, instances, availableTextures);
+                        importedObjMap = loadSceneFromFile(instances, availableTextures, bufferMap);
                     }
-                }
-                if (ImGui::MenuItem("Import Texture"))
-                {
-                    // Open a file dialog to select a texture file.
-                    std::string texFilePath = openFileDialog(false);
-                    if (!texFilePath.empty())
+                    if (ImGui::MenuItem("Save", "Ctrl+S"))
                     {
-                        // Optionally, convert backslashes to forward slashes.
-                        std::string normalizedPath = ConvertBackslashesToForward(texFilePath);
-                        std::cout << "Importing texture from: " << normalizedPath << std::endl;
-                        // Load the texture (currently only DDS files are supported).
-                        bgfx::TextureHandle newTexture = loadTextureFile(normalizedPath.c_str());
-                        if (newTexture.idx != bgfx::kInvalidHandle)
+                        //std::string saveFilePath = openFileDialog(true); // Open save dialog
+                        //if (!saveFilePath.empty())
+                        //    saveScene(saveFilePath, instances, availableTextures);
+                        saveSceneToFile(instances, availableTextures, importedObjMap);
+                    }
+                    if (ImGui::MenuItem("Import OBJ"))
+                    {
+                        // Use a filter for OBJ files and all files.
+                        std::string absPath = OpenFileDialog(glfwGetWin32Window(window), "OBJ Files\0*.obj\0All Files\0*.*\0");
+                        std::string relPath = GetRelativePath(absPath);
+                        std::string normalizedRelPath = ConvertBackslashesToForward(relPath);
+                        std::cout << "filePath: " << normalizedRelPath << std::endl;
+                        if (!normalizedRelPath.empty())
                         {
-                            // Create a TextureOption entry for the new texture.
-                            TextureOption texOpt;
-                            texOpt.name = fs::path(normalizedPath).stem().string();
-                            texOpt.handle = newTexture;
-                            availableTextures.push_back(texOpt);
-                            std::cout << "Texture '" << texOpt.name << "' imported, handle: "
-                                << texOpt.handle.idx << std::endl;
+                            // Load the mesh from the selected file.
+                            MeshData importedMesh = loadMesh(normalizedRelPath);
+                            std::cout << "Imported mesh vertices: " << importedMesh.vertices.size()
+                                << ", indices: " << importedMesh.indices.size() << std::endl;
+                            bgfx::VertexBufferHandle vbh_imported;
+                            bgfx::IndexBufferHandle ibh_imported;
+                            createMeshBuffers(importedMesh, vbh_imported, ibh_imported);
+                            // Create a key based on the file name (without extension).
+                            std::string fileName = fs::path(normalizedRelPath).stem().string();
+                            // Spawn the imported mesh as an instance.
+                            spawnInstanceAtCenter("imported_obj", fileName, vbh_imported, ibh_imported, instances);
+                            std::cout << "imported obj spawned" << std::endl;
+                            // Add to our map: key is fileName, value is normalizedRelPath.
+                            importedObjMap[fileName] = normalizedRelPath;
+                        }
+                    }
+                    if (ImGui::MenuItem("Import Texture"))
+                    {
+                        // Open a file dialog to select a texture file.
+                        std::string texFilePath = openFileDialog(false);
+                        if (!texFilePath.empty())
+                        {
+                            // Optionally, convert backslashes to forward slashes.
+                            std::string normalizedPath = ConvertBackslashesToForward(texFilePath);
+                            std::cout << "Importing texture from: " << normalizedPath << std::endl;
+                            // Load the texture (currently only DDS files are supported).
+                            bgfx::TextureHandle newTexture = loadTextureFile(normalizedPath.c_str());
+                            if (newTexture.idx != bgfx::kInvalidHandle)
+                            {
+                                // Create a TextureOption entry for the new texture.
+                                TextureOption texOpt;
+                                texOpt.name = fs::path(normalizedPath).stem().string();
+                                texOpt.handle = newTexture;
+                                availableTextures.push_back(texOpt);
+                                std::cout << "Texture '" << texOpt.name << "' imported, handle: "
+                                    << texOpt.handle.idx << std::endl;
+                            }
+                            else
+                            {
+                                std::cout << "Failed to load texture." << std::endl;
+                            }
+                        }
+                    }
+                    if (ImGui::MenuItem("Exit"))
+                    {
+                        glfwSetWindowShouldClose(window, true);
+                    }
+
+                    //if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
+                    ImGui::EndMenu();
+                }
+                if (ImGui::BeginMenu("Add"))
+                {
+                    if (ImGui::BeginMenu("Objects"))
+                    {
+                        if (ImGui::MenuItem("Cube"))
+                        {
+                            spawnInstanceAtCenter("cube", "cube", vbh_cube, ibh_cube, instances);
+                            std::cout << "Cube spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Capsule"))
+                        {
+                            spawnInstanceAtCenter("capsule", "capsule", vbh_capsule, ibh_capsule, instances);
+                            std::cout << "Capsule spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Cylinder"))
+                        {
+                            spawnInstanceAtCenter("cylinder", "cylinder", vbh_cylinder, ibh_cylinder, instances);
+                            std::cout << "Cylinder spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Sphere"))
+                        {
+                            spawnInstanceAtCenter("sphere", "sphere", vbh_sphere, ibh_sphere, instances);
+                            std::cout << "Sphere spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Plane"))
+                        {
+                            spawnInstanceAtCenter("plane", "plane", vbh_plane, ibh_plane, instances);
+                            std::cout << "Plane spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Suzanne"))
+                        {
+                            spawnInstanceAtCenter("mesh", "mesh", vbh_mesh, ibh_mesh, instances);
+                            std::cout << "Suzanne spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Cornell Box"))
+                        {
+                            float x = 0.0f;
+                            float y = 0.0f;
+                            float z = 0.0f;
+                            // --- Spawn Cornell Box with Hierarchy ---
+                            Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", x, y, z, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+                            // Create a walls node (dummy instance without geometry)
+                            Instance* wallsNode = new Instance(instanceCounter++, "walls", "empty", 0.0f, -1.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+                            wallsNode->scale[0] = 0.2f;
+                            wallsNode->scale[1] = 0.2f;
+                            wallsNode->scale[2] = 0.2f;
+
+                            Instance* floorPlane = new Instance(instanceCounter++, "floor", "plane", 0.0f, -6.0f, 0.0f, vbh_plane, ibh_plane);
+                            wallsNode->addChild(floorPlane);
+                            Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", "plane", 0.0f, 14.0f, 0.0f, vbh_plane, ibh_plane);
+                            wallsNode->addChild(ceilingPlane);
+                            Instance* backPlane = new Instance(instanceCounter++, "back", "plane", 0.0f, 4.0f, -10.0f, vbh_plane, ibh_plane);
+                            backPlane->rotation[0] = 1.57f;
+                            wallsNode->addChild(backPlane);
+                            Instance* leftPlane = new Instance(instanceCounter++, "left_wall", "plane", 10.0f, 4.0f, 0.0f, vbh_plane, ibh_plane);
+                            leftPlane->objectColor[0] = 1.0f; leftPlane->objectColor[1] = 0.0f; leftPlane->objectColor[2] = 0.0f; leftPlane->objectColor[3] = 1.0f;
+                            leftPlane->rotation[2] = 1.57f;
+                            wallsNode->addChild(leftPlane);
+                            Instance* rightPlane = new Instance(instanceCounter++, "right_wall", "plane", -10.0f, 4.0f, 0.0f, vbh_plane, ibh_plane);
+                            rightPlane->objectColor[0] = 0.0f; rightPlane->objectColor[1] = 1.0f; rightPlane->objectColor[2] = 0.0f; rightPlane->objectColor[3] = 1.0f;
+                            rightPlane->rotation[2] = 1.57f;
+                            wallsNode->addChild(rightPlane);
+
+                            Instance* innerCube = new Instance(instanceCounter++, "inner_cube", "cube", 0.8f, -1.5f, 0.4f, vbh_cube, ibh_cube);
+                            innerCube->rotation[1] = 0.2f;
+                            innerCube->scale[0] = 0.6f;
+                            innerCube->scale[1] = 0.6f;
+                            innerCube->scale[2] = 0.6f;
+                            Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", "cube", -1.0f, -0.7f, 0.4f, vbh_cube, ibh_cube);
+                            innerRectBox->rotation[1] = -0.3f;
+                            innerRectBox->scale[0] = 0.6f;
+                            innerRectBox->scale[1] = 1.5f;
+                            innerRectBox->scale[2] = 0.6f;
+                            cornellBox->addChild(wallsNode);
+                            cornellBox->addChild(innerCube);
+                            cornellBox->addChild(innerRectBox);
+                            instances.push_back(cornellBox);
+                            std::cout << "Cornell Box spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Teapot"))
+                        {
+                            spawnInstanceAtCenter("teapot", "teapot", vbh_teapot, ibh_teapot, instances);
+                            std::cout << "Teapot spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Bunny"))
+                        {
+                            spawnInstanceAtCenter("bunny", "bunny", vbh_bunny, ibh_bunny, instances);
+                            std::cout << "Bunny spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Lucy"))
+                        {
+                            spawnInstanceAtCenter("lucy", "lucy", vbh_lucy, ibh_lucy, instances);
+                            std::cout << "Lucy spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Empty"))
+                        {
+                            spawnInstanceAtCenter("empty", "empty", BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE, instances);
+                            std::cout << "Empty object spawned" << std::endl;
+                        }
+                        ImGui::EndMenu();
+                    }
+                    if (ImGui::MenuItem("Lights"))
+                    {
+                        spawnLight(camera, vbh_sphere, ibh_sphere, instances);
+                        std::cout << "Light spawned" << std::endl;
+                    }
+                    if (ImGui::MenuItem("Import OBJ"))
+                    {
+                        // Use a filter for OBJ files and all files.
+                        std::string absPath = OpenFileDialog(glfwGetWin32Window(window), "OBJ Files\0*.obj\0All Files\0*.*\0");
+                        std::string relPath = GetRelativePath(absPath);
+                        std::string normalizedRelPath = ConvertBackslashesToForward(relPath);
+                        std::cout << "filePath: " << normalizedRelPath << std::endl;
+                        if (!normalizedRelPath.empty())
+                        {
+                            // Load the mesh from the selected file.
+                            MeshData importedMesh = loadMesh(normalizedRelPath);
+                            std::cout << "Imported mesh vertices: " << importedMesh.vertices.size()
+                                << ", indices: " << importedMesh.indices.size() << std::endl;
+                            bgfx::VertexBufferHandle vbh_imported;
+                            bgfx::IndexBufferHandle ibh_imported;
+                            createMeshBuffers(importedMesh, vbh_imported, ibh_imported);
+                            // Create a key based on the file name (without extension).
+                            std::string fileName = fs::path(normalizedRelPath).stem().string();
+                            // Spawn the imported mesh as an instance.
+                            spawnInstanceAtCenter("imported_obj", fileName, vbh_imported, ibh_imported, instances);
+                            std::cout << "imported obj spawned" << std::endl;
+                            // Add to our map: key is fileName, value is normalizedRelPath.
+                            importedObjMap[fileName] = normalizedRelPath;
+                        }
+                    }
+
+                    ImGui::EndMenu();
+                }
+                if (ImGui::BeginMenu("Edit"))
+                {
+                    if (ImGui::MenuItem("Undo", "WIP"))
+                    {
+                        //undo
+                    }
+                    if (ImGui::MenuItem("Redo", "WIP"))
+                    {
+                        //redo
+                    }
+                    if (ImGui::MenuItem("Delete Last Instance"))
+                    {
+                        Instance* inst = instances.back();
+                        instances.pop_back();
+                        //instanceCounter--;
+                        delete inst;
+                        selectedInstance = nullptr;
+                        std::cout << "Last Instance removed" << std::endl;
+                    }
+                    if (ImGui::MenuItem("Clear All Instances"))
+                    {
+                        for (Instance* inst : instances)
+                        {
+                            delete inst;
+                        }
+                        instances.clear();
+                        selectedInstance = nullptr;
+                        std::cout << "All Instances cleared" << std::endl;
+                    }
+                    ImGui::EndMenu();
+                }
+
+                ImGui::EndMenuBar();
+            }
+            ImGui::End();
+
+            //IMGUI WINDOW FOR CONTROLS
+            //FOR REFERENCE USE THIS: https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html
+            ImGui::Begin("Inspector", p_open, window_flags);
+
+            // If an instance is selected, show its transform controls.
+            if (selectedInstance)
+            {
+                int width = static_cast<int>(viewport->Size.x);
+                int height = static_cast<int>(viewport->Size.y);
+                float view[16];
+                bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
+
+                float proj[16];
+                bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+
+                DrawGizmoForSelected(selectedInstance, view, proj);
+
+                ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+                if (ImGui::CollapsingHeader("Transform Controls/Gizmo"))
+                {
+                    ImGui::Separator();
+                    ImGui::Text("Selected: %s", selectedInstance->name.c_str());
+                    if (ImGui::RadioButton("Translate", currentGizmoOperation == ImGuizmo::TRANSLATE))
+                        currentGizmoOperation = ImGuizmo::TRANSLATE;
+                    ImGui::SameLine();
+                    if (ImGui::RadioButton("Rotate", currentGizmoOperation == ImGuizmo::ROTATE))
+                        currentGizmoOperation = ImGuizmo::ROTATE;
+                    ImGui::SameLine();
+                    if (ImGui::RadioButton("Scale", currentGizmoOperation == ImGuizmo::SCALE))
+                        currentGizmoOperation = ImGuizmo::SCALE;
+
+                    ImGui::DragFloat3("Translation", selectedInstance->position, 0.1f);
+                    ImGui::DragFloat3("Rotation (radians)", selectedInstance->rotation, 0.1f);
+                    ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
+
+                    if (currentGizmoOperation != ImGuizmo::SCALE) {
+                        if (ImGui::RadioButton("World", currentGizmoMode == ImGuizmo::WORLD))
+                            currentGizmoMode = ImGuizmo::WORLD;
+                        ImGui::SameLine();
+                        if (ImGui::RadioButton("Local", currentGizmoMode == ImGuizmo::LOCAL))
+                            currentGizmoMode = ImGuizmo::LOCAL;
+                    }
+
+                    if (selectedInstance->isLight)
+                    {
+                        ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+                        if (ImGui::CollapsingHeader("Light Settings"))
+                        {
+                            ImGui::Separator();
+                            ImGui::Text("Light Properties:");
+                            const char* lightTypes[] = { "Directional", "Point", "Spot" };
+                            int currentType = static_cast<int>(selectedInstance->lightProps.type);
+                            if (ImGui::Combo("Light Type", &currentType, lightTypes, IM_ARRAYSIZE(lightTypes)))
+                            {
+                                selectedInstance->lightProps.type = static_cast<LightType>(currentType);
+                            }
+                            if (selectedInstance->lightProps.type == LightType::Directional ||
+                                selectedInstance->lightProps.type == LightType::Spot)
+                            {
+                                ImGui::DragFloat3("Light Direction", selectedInstance->lightProps.direction, 0.1f);
+                            }
+                            if (selectedInstance->lightProps.type == LightType::Point ||
+                                selectedInstance->lightProps.type == LightType::Spot)
+                            {
+                                ImGui::DragFloat3("Light Position", selectedInstance->position, 0.1f);
+                                ImGui::DragFloat("Range", &selectedInstance->lightProps.range, 0.1f, 0.0f, 100.0f);
+                            }
+                            ImGui::ColorEdit4("Light Color", selectedInstance->lightProps.color);
+                            ImGui::DragFloat("Intensity", &selectedInstance->lightProps.intensity, 0.1f, 0.0f, 10.0f);
+                            if (selectedInstance->lightProps.type == LightType::Spot)
+                            {
+                                ImGui::DragFloat("Cone Angle", &selectedInstance->lightProps.coneAngle, 0.1f, 0.0f, 3.14f);
+                            }
+                            // Add a checkbox to show or hide the debug visual of the light.
+                            bool debugVisible = selectedInstance->showDebugVisual;
+                            if (ImGui::Checkbox("Show Light Debug Visual", &debugVisible))
+                            {
+                                selectedInstance->showDebugVisual = debugVisible;
+                            }
+                        }
+                    }
+                    else {
+                        //Object color Selection
+                        ImGui::Separator();
+                        ImGui::ColorEdit3("Object Color", selectedInstance->objectColor);
+                        // --- Diffuse Texture Selection ---
+                        ImGui::Separator();
+                        ImGui::Text("Texture:");
+                        for (size_t i = 0; i < availableTextures.size(); i++) {
+                            // Convert your BGFX texture handle to an ImGui texture ID.
+                            ImTextureID texID = static_cast<ImTextureID>(static_cast<uintptr_t>(availableTextures[i].handle.idx));
+                            // Display each texture as an image button (64x64 pixels).
+                            if (ImGui::ImageButton(std::to_string(i).c_str(), texID, ImVec2(64, 64)))
+                            {
+                                // When clicked, update your selected texture.
+                                // For example, assign it to the currently selected instance.
+                                selectedInstance->diffuseTexture = availableTextures[i].handle;
+                            }
+                            if (i < availableTextures.size() - 1)
+                            {
+                                // Use SameLine to arrange buttons horizontally.
+                                ImGui::SameLine();
+                            }
+                        }
+                        // Add a button to clear the selected texture.
+                        if (ImGui::Button("Clear Texture"))
+                        {
+                            selectedInstance->diffuseTexture = BGFX_INVALID_HANDLE;
+                        }
+                    }
+                    ImGui::Separator();
+                    // You can add a button to remove the selected instance from the hierarchy.
+                    if (ImGui::Button("Remove Selected"))
+                    {
+                        // If the selected instance has a parent, remove it from the parent's children list.
+                        if (selectedInstance->parent)
+                        {
+                            Instance* parent = selectedInstance->parent;
+                            auto it = std::find(parent->children.begin(), parent->children.end(), selectedInstance);
+                            if (it != parent->children.end())
+                            {
+                                parent->children.erase(it);
+                            }
                         }
                         else
                         {
-                            std::cout << "Failed to load texture." << std::endl;
+                            // Otherwise, it's top-level. Remove it from the global instances vector.
+                            auto it = std::find(instances.begin(), instances.end(), selectedInstance);
+                            if (it != instances.end())
+                            {
+                                instances.erase(it);
+                            }
                         }
+
+                        // Delete the instance (which will recursively delete its children)
+                        deleteInstance(selectedInstance);
+                        selectedInstance = nullptr;
                     }
                 }
-				if (ImGui::MenuItem("Exit"))
-				{
-					glfwSetWindowShouldClose(window, true);
-				}
-
-                //if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */ }
-                ImGui::EndMenu();
             }
-            if (ImGui::BeginMenu("Add"))
-            {
-                if (ImGui::BeginMenu("Objects"))
-                {
-                    if (ImGui::MenuItem("Cube"))
-                    {
-                        spawnInstanceAtCenter("cube", "cube", vbh_cube, ibh_cube, instances);
-                        std::cout << "Cube spawned" << std::endl;
-                    }
-                    if (ImGui::MenuItem("Capsule"))
-                    {
-                        spawnInstanceAtCenter("capsule", "capsule", vbh_capsule, ibh_capsule, instances);
-                        std::cout << "Capsule spawned" << std::endl;
-                    }
-                    if (ImGui::MenuItem("Cylinder"))
-                    {
-                        spawnInstanceAtCenter("cylinder", "cylinder", vbh_cylinder, ibh_cylinder, instances);
-                        std::cout << "Cylinder spawned" << std::endl;
-                    }
-                    if (ImGui::MenuItem("Sphere"))
-                    {
-                        spawnInstanceAtCenter("sphere", "sphere", vbh_sphere, ibh_sphere, instances);
-                        std::cout << "Sphere spawned" << std::endl;
-                    }
-                    if (ImGui::MenuItem("Plane"))
-                    {
-                        spawnInstanceAtCenter("plane", "plane", vbh_plane, ibh_plane, instances);
-                        std::cout << "Plane spawned" << std::endl;
-                    }
-                    if (ImGui::MenuItem("Suzanne"))
-                    {
-                        spawnInstanceAtCenter("mesh", "mesh", vbh_mesh, ibh_mesh, instances);
-                        std::cout << "Suzanne spawned" << std::endl;
-                    }
-                    if (ImGui::MenuItem("Cornell Box"))
-                    {
-                        float x = 0.0f;
-                        float y = 0.0f;
-                        float z = 0.0f;
-                        // --- Spawn Cornell Box with Hierarchy ---
-                        Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", x, y, z, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
-                        // Create a walls node (dummy instance without geometry)
-                        Instance* wallsNode = new Instance(instanceCounter++, "walls", "empty", 0.0f, -1.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
-                        wallsNode->scale[0] = 0.2f;
-                        wallsNode->scale[1] = 0.2f;
-                        wallsNode->scale[2] = 0.2f;
 
-                        Instance* floorPlane = new Instance(instanceCounter++, "floor", "plane", 0.0f, -6.0f, 0.0f, vbh_plane, ibh_plane);
-                        wallsNode->addChild(floorPlane);
-                        Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", "plane", 0.0f, 14.0f, 0.0f, vbh_plane, ibh_plane);
-                        wallsNode->addChild(ceilingPlane);
-                        Instance* backPlane = new Instance(instanceCounter++, "back", "plane", 0.0f, 4.0f, -10.0f, vbh_plane, ibh_plane);
-                        backPlane->rotation[0] = 1.57f;
-                        wallsNode->addChild(backPlane);
-                        Instance* leftPlane = new Instance(instanceCounter++, "left_wall", "plane", 10.0f, 4.0f, 0.0f, vbh_plane, ibh_plane);
-                        leftPlane->objectColor[0] = 1.0f; leftPlane->objectColor[1] = 0.0f; leftPlane->objectColor[2] = 0.0f; leftPlane->objectColor[3] = 1.0f;
-                        leftPlane->rotation[2] = 1.57f;
-                        wallsNode->addChild(leftPlane);
-                        Instance* rightPlane = new Instance(instanceCounter++, "right_wall", "plane", -10.0f, 4.0f, 0.0f, vbh_plane, ibh_plane);
-                        rightPlane->objectColor[0] = 0.0f; rightPlane->objectColor[1] = 1.0f; rightPlane->objectColor[2] = 0.0f; rightPlane->objectColor[3] = 1.0f;
-                        rightPlane->rotation[2] = 1.57f;
-                        wallsNode->addChild(rightPlane);
+            ImGui::End();
 
-                        Instance* innerCube = new Instance(instanceCounter++, "inner_cube", "cube", 0.8f, -1.5f, 0.4f, vbh_cube, ibh_cube);
-                        innerCube->rotation[1] = 0.2f;
-                        innerCube->scale[0] = 0.6f;
-                        innerCube->scale[1] = 0.6f;
-                        innerCube->scale[2] = 0.6f;
-                        Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", "cube", -1.0f, -0.7f, 0.4f, vbh_cube, ibh_cube);
-                        innerRectBox->rotation[1] = -0.3f;
-                        innerRectBox->scale[0] = 0.6f;
-                        innerRectBox->scale[1] = 1.5f;
-                        innerRectBox->scale[2] = 0.6f;
-                        cornellBox->addChild(wallsNode);
-                        cornellBox->addChild(innerCube);
-                        cornellBox->addChild(innerRectBox);
-                        instances.push_back(cornellBox);
-                        std::cout << "Cornell Box spawned" << std::endl;
-                    }
-                    if (ImGui::MenuItem("Teapot"))
-                    {
-                        spawnInstanceAtCenter("teapot", "teapot", vbh_teapot, ibh_teapot, instances);
-                        std::cout << "Teapot spawned" << std::endl;
-                    }
-                    if (ImGui::MenuItem("Bunny"))
-                    {
-                        spawnInstanceAtCenter("bunny", "bunny", vbh_bunny, ibh_bunny, instances);
-                        std::cout << "Bunny spawned" << std::endl;
-                    }
-                    if (ImGui::MenuItem("Lucy"))
-                    {
-                        spawnInstanceAtCenter("lucy", "lucy", vbh_lucy, ibh_lucy, instances);
-                        std::cout << "Lucy spawned" << std::endl;
-                    }
-					if (ImGui::MenuItem("Empty"))
-					{
-                        spawnInstanceAtCenter("empty", "empty", BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE, instances);
-						std::cout << "Empty object spawned" << std::endl;
-					}
-					ImGui::EndMenu();
-                }
-				if (ImGui::MenuItem("Lights"))
-				{
-                    spawnLight(camera, vbh_sphere, ibh_sphere, instances);
-					std::cout << "Light spawned" << std::endl;
-				}
-                if (ImGui::MenuItem("Import OBJ"))
-                {
-                    // Use a filter for OBJ files and all files.
-                    std::string absPath = OpenFileDialog(glfwGetWin32Window(window), "OBJ Files\0*.obj\0All Files\0*.*\0");
-                    std::string relPath = GetRelativePath(absPath);
-                    std::string normalizedRelPath = ConvertBackslashesToForward(relPath);
-                    std::cout << "filePath: " << normalizedRelPath << std::endl;
-                    if (!normalizedRelPath.empty())
-                    {
-                        // Load the mesh from the selected file.
-                        MeshData importedMesh = loadMesh(normalizedRelPath);
-                        std::cout << "Imported mesh vertices: " << importedMesh.vertices.size()
-                            << ", indices: " << importedMesh.indices.size() << std::endl;
-                        bgfx::VertexBufferHandle vbh_imported;
-                        bgfx::IndexBufferHandle ibh_imported;
-                        createMeshBuffers(importedMesh, vbh_imported, ibh_imported);
-                        // Create a key based on the file name (without extension).
-                        std::string fileName = fs::path(normalizedRelPath).stem().string();
-                        // Spawn the imported mesh as an instance.
-                        spawnInstanceAtCenter("imported_obj", fileName, vbh_imported, ibh_imported, instances);
-                        std::cout << "imported obj spawned" << std::endl;
-                        // Add to our map: key is fileName, value is normalizedRelPath.
-                        importedObjMap[fileName] = normalizedRelPath;
-                    }
-                }
+            Logger::GetInstance().DrawImGuiLogger();
 
-				ImGui::EndMenu();
-			}
-			if (ImGui::BeginMenu("Edit"))
-			{
-				if (ImGui::MenuItem("Undo", "WIP"))
-				{
-					//undo
-				}
-				if (ImGui::MenuItem("Redo", "WIP"))
-				{
-					//redo
-				}
-                if (ImGui::MenuItem("Delete Last Instance"))
-                {
-                    Instance* inst = instances.back();
-                    instances.pop_back();
-                    //instanceCounter--;
-                    delete inst;
-                    selectedInstance = nullptr;
-                    std::cout << "Last Instance removed" << std::endl;
-                }
-				if (ImGui::MenuItem("Clear All Instances"))
-				{
-					for (Instance* inst : instances)
-					{
-						delete inst;
-					}
-					instances.clear();
-					selectedInstance = nullptr;
-					std::cout << "All Instances cleared" << std::endl;
-				}
-				ImGui::EndMenu();
-			}
-
-            ImGui::EndMenuBar();
-        }
-		ImGui::End();
-		
-        //IMGUI WINDOW FOR CONTROLS
-        //FOR REFERENCE USE THIS: https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html
-        ImGui::Begin("Inspector", p_open, window_flags);
-
-        // If an instance is selected, show its transform controls.
-        if (selectedInstance)
-        {
-            int width = static_cast<int>(viewport->Size.x);
-            int height = static_cast<int>(viewport->Size.y);
-            float view[16];
-            bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
-
-            float proj[16];
-            bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
-
-            DrawGizmoForSelected(selectedInstance, view, proj);
+            ImGui::Begin("Object List", p_open, window_flags);
+            static int selectedInstanceIndex = -1;
 
             ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
-            if (ImGui::CollapsingHeader("Transform Controls/Gizmo"))
+            if (ImGui::CollapsingHeader("Object List"))
             {
-                ImGui::Separator();
-                ImGui::Text("Selected: %s", selectedInstance->name.c_str());
-                if (ImGui::RadioButton("Translate", currentGizmoOperation == ImGuizmo::TRANSLATE))
-                    currentGizmoOperation = ImGuizmo::TRANSLATE;
-                ImGui::SameLine();
-                if (ImGui::RadioButton("Rotate", currentGizmoOperation == ImGuizmo::ROTATE))
-                    currentGizmoOperation = ImGuizmo::ROTATE;
-                ImGui::SameLine();
-                if (ImGui::RadioButton("Scale", currentGizmoOperation == ImGuizmo::SCALE))
-                    currentGizmoOperation = ImGuizmo::SCALE;
-
-                ImGui::DragFloat3("Translation", selectedInstance->position, 0.1f);
-                ImGui::DragFloat3("Rotation (radians)", selectedInstance->rotation, 0.1f);
-                ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
-
-                if (currentGizmoOperation != ImGuizmo::SCALE) {
-                    if (ImGui::RadioButton("World", currentGizmoMode == ImGuizmo::WORLD))
-                        currentGizmoMode = ImGuizmo::WORLD;
-                    ImGui::SameLine();
-                    if (ImGui::RadioButton("Local", currentGizmoMode == ImGuizmo::LOCAL))
-                        currentGizmoMode = ImGuizmo::LOCAL;
-                }
-
-                if (selectedInstance->isLight)
+                // For each top-level instance, show its tree.
+                for (Instance* instance : instances)
                 {
-                    ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
-                   if(ImGui::CollapsingHeader("Light Settings"))
-                   {
-                       ImGui::Separator();
-                       ImGui::Text("Light Properties:");
-                       const char* lightTypes[] = { "Directional", "Point", "Spot" };
-                       int currentType = static_cast<int>(selectedInstance->lightProps.type);
-                       if (ImGui::Combo("Light Type", &currentType, lightTypes, IM_ARRAYSIZE(lightTypes)))
-                       {
-                           selectedInstance->lightProps.type = static_cast<LightType>(currentType);
-                       }
-                       if (selectedInstance->lightProps.type == LightType::Directional ||
-                           selectedInstance->lightProps.type == LightType::Spot)
-                       {
-                           ImGui::DragFloat3("Light Direction", selectedInstance->lightProps.direction, 0.1f);
-                       }
-                       if (selectedInstance->lightProps.type == LightType::Point ||
-                           selectedInstance->lightProps.type == LightType::Spot)
-                       {
-                           ImGui::DragFloat3("Light Position", selectedInstance->position, 0.1f);
-                           ImGui::DragFloat("Range", &selectedInstance->lightProps.range, 0.1f, 0.0f, 100.0f);
-                       }
-                       ImGui::ColorEdit4("Light Color", selectedInstance->lightProps.color);
-                       ImGui::DragFloat("Intensity", &selectedInstance->lightProps.intensity, 0.1f, 0.0f, 10.0f);
-                       if (selectedInstance->lightProps.type == LightType::Spot)
-                       {
-                           ImGui::DragFloat("Cone Angle", &selectedInstance->lightProps.coneAngle, 0.1f, 0.0f, 3.14f);
-                       }
-                       // Add a checkbox to show or hide the debug visual of the light.
-                       bool debugVisible = selectedInstance->showDebugVisual;
-                       if (ImGui::Checkbox("Show Light Debug Visual", &debugVisible))
-                       {
-                           selectedInstance->showDebugVisual = debugVisible;
-                       }
-                   }
+                    ShowInstanceTree(instance, selectedInstance, instances);
+
                 }
-                else {
-                    //Object color Selection
-                    ImGui::Separator();
-                    ImGui::ColorEdit3("Object Color", selectedInstance->objectColor);
-                    // --- Diffuse Texture Selection ---
-                    ImGui::Separator();
-                    ImGui::Text("Texture:");
-                    for (size_t i = 0; i < availableTextures.size(); i++) { 
-                        // Convert your BGFX texture handle to an ImGui texture ID.
-						ImTextureID texID = static_cast<ImTextureID>(static_cast<uintptr_t>(availableTextures[i].handle.idx));
-                        // Display each texture as an image button (64x64 pixels).
-                        if (ImGui::ImageButton(std::to_string(i).c_str(),texID, ImVec2(64, 64)))
-                        {
-                            // When clicked, update your selected texture.
-                            // For example, assign it to the currently selected instance.
-                            selectedInstance->diffuseTexture = availableTextures[i].handle;
-                        }
-                        if (i < availableTextures.size() - 1)
-                        {
-                            // Use SameLine to arrange buttons horizontally.
-                            ImGui::SameLine();
-                        }
-                    }
-					// Add a button to clear the selected texture.
-                    if (ImGui::Button("Clear Texture"))
-                    {
-                        selectedInstance->diffuseTexture = BGFX_INVALID_HANDLE;
-                    }
-                }
-                ImGui::Separator();
-                // You can add a button to remove the selected instance from the hierarchy.
-                if (ImGui::Button("Remove Selected"))
-                {
-                    // If the selected instance has a parent, remove it from the parent's children list.
-                    if (selectedInstance->parent)
-                    {
-                        Instance* parent = selectedInstance->parent;
-                        auto it = std::find(parent->children.begin(), parent->children.end(), selectedInstance);
-                        if (it != parent->children.end())
-                        {
-                            parent->children.erase(it);
-                        }
-                    }
-                    else
-                    {
-                        // Otherwise, it's top-level. Remove it from the global instances vector.
-                        auto it = std::find(instances.begin(), instances.end(), selectedInstance);
-                        if (it != instances.end())
-                        {
-                            instances.erase(it);
-                        }
-                    }
 
-                    // Delete the instance (which will recursively delete its children)
-                    deleteInstance(selectedInstance);
-                    selectedInstance = nullptr;
-                }
-            }
-        }
+                // Now, show the drop target region for reparenting to top-level.
+                ShowTopLevelDropTarget(instances);
 
-		ImGui::End();
-
-        Logger::GetInstance().DrawImGuiLogger();
-
-		ImGui::Begin("Object List", p_open, window_flags);
-        static int selectedInstanceIndex = -1;
-        
-        ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
-		if (ImGui::CollapsingHeader("Object List"))
-		{
-            // For each top-level instance, show its tree.
-            for (Instance* instance : instances)
-            {
-                ShowInstanceTree(instance, selectedInstance, instances);
 
             }
+            ImGui::End();
 
-            // Now, show the drop target region for reparenting to top-level.
-            ShowTopLevelDropTarget(instances);
+            ImGui::Begin("Cross Hatch Settings", p_open, window_flags);
+            ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+            if (ImGui::CollapsingHeader("Crosshatch Settings"))
+            {
+                // ColorEdit4 allows you to edit a vec4 (RGBA)
+                ImGui::ColorEdit4("Ink Color", inkColor);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Line Angle 2", &lineAngle2, 0.1f, 0.0f, TAU);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, 0.1f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
+            }
+            ImGui::End();
 
-            
+            ImGui::Begin("Info", p_open, window_flags);
+            ImGui::Text("Crosshatch Editor Demo Build");
+            ImGui::Text("Press F1 to toggle bgfx stats");
+            ImGui::Text("FPS: %.1f ", ImGui::GetIO().Framerate);
+            ImGui::Text("Frame Time: %.3f ms", 1000.0f / ImGui::GetIO().Framerate);
+            ImGui::Separator();
+            ImGui::Text("Rendered Instances: %d", instances.size());
+            ImGui::Text("Selected Instance: %s", selectedInstance ? selectedInstance->name.c_str() : "None");
+            ImGui::Text("Selected Instance ID: %d", selectedInstance ? selectedInstance->id : -1);
+            ImGui::Text("Selected Instance Parent: %s", selectedInstance && selectedInstance->parent ? selectedInstance->parent->name.c_str() : "None");
+            ImGui::Text("Selected Instance Children: %d", selectedInstance ? selectedInstance->children.size() : 0);
+            ImGui::Separator();
+            ImGui::Text("Camera Position: %.2f, %.2f, %.2f", camera.position.x, camera.position.y, camera.position.z);
+            //ImGui::Text("Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
+            ImGui::Text("");
+            ImGui::End();
+
+            ImGui::Begin("Controls", p_open, window_flags);
+            ImGui::Text("Controls:");
+            ImGui::Text("WASD - Move Camera");
+            ImGui::Text("Mouse - Look Around");
+            ImGui::Text("Shift - Move Down");
+            ImGui::Text("Space - Move Up");
+            ImGui::Text("Left Click - Select Object");
+            ImGui::Text("Right Click - Detach Mouse from Camera");
+            ImGui::Text("C - Randomize Light Color");
+            ImGui::Text("X - Reset Light Color");
+            ImGui::Text("V - Randomize Light Direction");
+            ImGui::Text("Z - Reset Light Direction");
+            ImGui::Text("F1 - Toggle bgfx stats");
+            ImGui::Text("F2 - Disable/Enable UI");
+			ImGui::Text("F3 - Take Screenshot");
+            ImGui::End();
+
+            ImGui::Render();
+            ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
         }
-		ImGui::End();
-
-		ImGui::Begin("Cross Hatch Settings", p_open, window_flags);
-		ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
-        if (ImGui::CollapsingHeader("Crosshatch Settings"))
-        {
-            // ColorEdit4 allows you to edit a vec4 (RGBA)
-            ImGui::ColorEdit4("Ink Color", inkColor);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Angle 2", &lineAngle2, 0.1f, 0.0f, TAU);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, 0.1f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
-        }
-		ImGui::End();
-          
-        ImGui::Begin("Info", p_open, window_flags);
-        ImGui::Text("Crosshatch Editor Demo Build");
-		ImGui::Text("Press F1 to toggle bgfx stats");
-        ImGui::Text("FPS: %.1f ", ImGui::GetIO().Framerate);
-		ImGui::Text("Frame Time: %.3f ms", 1000.0f / ImGui::GetIO().Framerate);
-        ImGui::Separator();
-		ImGui::Text("Rendered Instances: %d", instances.size());
-		ImGui::Text("Selected Instance: %s", selectedInstance ? selectedInstance->name.c_str() : "None");
-		ImGui::Text("Selected Instance ID: %d", selectedInstance ? selectedInstance->id : -1);
-        ImGui::Text("Selected Instance Parent: %s", selectedInstance&& selectedInstance->parent ? selectedInstance->parent->name.c_str() : "None");
-		ImGui::Text("Selected Instance Children: %d", selectedInstance ? selectedInstance->children.size() : 0);
-        ImGui::Separator();
-		ImGui::Text("Camera Position: %.2f, %.2f, %.2f", camera.position.x, camera.position.y, camera.position.z);
-        //ImGui::Text("Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
-        ImGui::Text("");
-        ImGui::End();
-
-		ImGui::Begin("Controls", p_open, window_flags);
-        ImGui::Text("Controls:");
-		ImGui::Text("WASD - Move Camera");
-		ImGui::Text("Mouse - Look Around");
-		ImGui::Text("Shift - Move Down");
-		ImGui::Text("Space - Move Up");
-        ImGui::Text("Left Click - Select Object");
-        ImGui::Text("Right Click - Detach Mouse from Camera");
-        ImGui::Text("C - Randomize Light Color");
-        ImGui::Text("X - Reset Light Color");
-        ImGui::Text("V - Randomize Light Direction");
-        ImGui::Text("Z - Reset Light Direction");
-        ImGui::Text("F1 - Toggle bgfx stats");
-		ImGui::End();
 
         //handle inputs
         InputManager::update(camera, 0.016f);
 
+		if (InputManager::isKeyToggled(GLFW_KEY_F2))
+		{
+			takingScreenshot = !takingScreenshot;
+		}
 
+		if (InputManager::isKeyToggled(GLFW_KEY_F3))
+		{
+			bgfx::requestScreenShot(BGFX_INVALID_HANDLE, "screenshot");
+		}
 
 
         /*
@@ -2517,9 +2538,10 @@ int main(void)
         bgfx::setTransform(mtx);
 
         // End frame
-		ImGui::Render();
-		ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
+		
         bgfx::frame();
+
+        
 	}
     for (const auto& instance : instances)
     {
