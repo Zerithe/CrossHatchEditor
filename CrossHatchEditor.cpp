@@ -85,8 +85,20 @@ static float lineAngle2 = TAU / 16.0f;       // default second hatch angle facto
 static float patternScale = 1.0f;   // default: no scaling
 static float lineThickness = 1.0f;  // default: no change
 // You can leave the remaining components as 0 (or later repurpose them)
-static float transparencyValue = 0.5f; //transparency value of lines or extraParamZ
-static float extraParamW = 0.0f;
+static float transparencyValue = 1.0f; //transparency value of lines or extraParamZ
+static int crosshatchMode = 2; // 0 = original, 1 = modified, 2 = another modified, 3 = basic shader
+
+// These static variables will hold the values for u_paramsLayer
+static float layerPatternScale = 0.7f;   // default: 0.3 or 0.7?
+static float layerStrokeMult = 0.3f;   // default: 0.3
+static float layerAngle = 2.983f;   // default: 2.983
+static float layerLineThickness = 10.0f;   // default: 10.0
+
+static bgfx::UniformHandle u_uvTransform = BGFX_INVALID_HANDLE;
+static bgfx::UniformHandle u_albedoFactor = BGFX_INVALID_HANDLE;
+
+// Global uniform for the diffuse texture (put this at file scope or as a static variable)
+static bgfx::UniformHandle u_diffuseTex = BGFX_INVALID_HANDLE;
 
 static bgfx::TextureHandle s_pickingRT = BGFX_INVALID_HANDLE;
 static bgfx::TextureHandle s_pickingRTDepth = BGFX_INVALID_HANDLE;
@@ -98,6 +110,13 @@ static uint8_t s_pickingBlitData[PICKING_DIM * PICKING_DIM * 4] = { 0 };
 static bgfx::UniformHandle u_id = BGFX_INVALID_HANDLE;
 // Program handle for the picking pass.
 static bgfx::ProgramHandle pickingProgram = BGFX_INVALID_HANDLE;
+
+struct MaterialParams
+{
+    float tiling[2];     // (tilingU, tilingV)
+    float offset[2];     // (offsetU, offsetV)
+    float albedo[4];     // (r, g, b, a)
+};
 
 struct Instance
 {
@@ -115,6 +134,7 @@ struct Instance
     float objectColor[4];
     // NEW: optional diffuse texture for the object.
     bgfx::TextureHandle diffuseTexture = BGFX_INVALID_HANDLE;
+    MaterialParams material;
 
     // --- New for lights ---
     bool isLight = false;
@@ -141,6 +161,15 @@ struct Instance
         objectColor[0] = 1.0f; objectColor[1] = 1.0f; objectColor[2] = 1.0f; objectColor[3] = 1.0f;
         // For light objects, default to drawing the debug visual.
         showDebugVisual = true;
+
+        material.tiling[0] = 1.0f;
+        material.tiling[1] = 1.0f;
+        material.offset[0] = 0.0f;
+        material.offset[1] = 0.0f;
+        material.albedo[0] = 1.0f; // r
+        material.albedo[1] = 1.0f; // g
+        material.albedo[2] = 1.0f; // b
+        material.albedo[3] = 1.0f; // a
     }
     void addChild(Instance* child) {
         children.push_back(child);
@@ -1599,8 +1628,6 @@ int main(void)
     
     float inkColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f }; // Typically black ink.
 
-    // Global uniform for the diffuse texture (put this at file scope or as a static variable)
-    static bgfx::UniformHandle u_diffuseTex = BGFX_INVALID_HANDLE;
     u_diffuseTex = bgfx::createUniform("u_diffuseTex", bgfx::UniformType::Sampler);
 
     // Create uniforms (do this once)
@@ -1619,6 +1646,13 @@ int main(void)
 
     // Create a uniform for extra parameters as a vec4.
     bgfx::UniformHandle u_extraParams = bgfx::createUniform("u_extraParams", bgfx::UniformType::Vec4);
+
+    // Create a uniform for extra parameters as a vec4.
+    bgfx::UniformHandle u_paramsLayer = bgfx::createUniform("u_paramsLayer", bgfx::UniformType::Vec4);
+
+    // -------------- For texture/material use and preview --------------
+    u_uvTransform = bgfx::createUniform("u_uvTransform", bgfx::UniformType::Vec4);
+    u_albedoFactor = bgfx::createUniform("u_albedoFactor", bgfx::UniformType::Vec4);
 
 
     // SHADER TEXTURE
@@ -1655,7 +1689,7 @@ int main(void)
 
     // Load shaders and create program once
     bgfx::ShaderHandle vsh = loadShader("shaders\\v_out21.bin");
-    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out26.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out27.bin");
 
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
 
@@ -2111,35 +2145,77 @@ int main(void)
                 else {
                     //Object color Selection
                     ImGui::Separator();
+                    ImGui::Spacing(); ImGui::Spacing();
                     ImGui::ColorEdit3("Object Color", selectedInstance->objectColor);
-                    // --- Diffuse Texture Selection ---
+                    ImGui::Spacing(); ImGui::Spacing();
                     ImGui::Separator();
-                    ImGui::Text("Texture:");
-                    for (size_t i = 0; i < availableTextures.size(); i++) { 
-                        // Convert your BGFX texture handle to an ImGui texture ID.
-						ImTextureID texID = static_cast<ImTextureID>(static_cast<uintptr_t>(availableTextures[i].handle.idx));
-                        // Display each texture as an image button (64x64 pixels).
-                        if (ImGui::ImageButton(std::to_string(i).c_str(),texID, ImVec2(64, 64)))
-                        {
-                            // When clicked, update your selected texture.
-                            // For example, assign it to the currently selected instance.
-                            selectedInstance->diffuseTexture = availableTextures[i].handle;
+                    // --- Texture/Material Editor ---
+                    ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+                    if (ImGui::CollapsingHeader("Material Editor")) {
+                        ImGui::Spacing(); ImGui::Spacing();
+
+                        ImGui::Text("Available Material:"); ImGui::Spacing(); ImGui::Spacing();
+                        for (size_t i = 0; i < availableTextures.size(); i++) {
+                            // Convert your BGFX texture handle to an ImGui texture ID.
+                            ImTextureID texID = static_cast<ImTextureID>(static_cast<uintptr_t>(availableTextures[i].handle.idx));
+                            // Display each texture as an image button (64x64 pixels).
+                            if (ImGui::ImageButton(std::to_string(i).c_str(), texID, ImVec2(64, 64)))
+                            {
+                                // When clicked, update your selected texture.
+                                // For example, assign it to the currently selected instance.
+                                selectedInstance->diffuseTexture = availableTextures[i].handle;
+                            }
+                            if (i < availableTextures.size() - 1)
+                            {
+                                // Use SameLine to arrange buttons horizontally.
+                                ImGui::SameLine();
+                            }
                         }
-                        if (i < availableTextures.size() - 1)
+                        // Add a button to clear the selected texture.
+                        if (ImGui::Button("Clear Texture"))
                         {
-                            // Use SameLine to arrange buttons horizontally.
-                            ImGui::SameLine();
+                            selectedInstance->diffuseTexture = BGFX_INVALID_HANDLE;
+
+                            // Reset material parameters to defaults:
+                            selectedInstance->material.tiling[0] = 1.0f;
+                            selectedInstance->material.tiling[1] = 1.0f;
+                            selectedInstance->material.offset[0] = 0.0f;
+                            selectedInstance->material.offset[1] = 0.0f;
+                            selectedInstance->material.albedo[0] = 1.0f;
+                            selectedInstance->material.albedo[1] = 1.0f;
+                            selectedInstance->material.albedo[2] = 1.0f;
+                            selectedInstance->material.albedo[3] = 1.0f;
                         }
+
+                        ImGui::Separator(); ImGui::Spacing(); ImGui::Spacing();
+
+                        if (selectedInstance->diffuseTexture.idx != bgfx::kInvalidHandle) {
+                            ImGui::Text("Material Parameters:");
+                            // Let the user edit the UV tiling.
+                            ImGui::DragFloat2("Tiling", selectedInstance->material.tiling, 0.01f, 0.0f, 10.0f);
+                            // Let the user edit the UV offset.
+                            ImGui::DragFloat2("Offset", selectedInstance->material.offset, 0.01f, -10.0f, 10.0f);
+                            // Let the user edit the albedo (color tint).
+                            ImGui::ColorEdit4("Albedo", selectedInstance->material.albedo);
+
+                            ImGui::Separator(); ImGui::Spacing(); ImGui::Spacing();
+                            ImGui::Text("Raw Material Preview:");
+
+                            ImTextureID texID = static_cast<ImTextureID>(static_cast<uintptr_t>(selectedInstance->diffuseTexture.idx));
+                            ImGui::Image(texID, ImVec2(256, 256));
+                            ImGui::Separator();
+                        }
+                        else {
+                            //ImGui::Text("No texture applied.");
+                        }
+                        
                     }
-					// Add a button to clear the selected texture.
-                    if (ImGui::Button("Clear Texture"))
-                    {
-                        selectedInstance->diffuseTexture = BGFX_INVALID_HANDLE;
-                    }
+
                 }
-                ImGui::Separator();
+                //ImGui::Separator();
                 // You can add a button to remove the selected instance from the hierarchy.
-                if (ImGui::Button("Remove Selected"))
+                ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
+                if (ImGui::Button("Delete Object"))
                 {
                     // If the selected instance has a parent, remove it from the parent's children list.
                     if (selectedInstance->parent)
@@ -2192,7 +2268,8 @@ int main(void)
         }
 		ImGui::End();
 
-		ImGui::Begin("Cross Hatch Settings", p_open, window_flags);
+		/*
+        ImGui::Begin("Cross Hatch Settings", p_open, window_flags);
 		ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
         if (ImGui::CollapsingHeader("Crosshatch Settings"))
         {
@@ -2214,6 +2291,7 @@ int main(void)
             ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
         }
 		ImGui::End();
+        */
           
         ImGui::Begin("Info", p_open, window_flags);
         ImGui::Text("Crosshatch Editor Demo Build");
@@ -2246,6 +2324,80 @@ int main(void)
         ImGui::Text("Z - Reset Light Direction");
         ImGui::Text("F1 - Toggle bgfx stats");
 		ImGui::End();
+
+
+        ImGui::Begin("Crosshatch Shader Settings");
+        const char* modeItems[] = { "Original", "Modified 1", "Modified 2", "Simple Lighting" };
+        ImGui::Combo("Shader Mode", &crosshatchMode, modeItems, IM_ARRAYSIZE(modeItems));
+        // --- Show controls depending on the mode ---
+        if (crosshatchMode == 0)
+        {
+            ImGui::Text("Original Crosshatch Settings:");
+            ImGui::ColorEdit4("Ink Color", inkColor);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Angle 2", &lineAngle2, 0.1f, 0.0f, TAU);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, -10.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
+        }
+        else if (crosshatchMode == 1)
+        {
+            ImGui::Text("Modified 1 Crosshatch Settings:");
+            ImGui::ColorEdit4("Ink Color", inkColor);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, -10.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
+        }
+        else if (crosshatchMode == 2)
+        {
+            ImGui::Text("Modified 2 Crosshatch Settings:");
+            ImGui::ColorEdit4("Ink Color", inkColor);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, -10.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            //------------
+            ImGui::DragFloat("Layer Pattern Scale", &layerPatternScale, 0.1f, 0.1f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Layer Stroke Multiplier", &layerStrokeMult, 0.1f, 0.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Layer Line Angle", &layerAngle, 0.1f, 0.0f, TAU);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Layer Line Thickness", &layerLineThickness, 0.1f, -10.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            //------------
+            ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
+        }
+        else if (crosshatchMode == 3)
+        {
+            ImGui::Text("Simple Lighting (No Crosshatch)");
+        }
+        ImGui::End();
 
         //handle inputs
         InputManager::update(camera, 0.016f);
@@ -2508,18 +2660,21 @@ int main(void)
         bgfx::setUniform(u_e, epsilonUniform);
         bgfx::setTexture(0, u_noiseTex, noiseTexture); // Bind the noise texture to texture stage 0.
 
-        
-        // Example parameter values
-        //float params[4] = { 0.02f, 15.0f, 0.0f, 0.0f }; // e = 0.02 (tolerance), scale = 15.0
+        // Prepare an array of 4 floats.
         // Set u_params uniform:
         float paramsUniform[4] = { 0.0f, strokeMultiplier, lineAngle1, lineAngle2 };
         bgfx::setUniform(u_params, paramsUniform);
 
         // Prepare an array of 4 floats.
-        float extraParamsUniform[4] = { patternScale, lineThickness, transparencyValue, extraParamW };
+        float extraParamsUniform[4] = { patternScale, lineThickness, transparencyValue, float(crosshatchMode) };
         // Set the uniform for extra parameters.
         bgfx::setUniform(u_extraParams, extraParamsUniform);
 
+
+        // Prepare an array of 4 floats.
+        float paramsLayerUniform[4] = { layerPatternScale, layerStrokeMult, layerAngle, layerLineThickness };
+        // Set the uniform for extra parameters.
+        bgfx::setUniform(u_paramsLayer, paramsLayerUniform);
 
         // Enable stats or debug text
         bgfx::setDebug(s_showStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
@@ -2550,6 +2705,20 @@ int main(void)
                 instance->position[0], instance->position[1], instance->position[2]);
 
             bgfx::setTransform(model);
+
+            // 1) Build the uvTransform (tilingU, tilingV, offsetU, offsetV).
+            float uvTransform[4] =
+            {
+                instance->material.tiling[0],
+                instance->material.tiling[1],
+                instance->material.offset[0],
+                instance->material.offset[1]
+            };
+            bgfx::setUniform(u_uvTransform, uvTransform);
+
+            // 2) Albedo factor
+            //    (r, g, b, a)
+            bgfx::setUniform(u_albedoFactor, instance->material.albedo);
 
             drawInstance(instance, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, u_tint, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
         }
