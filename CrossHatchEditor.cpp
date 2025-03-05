@@ -2662,7 +2662,7 @@ int main(void)
         bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
 
         float proj[16];
-        bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+        bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 1000.0f, bgfx::getCaps()->homogeneousDepth);
         bgfx::setViewTransform(0, view, proj);
 
         // Set model matrix
