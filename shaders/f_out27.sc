@@ -232,7 +232,7 @@ void main()
         float dist = length(u_cameraPos.xyz - v_pos);
 
         // 2. pick a "referenceDist" so that if dist >= referenceDist, the pattern doesn't shrink further
-        float referenceDist = 10.0;  // e.g. 5.0 or 10.0
+        float referenceDist = 2.0;  // e.g. 5.0 or 10.0
 
         // 3. compute a factor that is 1.0 when dist <= referenceDist, and smaller if you come closer
         float factor = referenceDist / max(dist, referenceDist);
