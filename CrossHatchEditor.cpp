@@ -1230,41 +1230,92 @@ const int MAX_LIGHTS = 16;
 static bgfx::UniformHandle u_lights;   // array of vec4's (MAX_LIGHTS*4)
 static bgfx::UniformHandle u_numLights;  // vec4 (x holds number of lights)
 
-void collectLights(const Instance* inst, float* lightsData, int& numLights)
+void collectLights(const Instance* inst, float* lightsData, int& numLights, const float* parentTransform = nullptr)
 {
     if (!inst)
         return;
+
+    // Use local matrix for this instance
+    float local[16];
+    bx::mtxSRT(local,
+        inst->scale[0], inst->scale[1], inst->scale[2],
+        inst->rotation[0], inst->rotation[1], inst->rotation[2],
+        inst->position[0], inst->position[1], inst->position[2]);
+    
+    // Compute world matrix by combining with parent transform (if any)
+    float world[16];
+    if (parentTransform) {
+        bx::mtxMul(world, local, parentTransform);
+    } else {
+        std::memcpy(world, local, sizeof(world));
+    }
 
     if (inst->isLight)
     {
         if (numLights >= MAX_LIGHTS)
             return;
+            
         int base = numLights * 16;
+        
+        // Type and intensity remain unchanged
         lightsData[base + 0] = static_cast<float>(inst->lightProps.type); // type
         lightsData[base + 1] = inst->lightProps.intensity;
         lightsData[base + 2] = 0.0f;
         lightsData[base + 3] = 0.0f;
-        lightsData[base + 4] = inst->position[0];
-        lightsData[base + 5] = inst->position[1];
-        lightsData[base + 6] = inst->position[2];
+        
+        // Transform position from local to world space
+        float worldPos[3] = {0.0f, 0.0f, 0.0f};
+        worldPos[0] = world[12]; // Translation is stored in elements 12, 13, 14
+        worldPos[1] = world[13]; 
+        worldPos[2] = world[14];
+        
+        lightsData[base + 4] = worldPos[0];
+        lightsData[base + 5] = worldPos[1];
+        lightsData[base + 6] = worldPos[2];
         lightsData[base + 7] = 1.0f;
-        lightsData[base + 8] = inst->lightProps.direction[0];
-        lightsData[base + 9] = inst->lightProps.direction[1];
-        lightsData[base + 10] = inst->lightProps.direction[2];
+        
+        // For direction, we need to transform by the rotation part of the matrix only
+        // (without translation), and then normalize the result
+        float direction[3] = { 
+            inst->lightProps.direction[0],
+            inst->lightProps.direction[1],
+            inst->lightProps.direction[2]
+        };
+        
+        // Transform direction vector using the 3x3 rotation part of the world matrix
+        float worldDir[3] = {0.0f, 0.0f, 0.0f};
+        worldDir[0] = world[0] * direction[0] + world[4] * direction[1] + world[8] * direction[2];
+        worldDir[1] = world[1] * direction[0] + world[5] * direction[1] + world[9] * direction[2];
+        worldDir[2] = world[2] * direction[0] + world[6] * direction[1] + world[10] * direction[2];
+        
+        // Normalize the direction
+        float length = std::sqrt(worldDir[0] * worldDir[0] + worldDir[1] * worldDir[1] + worldDir[2] * worldDir[2]);
+        if (length > 0.0001f) {
+            worldDir[0] /= length;
+            worldDir[1] /= length;
+            worldDir[2] /= length;
+        }
+        
+        lightsData[base + 8] = worldDir[0];
+        lightsData[base + 9] = worldDir[1];
+        lightsData[base + 10] = worldDir[2];
         lightsData[base + 11] = inst->lightProps.coneAngle;
+        
+        // Light color remains unchanged
         lightsData[base + 12] = inst->lightProps.color[0];
         lightsData[base + 13] = inst->lightProps.color[1];
         lightsData[base + 14] = inst->lightProps.color[2];
         lightsData[base + 15] = inst->lightProps.range;
+        
         numLights++;
     }
 
-    // Process children
+    // Process children with the current world transform
     for (const Instance* child : inst->children)
     {
         if (numLights >= MAX_LIGHTS)
             break;
-        collectLights(child, lightsData, numLights);
+        collectLights(child, lightsData, numLights, world);
     }
 }
 
