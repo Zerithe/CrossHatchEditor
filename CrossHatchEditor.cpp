@@ -19,6 +19,7 @@
 #include <commdlg.h>
 #endif
 #include <filesystem>
+#include <stack>
 namespace fs = std::filesystem;
 
 #include <bgfx/bgfx.h>
@@ -161,6 +162,21 @@ struct MeshData {
 struct Vec3 {
     float x, y, z;
 };
+
+enum class ActionType{ADD, REMOVE, TRANSFORM, RENAME};
+
+struct Action {
+    ActionType type;
+    Instance* instance;  // The affected instance
+    std::string prevName, newName; // For renaming
+    float prevPosition[3], newPosition[3];
+    float prevRotation[3], newRotation[3];
+    float prevScale[3], newScale[3];
+    Instance* parent; // Store parent for hierarchy changes
+};
+
+std::stack<Action> undoStack;
+std::stack<Action> redoStack;
 
 void BuildWorldMatrix(const Instance* inst, float* outMatrix) {
     float local[16]; 
@@ -622,8 +638,17 @@ static void spawnInstance(Camera camera, const std::string& instanceName, const 
 	std::string fullName = instanceName + std::to_string(instanceCounter);
 
     // Create a new instance with the current vertex and index buffers
-    instances.push_back(new Instance(instanceCounter++, fullName, instanceType, x, y, z, vbh, ibh));
+    Instance* newInstance = new Instance(instanceCounter++, fullName, instanceType, x, y, z, vbh, ibh);
+    instances.push_back(newInstance);
     std::cout << "New instance created at (" << x << ", " << y << ", " << z << ")" << std::endl;
+
+    Action action;
+	action.type = ActionType::ADD;
+    action.instance = newInstance;
+	undoStack.push(action);
+
+	while (!redoStack.empty())
+		redoStack.pop();
 }
 
 static void spawnInstanceAtCenter(const std::string& instanceName, const std::string& instanceType, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh, std::vector<Instance*>& instances)
