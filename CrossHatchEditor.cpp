@@ -57,6 +57,7 @@ namespace fs = std::filesystem;
 #include <cmath> // for rad2deg, deg2rad, etc.
 #include <cfloat> // For FLT_MAX and FLT_MIN
 
+static bool highlightVisible = true;
 static float RadToDeg(float rad) { return rad * (180.0f / 3.14159265358979f); }
 static float DegToRad(float deg) { return deg * (3.14159265358979f / 180.0f); }
 static ImGuizmo::OPERATION currentGizmoOperation = ImGuizmo::TRANSLATE;
@@ -85,8 +86,20 @@ static float lineAngle2 = TAU / 16.0f;       // default second hatch angle facto
 static float patternScale = 1.0f;   // default: no scaling
 static float lineThickness = 1.0f;  // default: no change
 // You can leave the remaining components as 0 (or later repurpose them)
-static float transparencyValue = 0.5f; //transparency value of lines or extraParamZ
-static float extraParamW = 0.0f;
+static float transparencyValue = 1.0f; //transparency value of lines or extraParamZ
+static int crosshatchMode = 2; // 0 = original, 1 = modified, 2 = another modified, 3 = basic shader
+
+// These static variables will hold the values for u_paramsLayer
+static float layerPatternScale = 0.7f;   // default: 0.3 or 0.7?
+static float layerStrokeMult = 0.3f;   // default: 0.3
+static float layerAngle = 2.983f;   // default: 2.983
+static float layerLineThickness = 10.0f;   // default: 10.0
+
+static bgfx::UniformHandle u_uvTransform = BGFX_INVALID_HANDLE;
+static bgfx::UniformHandle u_albedoFactor = BGFX_INVALID_HANDLE;
+
+// Global uniform for the diffuse texture (put this at file scope or as a static variable)
+static bgfx::UniformHandle u_diffuseTex = BGFX_INVALID_HANDLE;
 
 static bgfx::TextureHandle s_pickingRT = BGFX_INVALID_HANDLE;
 static bgfx::TextureHandle s_pickingRTDepth = BGFX_INVALID_HANDLE;
@@ -98,6 +111,13 @@ static uint8_t s_pickingBlitData[PICKING_DIM * PICKING_DIM * 4] = { 0 };
 static bgfx::UniformHandle u_id = BGFX_INVALID_HANDLE;
 // Program handle for the picking pass.
 static bgfx::ProgramHandle pickingProgram = BGFX_INVALID_HANDLE;
+
+struct MaterialParams
+{
+    float tiling[2];     // (tilingU, tilingV)
+    float offset[2];     // (offsetU, offsetV)
+    float albedo[4];     // (r, g, b, a)
+};
 
 struct Instance
 {
@@ -115,6 +135,7 @@ struct Instance
     float objectColor[4];
     // NEW: optional diffuse texture for the object.
     bgfx::TextureHandle diffuseTexture = BGFX_INVALID_HANDLE;
+    MaterialParams material;
 
     // --- New for lights ---
     bool isLight = false;
@@ -141,6 +162,15 @@ struct Instance
         objectColor[0] = 1.0f; objectColor[1] = 1.0f; objectColor[2] = 1.0f; objectColor[3] = 1.0f;
         // For light objects, default to drawing the debug visual.
         showDebugVisual = true;
+
+        material.tiling[0] = 1.0f;
+        material.tiling[1] = 1.0f;
+        material.offset[0] = 0.0f;
+        material.offset[1] = 0.0f;
+        material.albedo[0] = 1.0f; // r
+        material.albedo[1] = 1.0f; // g
+        material.albedo[2] = 1.0f; // b
+        material.albedo[3] = 1.0f; // a
     }
     void addChild(Instance* child) {
         children.push_back(child);
@@ -697,9 +727,14 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram,b
     // Set the object override color uniform.
     bgfx::setUniform(u_objectColor, effectiveColor);
 
-    const float tintBasic[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-    const float tintHighlighted[4] = { 0.3f, 0.3f, 2.0f, 1.0f };
-    bgfx::setUniform(u_tint, selectedInstance == instance ? tintHighlighted : tintBasic);
+    const float tintBasic[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
+    const float tintHighlighted[4] = { 0.3f, 0.3f, 2.0f, 0.1f };
+    if (selectedInstance == instance && highlightVisible) {
+		bgfx::setUniform(u_tint, tintHighlighted);
+	}
+    else {
+        bgfx::setUniform(u_tint, tintBasic);
+    }
     const bgfx::VertexBufferHandle invalidVbh = BGFX_INVALID_HANDLE;
     const bgfx::IndexBufferHandle invalidIbh = BGFX_INVALID_HANDLE;
     // Draw geometry if valid.
@@ -1230,41 +1265,92 @@ const int MAX_LIGHTS = 16;
 static bgfx::UniformHandle u_lights;   // array of vec4's (MAX_LIGHTS*4)
 static bgfx::UniformHandle u_numLights;  // vec4 (x holds number of lights)
 
-void collectLights(const Instance* inst, float* lightsData, int& numLights)
+void collectLights(const Instance* inst, float* lightsData, int& numLights, const float* parentTransform = nullptr)
 {
     if (!inst)
         return;
+
+    // Use local matrix for this instance
+    float local[16];
+    bx::mtxSRT(local,
+        inst->scale[0], inst->scale[1], inst->scale[2],
+        inst->rotation[0], inst->rotation[1], inst->rotation[2],
+        inst->position[0], inst->position[1], inst->position[2]);
+    
+    // Compute world matrix by combining with parent transform (if any)
+    float world[16];
+    if (parentTransform) {
+        bx::mtxMul(world, local, parentTransform);
+    } else {
+        std::memcpy(world, local, sizeof(world));
+    }
 
     if (inst->isLight)
     {
         if (numLights >= MAX_LIGHTS)
             return;
+            
         int base = numLights * 16;
+        
+        // Type and intensity remain unchanged
         lightsData[base + 0] = static_cast<float>(inst->lightProps.type); // type
         lightsData[base + 1] = inst->lightProps.intensity;
         lightsData[base + 2] = 0.0f;
         lightsData[base + 3] = 0.0f;
-        lightsData[base + 4] = inst->position[0];
-        lightsData[base + 5] = inst->position[1];
-        lightsData[base + 6] = inst->position[2];
+        
+        // Transform position from local to world space
+        float worldPos[3] = {0.0f, 0.0f, 0.0f};
+        worldPos[0] = world[12]; // Translation is stored in elements 12, 13, 14
+        worldPos[1] = world[13]; 
+        worldPos[2] = world[14];
+        
+        lightsData[base + 4] = worldPos[0];
+        lightsData[base + 5] = worldPos[1];
+        lightsData[base + 6] = worldPos[2];
         lightsData[base + 7] = 1.0f;
-        lightsData[base + 8] = inst->lightProps.direction[0];
-        lightsData[base + 9] = inst->lightProps.direction[1];
-        lightsData[base + 10] = inst->lightProps.direction[2];
+        
+        // For direction, we need to transform by the rotation part of the matrix only
+        // (without translation), and then normalize the result
+        float direction[3] = { 
+            inst->lightProps.direction[0],
+            inst->lightProps.direction[1],
+            inst->lightProps.direction[2]
+        };
+        
+        // Transform direction vector using the 3x3 rotation part of the world matrix
+        float worldDir[3] = {0.0f, 0.0f, 0.0f};
+        worldDir[0] = world[0] * direction[0] + world[4] * direction[1] + world[8] * direction[2];
+        worldDir[1] = world[1] * direction[0] + world[5] * direction[1] + world[9] * direction[2];
+        worldDir[2] = world[2] * direction[0] + world[6] * direction[1] + world[10] * direction[2];
+        
+        // Normalize the direction
+        float length = std::sqrt(worldDir[0] * worldDir[0] + worldDir[1] * worldDir[1] + worldDir[2] * worldDir[2]);
+        if (length > 0.0001f) {
+            worldDir[0] /= length;
+            worldDir[1] /= length;
+            worldDir[2] /= length;
+        }
+        
+        lightsData[base + 8] = worldDir[0];
+        lightsData[base + 9] = worldDir[1];
+        lightsData[base + 10] = worldDir[2];
         lightsData[base + 11] = inst->lightProps.coneAngle;
+        
+        // Light color remains unchanged
         lightsData[base + 12] = inst->lightProps.color[0];
         lightsData[base + 13] = inst->lightProps.color[1];
         lightsData[base + 14] = inst->lightProps.color[2];
         lightsData[base + 15] = inst->lightProps.range;
+        
         numLights++;
     }
 
-    // Process children
+    // Process children with the current world transform
     for (const Instance* child : inst->children)
     {
         if (numLights >= MAX_LIGHTS)
             break;
-        collectLights(child, lightsData, numLights);
+        collectLights(child, lightsData, numLights, world);
     }
 }
 
@@ -1549,8 +1635,6 @@ int main(void)
     
     float inkColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f }; // Typically black ink.
 
-    // Global uniform for the diffuse texture (put this at file scope or as a static variable)
-    static bgfx::UniformHandle u_diffuseTex = BGFX_INVALID_HANDLE;
     u_diffuseTex = bgfx::createUniform("u_diffuseTex", bgfx::UniformType::Sampler);
 
     // Create uniforms (do this once)
@@ -1569,6 +1653,13 @@ int main(void)
 
     // Create a uniform for extra parameters as a vec4.
     bgfx::UniformHandle u_extraParams = bgfx::createUniform("u_extraParams", bgfx::UniformType::Vec4);
+
+    // Create a uniform for extra parameters as a vec4.
+    bgfx::UniformHandle u_paramsLayer = bgfx::createUniform("u_paramsLayer", bgfx::UniformType::Vec4);
+
+    // -------------- For texture/material use and preview --------------
+    u_uvTransform = bgfx::createUniform("u_uvTransform", bgfx::UniformType::Vec4);
+    u_albedoFactor = bgfx::createUniform("u_albedoFactor", bgfx::UniformType::Vec4);
 
 
     // SHADER TEXTURE
@@ -1605,7 +1696,7 @@ int main(void)
 
     // Load shaders and create program once
     bgfx::ShaderHandle vsh = loadShader("shaders\\v_out21.bin");
-    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out26.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out27.bin");
 
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
 
@@ -2026,51 +2117,57 @@ int main(void)
                             currentGizmoMode = ImGuizmo::LOCAL;
                     }
 
-                    if (selectedInstance->isLight)
-                    {
-                        ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
-                        if (ImGui::CollapsingHeader("Light Settings"))
-                        {
-                            ImGui::Separator();
-                            ImGui::Text("Light Properties:");
-                            const char* lightTypes[] = { "Directional", "Point", "Spot" };
-                            int currentType = static_cast<int>(selectedInstance->lightProps.type);
-                            if (ImGui::Combo("Light Type", &currentType, lightTypes, IM_ARRAYSIZE(lightTypes)))
-                            {
-                                selectedInstance->lightProps.type = static_cast<LightType>(currentType);
-                            }
-                            if (selectedInstance->lightProps.type == LightType::Directional ||
-                                selectedInstance->lightProps.type == LightType::Spot)
-                            {
-                                ImGui::DragFloat3("Light Direction", selectedInstance->lightProps.direction, 0.1f);
-                            }
-                            if (selectedInstance->lightProps.type == LightType::Point ||
-                                selectedInstance->lightProps.type == LightType::Spot)
-                            {
-                                ImGui::DragFloat3("Light Position", selectedInstance->position, 0.1f);
-                                ImGui::DragFloat("Range", &selectedInstance->lightProps.range, 0.1f, 0.0f, 100.0f);
-                            }
-                            ImGui::ColorEdit4("Light Color", selectedInstance->lightProps.color);
-                            ImGui::DragFloat("Intensity", &selectedInstance->lightProps.intensity, 0.1f, 0.0f, 10.0f);
-                            if (selectedInstance->lightProps.type == LightType::Spot)
-                            {
-                                ImGui::DragFloat("Cone Angle", &selectedInstance->lightProps.coneAngle, 0.1f, 0.0f, 3.14f);
-                            }
-                            // Add a checkbox to show or hide the debug visual of the light.
-                            bool debugVisible = selectedInstance->showDebugVisual;
-                            if (ImGui::Checkbox("Show Light Debug Visual", &debugVisible))
-                            {
-                                selectedInstance->showDebugVisual = debugVisible;
-                            }
-                        }
-                    }
-                    else {
-                        //Object color Selection
-                        ImGui::Separator();
-                        ImGui::ColorEdit3("Object Color", selectedInstance->objectColor);
-                        // --- Diffuse Texture Selection ---
-                        ImGui::Separator();
-                        ImGui::Text("Texture:");
+                if (selectedInstance->isLight)
+                {
+                    ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+                   if(ImGui::CollapsingHeader("Light Settings"))
+                   {
+                       ImGui::Separator();
+                       ImGui::Text("Light Properties:");
+                       const char* lightTypes[] = { "Directional", "Point", "Spot" };
+                       int currentType = static_cast<int>(selectedInstance->lightProps.type);
+                       if (ImGui::Combo("Light Type", &currentType, lightTypes, IM_ARRAYSIZE(lightTypes)))
+                       {
+                           selectedInstance->lightProps.type = static_cast<LightType>(currentType);
+                       }
+                       if (selectedInstance->lightProps.type == LightType::Directional ||
+                           selectedInstance->lightProps.type == LightType::Spot)
+                       {
+                           ImGui::DragFloat3("Light Direction", selectedInstance->lightProps.direction, 0.1f);
+                       }
+                       if (selectedInstance->lightProps.type == LightType::Point ||
+                           selectedInstance->lightProps.type == LightType::Spot)
+                       {
+                           ImGui::DragFloat3("Light Position", selectedInstance->position, 0.1f);
+                           ImGui::DragFloat("Range", &selectedInstance->lightProps.range, 0.1f, 0.0f, 100.0f);
+                       }
+                       ImGui::ColorEdit4("Light Color", selectedInstance->lightProps.color);
+                       ImGui::DragFloat("Intensity", &selectedInstance->lightProps.intensity, 0.1f, 0.0f, 10.0f);
+                       if (selectedInstance->lightProps.type == LightType::Spot)
+                       {
+                           ImGui::DragFloat("Cone Angle", &selectedInstance->lightProps.coneAngle, 0.1f, 0.0f, 3.14f);
+                       }
+                       // Add a checkbox to show or hide the debug visual of the light.
+                       bool debugVisible = selectedInstance->showDebugVisual;
+                       if (ImGui::Checkbox("Show Light Debug Visual", &debugVisible))
+                       {
+                           selectedInstance->showDebugVisual = debugVisible;
+                       }
+                   }
+                }
+                else {
+                    //Object color Selection
+                    ImGui::Separator();
+                    ImGui::Spacing(); ImGui::Spacing();
+                    ImGui::ColorEdit3("Object Color", selectedInstance->objectColor);
+                    ImGui::Spacing(); ImGui::Spacing();
+                    ImGui::Separator();
+                    // --- Texture/Material Editor ---
+                    ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+                    if (ImGui::CollapsingHeader("Material Editor")) {
+                        ImGui::Spacing(); ImGui::Spacing();
+
+                        ImGui::Text("Available Material:"); ImGui::Spacing(); ImGui::Spacing();
                         for (size_t i = 0; i < availableTextures.size(); i++) {
                             // Convert your BGFX texture handle to an ImGui texture ID.
                             ImTextureID texID = static_cast<ImTextureID>(static_cast<uintptr_t>(availableTextures[i].handle.idx));
@@ -2091,38 +2188,79 @@ int main(void)
                         if (ImGui::Button("Clear Texture"))
                         {
                             selectedInstance->diffuseTexture = BGFX_INVALID_HANDLE;
-                        }
-                    }
-                    ImGui::Separator();
-                    // You can add a button to remove the selected instance from the hierarchy.
-                    if (ImGui::Button("Remove Selected"))
-                    {
-                        // If the selected instance has a parent, remove it from the parent's children list.
-                        if (selectedInstance->parent)
-                        {
-                            Instance* parent = selectedInstance->parent;
-                            auto it = std::find(parent->children.begin(), parent->children.end(), selectedInstance);
-                            if (it != parent->children.end())
-                            {
-                                parent->children.erase(it);
-                            }
-                        }
-                        else
-                        {
-                            // Otherwise, it's top-level. Remove it from the global instances vector.
-                            auto it = std::find(instances.begin(), instances.end(), selectedInstance);
-                            if (it != instances.end())
-                            {
-                                instances.erase(it);
-                            }
+
+                            // Reset material parameters to defaults:
+                            selectedInstance->material.tiling[0] = 1.0f;
+                            selectedInstance->material.tiling[1] = 1.0f;
+                            selectedInstance->material.offset[0] = 0.0f;
+                            selectedInstance->material.offset[1] = 0.0f;
+                            selectedInstance->material.albedo[0] = 1.0f;
+                            selectedInstance->material.albedo[1] = 1.0f;
+                            selectedInstance->material.albedo[2] = 1.0f;
+                            selectedInstance->material.albedo[3] = 1.0f;
                         }
 
-                        // Delete the instance (which will recursively delete its children)
-                        deleteInstance(selectedInstance);
-                        selectedInstance = nullptr;
+                        ImGui::Separator(); ImGui::Spacing(); ImGui::Spacing();
+
+                        if (selectedInstance->diffuseTexture.idx != bgfx::kInvalidHandle) {
+                            ImGui::Text("Material Parameters:");
+                            // Let the user edit the UV tiling.
+                            ImGui::DragFloat2("Tiling", selectedInstance->material.tiling, 0.01f, 0.0f, 10.0f);
+                            // Let the user edit the UV offset.
+                            ImGui::DragFloat2("Offset", selectedInstance->material.offset, 0.01f, -10.0f, 10.0f);
+                            // Let the user edit the albedo (color tint).
+                            ImGui::ColorEdit4("Albedo", selectedInstance->material.albedo);
+
+                            ImGui::Separator(); ImGui::Spacing(); ImGui::Spacing();
+                            ImGui::Text("Raw Material Preview:");
+
+                            ImTextureID texID = static_cast<ImTextureID>(static_cast<uintptr_t>(selectedInstance->diffuseTexture.idx));
+                            ImGui::Image(texID, ImVec2(256, 256));
+                            ImGui::Separator();
+                        }
+                        else {
+                            //ImGui::Text("No texture applied.");
+                        }
+                        
                     }
+
+                }
+                //ImGui::Separator();
+                // You can add a button to remove the selected instance from the hierarchy.
+                ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
+                if (ImGui::Button("Delete Object"))
+                {
+                    // If the selected instance has a parent, remove it from the parent's children list.
+                    if (selectedInstance->parent)
+                    {
+                        Instance* parent = selectedInstance->parent;
+                        auto it = std::find(parent->children.begin(), parent->children.end(), selectedInstance);
+                        if (it != parent->children.end())
+                        {
+                            parent->children.erase(it);
+                        }
+                    }
+                    else
+                    {
+                        // Otherwise, it's top-level. Remove it from the global instances vector.
+                        auto it = std::find(instances.begin(), instances.end(), selectedInstance);
+                        if (it != instances.end())
+                        {
+                            instances.erase(it);
+                        }
+                    }
+
+                    // Delete the instance (which will recursively delete its children)
+                    deleteInstance(selectedInstance);
+                    selectedInstance = nullptr;
+                }
+                bool highlighted = highlightVisible;
+                if (ImGui::Checkbox("Show highlight tint", &highlighted))
+                {
+                    highlightVisible = highlighted;
                 }
             }
+        }
 
             ImGui::End();
 
@@ -2148,45 +2286,47 @@ int main(void)
             }
             ImGui::End();
 
-            ImGui::Begin("Cross Hatch Settings", p_open, window_flags);
-            ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
-            if (ImGui::CollapsingHeader("Crosshatch Settings"))
-            {
-                // ColorEdit4 allows you to edit a vec4 (RGBA)
-                ImGui::ColorEdit4("Ink Color", inkColor);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Line Angle 2", &lineAngle2, 0.1f, 0.0f, TAU);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, 0.1f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
-            }
-            ImGui::End();
-
-            ImGui::Begin("Info", p_open, window_flags);
-            ImGui::Text("Crosshatch Editor Demo Build");
-            ImGui::Text("Press F1 to toggle bgfx stats");
-            ImGui::Text("FPS: %.1f ", ImGui::GetIO().Framerate);
-            ImGui::Text("Frame Time: %.3f ms", 1000.0f / ImGui::GetIO().Framerate);
-            ImGui::Separator();
-            ImGui::Text("Rendered Instances: %d", instances.size());
-            ImGui::Text("Selected Instance: %s", selectedInstance ? selectedInstance->name.c_str() : "None");
-            ImGui::Text("Selected Instance ID: %d", selectedInstance ? selectedInstance->id : -1);
-            ImGui::Text("Selected Instance Parent: %s", selectedInstance && selectedInstance->parent ? selectedInstance->parent->name.c_str() : "None");
-            ImGui::Text("Selected Instance Children: %d", selectedInstance ? selectedInstance->children.size() : 0);
-            ImGui::Separator();
-            ImGui::Text("Camera Position: %.2f, %.2f, %.2f", camera.position.x, camera.position.y, camera.position.z);
-            //ImGui::Text("Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
-            ImGui::Text("");
-            ImGui::End();
+		/*
+        ImGui::Begin("Cross Hatch Settings", p_open, window_flags);
+		ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+        if (ImGui::CollapsingHeader("Crosshatch Settings"))
+        {
+            // ColorEdit4 allows you to edit a vec4 (RGBA)
+            ImGui::ColorEdit4("Ink Color", inkColor);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Angle 2", &lineAngle2, 0.1f, 0.0f, TAU);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, 0.1f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
+        }
+		ImGui::End();
+        */
+          
+        ImGui::Begin("Info", p_open, window_flags);
+        ImGui::Text("Crosshatch Editor Demo Build");
+		ImGui::Text("Press F1 to toggle bgfx stats");
+        ImGui::Text("FPS: %.1f ", ImGui::GetIO().Framerate);
+		ImGui::Text("Frame Time: %.3f ms", 1000.0f / ImGui::GetIO().Framerate);
+        ImGui::Separator();
+		ImGui::Text("Rendered Instances: %d", instances.size());
+		ImGui::Text("Selected Instance: %s", selectedInstance ? selectedInstance->name.c_str() : "None");
+		ImGui::Text("Selected Instance ID: %d", selectedInstance ? selectedInstance->id : -1);
+        ImGui::Text("Selected Instance Parent: %s", selectedInstance&& selectedInstance->parent ? selectedInstance->parent->name.c_str() : "None");
+		ImGui::Text("Selected Instance Children: %d", selectedInstance ? selectedInstance->children.size() : 0);
+        ImGui::Separator();
+		ImGui::Text("Camera Position: %.2f, %.2f, %.2f", camera.position.x, camera.position.y, camera.position.z);
+        //ImGui::Text("Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
+        ImGui::Text("");
+        ImGui::End();
 
             ImGui::Begin("Controls", p_open, window_flags);
             ImGui::Text("Controls:");
@@ -2204,6 +2344,80 @@ int main(void)
             ImGui::Text("F2 - Disable/Enable UI");
 			ImGui::Text("F3 - Take Screenshot");
             ImGui::End();
+
+
+        ImGui::Begin("Crosshatch Shader Settings");
+        const char* modeItems[] = { "Original", "Modified 1", "Modified 2", "Simple Lighting" };
+        ImGui::Combo("Shader Mode", &crosshatchMode, modeItems, IM_ARRAYSIZE(modeItems));
+        // --- Show controls depending on the mode ---
+        if (crosshatchMode == 0)
+        {
+            ImGui::Text("Original Crosshatch Settings:");
+            ImGui::ColorEdit4("Ink Color", inkColor);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Angle 2", &lineAngle2, 0.1f, 0.0f, TAU);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, -10.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
+        }
+        else if (crosshatchMode == 1)
+        {
+            ImGui::Text("Modified 1 Crosshatch Settings:");
+            ImGui::ColorEdit4("Ink Color", inkColor);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, -10.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
+        }
+        else if (crosshatchMode == 2)
+        {
+            ImGui::Text("Modified 2 Crosshatch Settings:");
+            ImGui::ColorEdit4("Ink Color", inkColor);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, -10.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            //------------
+            ImGui::DragFloat("Layer Pattern Scale", &layerPatternScale, 0.1f, 0.1f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Layer Stroke Multiplier", &layerStrokeMult, 0.1f, 0.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Layer Line Angle", &layerAngle, 0.1f, 0.0f, TAU);
+            ImGui::SetNextItemWidth(100);
+            ImGui::DragFloat("Layer Line Thickness", &layerLineThickness, 0.1f, -10.0f, 10.0f);
+            ImGui::SetNextItemWidth(100);
+            //------------
+            ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
+        }
+        else if (crosshatchMode == 3)
+        {
+            ImGui::Text("Simple Lighting (No Crosshatch)");
+        }
+        ImGui::End();
 
             ImGui::Render();
             ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
@@ -2478,18 +2692,21 @@ int main(void)
         bgfx::setUniform(u_e, epsilonUniform);
         bgfx::setTexture(0, u_noiseTex, noiseTexture); // Bind the noise texture to texture stage 0.
 
-        
-        // Example parameter values
-        //float params[4] = { 0.02f, 15.0f, 0.0f, 0.0f }; // e = 0.02 (tolerance), scale = 15.0
+        // Prepare an array of 4 floats.
         // Set u_params uniform:
         float paramsUniform[4] = { 0.0f, strokeMultiplier, lineAngle1, lineAngle2 };
         bgfx::setUniform(u_params, paramsUniform);
 
         // Prepare an array of 4 floats.
-        float extraParamsUniform[4] = { patternScale, lineThickness, transparencyValue, extraParamW };
+        float extraParamsUniform[4] = { patternScale, lineThickness, transparencyValue, float(crosshatchMode) };
         // Set the uniform for extra parameters.
         bgfx::setUniform(u_extraParams, extraParamsUniform);
 
+
+        // Prepare an array of 4 floats.
+        float paramsLayerUniform[4] = { layerPatternScale, layerStrokeMult, layerAngle, layerLineThickness };
+        // Set the uniform for extra parameters.
+        bgfx::setUniform(u_paramsLayer, paramsLayerUniform);
 
         // Enable stats or debug text
         bgfx::setDebug(s_showStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
@@ -2502,7 +2719,7 @@ int main(void)
         bgfx::setVertexBuffer(0, vbh_plane);
         bgfx::setIndexBuffer(ibh_plane);
         bgfx::setTexture(1, u_diffuseTex, planeTexture); // Bind the fixed plane texture:
-        const float tintBasic[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+        const float tintBasic[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
         bgfx::setUniform(u_tint, tintBasic);
         bgfx::submit(0, defaultProgram);
 
@@ -2520,6 +2737,20 @@ int main(void)
                 instance->position[0], instance->position[1], instance->position[2]);
 
             bgfx::setTransform(model);
+
+            // 1) Build the uvTransform (tilingU, tilingV, offsetU, offsetV).
+            float uvTransform[4] =
+            {
+                instance->material.tiling[0],
+                instance->material.tiling[1],
+                instance->material.offset[0],
+                instance->material.offset[1]
+            };
+            bgfx::setUniform(u_uvTransform, uvTransform);
+
+            // 2) Albedo factor
+            //    (r, g, b, a)
+            bgfx::setUniform(u_albedoFactor, instance->material.albedo);
 
             drawInstance(instance, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, u_tint, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
         }
