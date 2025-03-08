@@ -2168,6 +2168,7 @@ int main(void)
                         ImGui::Spacing(); ImGui::Spacing();
 
                         ImGui::Text("Available Material:"); ImGui::Spacing(); ImGui::Spacing();
+                        ImGui::BeginChild("TextureSelection", ImVec2(0, 80), true, ImGuiWindowFlags_HorizontalScrollbar);
                         for (size_t i = 0; i < availableTextures.size(); i++) {
                             // Convert your BGFX texture handle to an ImGui texture ID.
                             ImTextureID texID = static_cast<ImTextureID>(static_cast<uintptr_t>(availableTextures[i].handle.idx));
@@ -2184,6 +2185,8 @@ int main(void)
                                 ImGui::SameLine();
                             }
                         }
+
+                        ImGui::EndChild();
                         // Add a button to clear the selected texture.
                         if (ImGui::Button("Clear Texture"))
                         {
