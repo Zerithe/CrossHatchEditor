@@ -1222,7 +1222,7 @@ std::string OpenFileDialog(HWND owner, const char* filter)
     ofn.lpstrFile = fileName;
     ofn.nMaxFile = MAX_PATH;
     ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_HIDEREADONLY | OFN_NOCHANGEDIR;
-    ofn.lpstrDefExt = "obj";
+    ofn.lpstrDefExt = "";
 
     if (GetOpenFileName(&ofn))
     {
@@ -1894,8 +1894,19 @@ int main(void)
                     }
                     if (ImGui::MenuItem("Import OBJ"))
                     {
+                        // Define filter for multiple 3D model formats
+                        const char* modelFilter =
+                            "All 3D Models\0*.obj;*.fbx;*.dae;*.gltf;*.glb;*.ply;*.stl;*.3ds\0"
+                            "OBJ Files (*.obj)\0*.obj\0"
+                            "FBX Files (*.fbx)\0*.fbx\0"
+                            "COLLADA Files (*.dae)\0*.dae\0"
+                            "glTF Files (*.gltf;*.glb)\0*.gltf;*.glb\0"
+                            "PLY Files (*.ply)\0*.ply\0"
+                            "STL Files (*.stl)\0*.stl\0"
+                            "3DS Files (*.3ds)\0*.3ds\0"
+                            "All Files (*.*)\0*.*\0";
                         // Use a filter for OBJ files and all files.
-                        std::string absPath = OpenFileDialog(glfwGetWin32Window(window), "OBJ Files\0*.obj\0All Files\0*.*\0");
+                        std::string absPath = OpenFileDialog(glfwGetWin32Window(window), modelFilter);
                         std::string relPath = GetRelativePath(absPath);
                         std::string normalizedRelPath = ConvertBackslashesToForward(relPath);
                         std::cout << "filePath: " << normalizedRelPath << std::endl;
@@ -1911,7 +1922,7 @@ int main(void)
                             // Create a key based on the file name (without extension).
                             std::string fileName = fs::path(normalizedRelPath).stem().string();
                             // Spawn the imported mesh as an instance.
-                            spawnInstanceAtCenter("imported_obj", fileName, vbh_imported, ibh_imported, instances);
+                            spawnInstanceAtCenter("imported_model", fileName, vbh_imported, ibh_imported, instances);
                             std::cout << "imported obj spawned" << std::endl;
                             // Add to our map: key is fileName, value is normalizedRelPath.
                             importedObjMap[fileName] = normalizedRelPath;
@@ -2060,8 +2071,19 @@ int main(void)
                     }
                     if (ImGui::MenuItem("Import OBJ"))
                     {
+                        // Define filter for multiple 3D model formats
+                        const char* modelFilter =
+                            "All 3D Models\0*.obj;*.fbx;*.dae;*.gltf;*.glb;*.ply;*.stl;*.3ds\0"
+                            "OBJ Files (*.obj)\0*.obj\0"
+                            "FBX Files (*.fbx)\0*.fbx\0"
+                            "COLLADA Files (*.dae)\0*.dae\0"
+                            "glTF Files (*.gltf;*.glb)\0*.gltf;*.glb\0"
+                            "PLY Files (*.ply)\0*.ply\0"
+                            "STL Files (*.stl)\0*.stl\0"
+                            "3DS Files (*.3ds)\0*.3ds\0"
+                            "All Files (*.*)\0*.*\0";
                         // Use a filter for OBJ files and all files.
-                        std::string absPath = OpenFileDialog(glfwGetWin32Window(window), "OBJ Files\0*.obj\0All Files\0*.*\0");
+                        std::string absPath = OpenFileDialog(glfwGetWin32Window(window), modelFilter);
                         std::string relPath = GetRelativePath(absPath);
                         std::string normalizedRelPath = ConvertBackslashesToForward(relPath);
                         std::cout << "filePath: " << normalizedRelPath << std::endl;
@@ -2077,7 +2099,7 @@ int main(void)
                             // Create a key based on the file name (without extension).
                             std::string fileName = fs::path(normalizedRelPath).stem().string();
                             // Spawn the imported mesh as an instance.
-                            spawnInstanceAtCenter("imported_obj", fileName, vbh_imported, ibh_imported, instances);
+                            spawnInstanceAtCenter("imported_model", fileName, vbh_imported, ibh_imported, instances);
                             std::cout << "imported obj spawned" << std::endl;
                             // Add to our map: key is fileName, value is normalizedRelPath.
                             importedObjMap[fileName] = normalizedRelPath;
