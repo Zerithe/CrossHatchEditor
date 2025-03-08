@@ -271,12 +271,24 @@ void DrawGizmoForSelected(Instance* selectedInstance, const float* view, const f
         selectedInstance->rotation[0], selectedInstance->rotation[1], selectedInstance->rotation[2],
         selectedInstance->position[0], selectedInstance->position[1], selectedInstance->position[2]);
 
+    // Check if CTRL is held down to enable snapping
+    bool useSnap = io.KeyCtrl;
+
+    // Define snap settings for different operations (x, y, z for each operation)
+    float snapTranslation[3] = { 0.5f, 0.5f, 0.5f };  // Snap all axes to 0.5 units
+    float snapRotation[3] = { 90.0f, 90.0f, 90.0f };  // Snap all axes to 90 degrees
+    float snapScale[3] = { 0.5f, 0.5f, 0.5f };        // Snap all axes to 0.5 scale incr
+
     // 4) Manipulate the world matrix
     bool changed = ImGuizmo::Manipulate(
         view, proj,
         currentGizmoOperation,
         currentGizmoMode,
-        matrix
+        matrix,
+        nullptr,
+        useSnap ? (currentGizmoOperation == ImGuizmo::TRANSLATE ? snapTranslation :
+            currentGizmoOperation == ImGuizmo::ROTATE ? snapRotation :
+            snapScale) : nullptr
     );
 
     // 5) If changed, convert world matrix back to local space
@@ -307,10 +319,20 @@ void DrawGizmoForSelected(Instance* selectedInstance, const float* view, const f
             selectedInstance->position[1] = translation[1];
             selectedInstance->position[2] = translation[2];
 
-            // Convert degrees to radians if your system is in radians
-            selectedInstance->rotation[0] = DegToRad(rotationDeg[0]);
-            selectedInstance->rotation[1] = DegToRad(rotationDeg[1]);
-            selectedInstance->rotation[2] = DegToRad(rotationDeg[2]);
+            // Convert degrees to radians and apply snapping if CTRL is held
+            for (int i = 0; i < 3; i++) {
+                float rotRad = DegToRad(rotationDeg[i]);
+
+                // Apply additional rotation snapping if CTRL is held
+                if (useSnap && currentGizmoOperation == ImGuizmo::ROTATE) {
+                    // Convert to degrees, snap, and back to radians
+                    float degrees = RadToDeg(rotRad);
+                    float snapped = round(degrees / 90.0f) * 90.0f;
+                    rotRad = DegToRad(snapped);
+                }
+
+                selectedInstance->rotation[i] = rotRad;
+            }
 
             selectedInstance->scale[0] = scale[0];
             selectedInstance->scale[1] = scale[1];
@@ -318,8 +340,34 @@ void DrawGizmoForSelected(Instance* selectedInstance, const float* view, const f
         }
         else
         {
-            // For root objects (no parent), just decompose directly
-            DecomposeMatrixToInstance_ImGuizmo(matrix, selectedInstance);
+            // For root objects (no parent), decompose directly
+            float translation[3];
+            float rotationDeg[3];
+            float scale[3];
+            ImGuizmo::DecomposeMatrixToComponents(matrix, translation, rotationDeg, scale);
+
+            // Apply values
+            selectedInstance->position[0] = translation[0];
+            selectedInstance->position[1] = translation[1];
+            selectedInstance->position[2] = translation[2];
+
+            // Apply rotations with snapping if needed
+            for (int i = 0; i < 3; i++) {
+                float rotRad = DegToRad(rotationDeg[i]);
+
+                // Apply rotation snapping if CTRL is held
+                if (useSnap && currentGizmoOperation == ImGuizmo::ROTATE) {
+                    float degrees = RadToDeg(rotRad);
+                    float snapped = round(degrees / 90.0f) * 90.0f;
+                    rotRad = DegToRad(snapped);
+                }
+
+                selectedInstance->rotation[i] = rotRad;
+            }
+
+            selectedInstance->scale[0] = scale[0];
+            selectedInstance->scale[1] = scale[1];
+            selectedInstance->scale[2] = scale[2];
         }
     }
 }
@@ -2116,6 +2164,18 @@ int main(void)
                         if (ImGui::RadioButton("Local", currentGizmoMode == ImGuizmo::LOCAL))
                             currentGizmoMode = ImGuizmo::LOCAL;
                     }
+                    ImGui::Separator();
+                    ImGui::Text("Snapping Options:");
+                    ImGui::BulletText("Hold CTRL while rotating to snap to 90°");
+                    ImGui::BulletText("Hold CTRL while translating for 0.5 unit snapping");
+                    ImGui::BulletText("Hold CTRL while scaling for 0.5 unit snapping");
+
+                    // Display current snap status
+                    bool isSnapping = ImGui::GetIO().KeyCtrl;
+                    ImGui::TextColored(
+                        isSnapping ? ImVec4(0.2f, 0.8f, 0.2f, 1.0f) : ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
+                        isSnapping ? "Snapping ENABLED (CTRL held)" : "Snapping disabled (hold CTRL to enable)"
+                    );
 
                 if (selectedInstance->isLight)
                 {
