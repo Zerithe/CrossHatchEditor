@@ -148,6 +148,25 @@ struct Instance
     std::vector<Instance*> children; // Hierarchy: child instances
     Instance* parent = nullptr;      // pointer to parent
 
+    float inkColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    // Declare variables to hold our crosshatch parameters:
+    float epsilonValue = 0.02f;       // default epsilon
+    float strokeMultiplier = 5.0f;      // default stroke multiplier
+    float lineAngle1 = TAU / 8.0f;        // default first hatch angle factor
+    float lineAngle2 = TAU / 16.0f;       // default second hatch angle factor
+
+    // These variables will hold the extra parameter values.
+    float patternScale = 1.0f;   // default: no scaling
+    float lineThickness = 1.0f;  // default: no change
+    // You can leave the remaining components as 0 (or later repurpose them)
+    float transparencyValue = 1.0f; //transparency value of lines or extraParamZ
+    int crosshatchMode = 2; // 0 = original, 1 = modified, 2 = another modified, 3 = basic shader
+
+    // These variables will hold the values for u_paramsLayer
+    float layerPatternScale = 0.7f;   // default: 0.3 or 0.7?
+    float layerStrokeMult = 0.3f;   // default: 0.3
+    float layerAngle = 2.983f;   // default: 2.983
+    float layerLineThickness = 10.0f;   // default: 10.0
 
     Instance(int instanceId, const std::string& instanceName, const std::string& instanceType, float x, float y, float z, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh)
         : id(instanceId), name(instanceName), type(instanceType), vertexBuffer(vbh), indexBuffer(ibh)
@@ -193,8 +212,8 @@ struct Vec3 {
 };
 
 void BuildWorldMatrix(const Instance* inst, float* outMatrix) {
-    float local[16]; 
-    float translation[3] = { inst->position[0], inst->position[1], inst->position[2] }; 
+    float local[16];
+    float translation[3] = { inst->position[0], inst->position[1], inst->position[2] };
     float rotationDeg[3] = { RadToDeg(inst->rotation[0]), RadToDeg(inst->rotation[1]), RadToDeg(inst->rotation[2]) };
     float scale[3] = { inst->scale[0], inst->scale[1], inst->scale[2] };
     // Build the local transform matrix.
@@ -396,9 +415,9 @@ void computeNormals(std::vector<PosColorVertex>& vertices, const std::vector<uin
         Vec3 edge2 = { v2.x - v0.x, v2.y - v0.y, v2.z - v0.z };
 
         Vec3 normal = {
-            edge2.y* edge1.z - edge2.z * edge1.y,
-            edge2.z* edge1.x - edge2.x * edge1.z,
-            edge2.x* edge1.y - edge2.y * edge1.x
+            edge2.y * edge1.z - edge2.z * edge1.y,
+            edge2.z * edge1.x - edge2.x * edge1.z,
+            edge2.x * edge1.y - edge2.y * edge1.x
         };
 
         float length = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
@@ -697,7 +716,7 @@ static void spawnInstance(Camera camera, const std::string& instanceName, const 
     float y = camera.position.y + camera.front.y * spawnDistance;
     float z = camera.position.z + camera.front.z * spawnDistance;
 
-	std::string fullName = instanceName + std::to_string(instanceCounter);
+    std::string fullName = instanceName + std::to_string(instanceCounter);
 
     // Create a new instance with the current vertex and index buffers
     instances.push_back(new Instance(instanceCounter++, fullName, instanceType, x, y, z, vbh, ibh));
@@ -765,7 +784,7 @@ bool IsWhite(const float color[4], float epsilon = 0.001f)
         std::fabs(color[3] - 1.0f) < epsilon;
 }
 // Recursive draw function for hierarchy.
-void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram,bgfx::ProgramHandle lightDebugProgram, bgfx::UniformHandle u_diffuseTex, bgfx::UniformHandle u_objectColor, bgfx::UniformHandle u_tint,
+void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, bgfx::ProgramHandle lightDebugProgram, bgfx::UniformHandle u_diffuseTex, bgfx::UniformHandle u_objectColor, bgfx::UniformHandle u_tint, bgfx::UniformHandle u_inkColor, bgfx::UniformHandle u_e, bgfx::UniformHandle u_params, bgfx::UniformHandle u_extraParams, bgfx::UniformHandle u_paramsLayer,
     bgfx::TextureHandle defaultWhiteTexture, bgfx::TextureHandle inheritedTexture, const float* parentColor = nullptr, const float* parentTransform = nullptr)
 {
     float local[16];
@@ -799,11 +818,32 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram,b
     const float tintBasic[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
     const float tintHighlighted[4] = { 0.3f, 0.3f, 2.0f, 0.1f };
     if (selectedInstance == instance && highlightVisible) {
-		bgfx::setUniform(u_tint, tintHighlighted);
-	}
+        bgfx::setUniform(u_tint, tintHighlighted);
+    }
     else {
         bgfx::setUniform(u_tint, tintBasic);
     }
+
+    bgfx::setUniform(u_inkColor, instance->inkColor);
+    // Set epsilon uniform:
+    float epsilonUniform[4] = { instance->epsilonValue, 0.0f, 0.0f, 0.0f };
+    bgfx::setUniform(u_e, epsilonUniform);
+
+    // Prepare an array of 4 floats.
+    // Set u_params uniform:
+    float paramsUniform[4] = { 0.0f, instance->strokeMultiplier, instance->lineAngle1, instance->lineAngle2 };
+    bgfx::setUniform(u_params, paramsUniform);
+
+    // Prepare an array of 4 floats.
+    float extraParamsUniform[4] = { instance->patternScale, instance->lineThickness, instance->transparencyValue, float(instance->crosshatchMode) };
+    // Set the uniform for extra parameters.
+    bgfx::setUniform(u_extraParams, extraParamsUniform);
+
+
+    // Prepare an array of 4 floats.
+    float paramsLayerUniform[4] = { instance->layerPatternScale, instance->layerStrokeMult, instance->layerAngle, instance->layerLineThickness };
+    // Set the uniform for extra parameters.
+    bgfx::setUniform(u_paramsLayer, paramsLayerUniform);
     const bgfx::VertexBufferHandle invalidVbh = BGFX_INVALID_HANDLE;
     const bgfx::IndexBufferHandle invalidIbh = BGFX_INVALID_HANDLE;
     // Draw geometry if valid.
@@ -856,7 +896,7 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram,b
     // Recursively draw children.
     for (const Instance* child : instance->children)
     {
-        drawInstance(child, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, u_tint, defaultWhiteTexture, newInheritedTexture, childParentColor, world);
+        drawInstance(child, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, u_tint, u_inkColor, u_e, u_params, u_extraParams, u_paramsLayer, defaultWhiteTexture, newInheritedTexture, childParentColor, world);
     }
 }
 // Recursive deletion for hierarchy.
@@ -996,10 +1036,14 @@ void saveInstance(std::ofstream& file, const Instance* instance,
         << instance->rotation[0] << " " << instance->rotation[1] << " " << instance->rotation[2] << " "
         << instance->scale[0] << " " << instance->scale[1] << " " << instance->scale[2] << " "
         << instance->objectColor[0] << " " << instance->objectColor[1] << " " << instance->objectColor[2] << " " << instance->objectColor[3] << " "
-        << textureName << " " << parentID << " " << static_cast<int>(instance->lightProps.type) << " " << instance->lightProps.direction[0] << " " 
-        << instance->lightProps.direction[1] << " " << instance->lightProps.direction[2] << " " << instance->lightProps.intensity << " " 
-        << instance->lightProps.range << " " << instance->lightProps.coneAngle << " " << instance->lightProps.color[0] << " " 
-        << instance->lightProps.color[1] << " " << instance->lightProps.color[2] << " " << instance->lightProps.color[3] << "\n"; // Save `type` and parentID
+        << textureName << " " << parentID << " " << static_cast<int>(instance->lightProps.type) << " " << instance->lightProps.direction[0] << " "
+        << instance->lightProps.direction[1] << " " << instance->lightProps.direction[2] << " " << instance->lightProps.intensity << " "
+        << instance->lightProps.range << " " << instance->lightProps.coneAngle << " " << instance->lightProps.color[0] << " "
+        << instance->lightProps.color[1] << " " << instance->lightProps.color[2] << " " << instance->lightProps.color[3] << " "
+        << instance->inkColor[0] << " " << instance->inkColor[1] << " " << instance->inkColor[2] << " " << instance->inkColor[3] << " "
+        << instance->epsilonValue << " " << instance->strokeMultiplier << " " << instance->lineAngle1 << " " << instance->lineAngle2 << " "
+        << instance->patternScale << " " << instance->lineThickness << " " << instance->transparencyValue << " " << instance->crosshatchMode << " "
+        << instance->layerPatternScale << " " << instance->layerStrokeMult << " " << instance->layerAngle << " " << instance->layerLineThickness << "\n"; // Save `type` and parentID
 
     // Recursively save children
     for (const Instance* child : instance->children)
@@ -1097,19 +1141,23 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
     while (std::getline(file, line))
     {
         std::istringstream iss(line);
-        int id, parentID, lightType;
+        int id, parentID, lightType, crosshatchMode;
         std::string type, name, textureName;
-        float pos[3], rot[3], scale[3], color[4], lightDirection[3], intensity, range, coneAngle, lightColor[4];
+        float pos[3], rot[3], scale[3], color[4], lightDirection[3], intensity, range, coneAngle, lightColor[4], inkColor[4], epsilonValue, strokeMultiplier, lineAngle1, lineAngle2, patternScale, lineThickness, transparencyValue, layerPatternScale, layerStrokeMult, layerAngle, layerLineThickness;
 
         iss >> id >> type >> name
             >> pos[0] >> pos[1] >> pos[2]
             >> rot[0] >> rot[1] >> rot[2]
             >> scale[0] >> scale[1] >> scale[2]
             >> color[0] >> color[1] >> color[2] >> color[3]
-            >> textureName >> parentID >> lightType 
-            >> lightDirection[0] >> lightDirection[1] >> lightDirection[2] 
-            >> intensity >> range >> coneAngle 
-            >> lightColor[0] >> lightColor[1] >> lightColor[2] >> lightColor[3];
+            >> textureName >> parentID >> lightType
+            >> lightDirection[0] >> lightDirection[1] >> lightDirection[2]
+            >> intensity >> range >> coneAngle
+            >> lightColor[0] >> lightColor[1] >> lightColor[2] >> lightColor[3]
+            >> inkColor[0] >> inkColor[1] >> inkColor[2] >> inkColor[3]
+            >> epsilonValue >> strokeMultiplier >> lineAngle1 >> lineAngle2
+            >> patternScale >> lineThickness >> transparencyValue >> crosshatchMode
+            >> layerPatternScale >> layerStrokeMult >> layerAngle >> layerLineThickness;
 
         // Fetch correct buffers using `type`
         bgfx::VertexBufferHandle vbh = BGFX_INVALID_HANDLE;
@@ -1145,6 +1193,20 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
         if (instance->type == "light") {
             instance->isLight = true;
         }
+        instance->inkColor[0] = inkColor[0]; instance->inkColor[1] = inkColor[1]; instance->inkColor[2] = inkColor[2]; instance->inkColor[3] = inkColor[3];
+        instance->epsilonValue = epsilonValue;
+        instance->strokeMultiplier = strokeMultiplier;
+        instance->lineAngle1 = lineAngle1;
+        instance->lineAngle2 = lineAngle2;
+        instance->patternScale = patternScale;
+        instance->lineThickness = lineThickness;
+        instance->transparencyValue = transparencyValue;
+        instance->crosshatchMode = crosshatchMode;
+        instance->layerPatternScale = layerPatternScale;
+        instance->layerStrokeMult = layerStrokeMult;
+        instance->layerAngle = layerAngle;
+        instance->layerLineThickness = layerLineThickness;
+
         // Assign texture
         instance->diffuseTexture = BGFX_INVALID_HANDLE;
         if (textureName != "none")
@@ -1345,12 +1407,13 @@ void collectLights(const Instance* inst, float* lightsData, int& numLights, cons
         inst->scale[0], inst->scale[1], inst->scale[2],
         inst->rotation[0], inst->rotation[1], inst->rotation[2],
         inst->position[0], inst->position[1], inst->position[2]);
-    
+
     // Compute world matrix by combining with parent transform (if any)
     float world[16];
     if (parentTransform) {
         bx::mtxMul(world, local, parentTransform);
-    } else {
+    }
+    else {
         std::memcpy(world, local, sizeof(world));
     }
 
@@ -1358,40 +1421,40 @@ void collectLights(const Instance* inst, float* lightsData, int& numLights, cons
     {
         if (numLights >= MAX_LIGHTS)
             return;
-            
+
         int base = numLights * 16;
-        
+
         // Type and intensity remain unchanged
         lightsData[base + 0] = static_cast<float>(inst->lightProps.type); // type
         lightsData[base + 1] = inst->lightProps.intensity;
         lightsData[base + 2] = 0.0f;
         lightsData[base + 3] = 0.0f;
-        
+
         // Transform position from local to world space
-        float worldPos[3] = {0.0f, 0.0f, 0.0f};
+        float worldPos[3] = { 0.0f, 0.0f, 0.0f };
         worldPos[0] = world[12]; // Translation is stored in elements 12, 13, 14
-        worldPos[1] = world[13]; 
+        worldPos[1] = world[13];
         worldPos[2] = world[14];
-        
+
         lightsData[base + 4] = worldPos[0];
         lightsData[base + 5] = worldPos[1];
         lightsData[base + 6] = worldPos[2];
         lightsData[base + 7] = 1.0f;
-        
+
         // For direction, we need to transform by the rotation part of the matrix only
         // (without translation), and then normalize the result
-        float direction[3] = { 
+        float direction[3] = {
             inst->lightProps.direction[0],
             inst->lightProps.direction[1],
             inst->lightProps.direction[2]
         };
-        
+
         // Transform direction vector using the 3x3 rotation part of the world matrix
-        float worldDir[3] = {0.0f, 0.0f, 0.0f};
+        float worldDir[3] = { 0.0f, 0.0f, 0.0f };
         worldDir[0] = world[0] * direction[0] + world[4] * direction[1] + world[8] * direction[2];
         worldDir[1] = world[1] * direction[0] + world[5] * direction[1] + world[9] * direction[2];
         worldDir[2] = world[2] * direction[0] + world[6] * direction[1] + world[10] * direction[2];
-        
+
         // Normalize the direction
         float length = std::sqrt(worldDir[0] * worldDir[0] + worldDir[1] * worldDir[1] + worldDir[2] * worldDir[2]);
         if (length > 0.0001f) {
@@ -1399,18 +1462,18 @@ void collectLights(const Instance* inst, float* lightsData, int& numLights, cons
             worldDir[1] /= length;
             worldDir[2] /= length;
         }
-        
+
         lightsData[base + 8] = worldDir[0];
         lightsData[base + 9] = worldDir[1];
         lightsData[base + 10] = worldDir[2];
         lightsData[base + 11] = inst->lightProps.coneAngle;
-        
+
         // Light color remains unchanged
         lightsData[base + 12] = inst->lightProps.color[0];
         lightsData[base + 13] = inst->lightProps.color[1];
         lightsData[base + 14] = inst->lightProps.color[2];
         lightsData[base + 15] = inst->lightProps.range;
-        
+
         numLights++;
     }
 
@@ -1455,19 +1518,19 @@ int main(void)
     }
 
     //Initialize ImGui
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO(); (void)io;
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-	ImGuiWindowFlags window_flags = 0;
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    ImGuiWindowFlags window_flags = 0;
     //window_flags |= ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking;
     window_flags |= ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoCollapse;
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
-	ImGui_ImplGlfw_InitForOpenGL(window, true);
-	ImGui_Implbgfx_Init(255);
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_Implbgfx_Init(255);
 
     /*ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
@@ -1478,7 +1541,7 @@ int main(void)
     // Create an off-screen picking render target (color)
     s_pickingRT = bgfx::createTexture2D(PICKING_DIM, PICKING_DIM, false, 1,
         bgfx::TextureFormat::RGBA8,
-        BGFX_TEXTURE_RT | BGFX_SAMPLER_MIN_POINT| BGFX_SAMPLER_MAG_POINT | BGFX_SAMPLER_MIP_POINT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
+        BGFX_TEXTURE_RT | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT | BGFX_SAMPLER_MIP_POINT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
     );
     // Create a depth texture for the picking RT.
     s_pickingRTDepth = bgfx::createTexture2D(PICKING_DIM, PICKING_DIM, false, 1,
@@ -1527,38 +1590,38 @@ int main(void)
     );
 
     //cube generation
-	bgfx::VertexBufferHandle vbh_cube = bgfx::createVertexBuffer(
-		bgfx::makeRef(cubeVertices, sizeof(cubeVertices)),
-		layout
-	);
-	bgfx::IndexBufferHandle ibh_cube = bgfx::createIndexBuffer(
-		bgfx::makeRef(cubeIndices, sizeof(cubeIndices))
-	);
+    bgfx::VertexBufferHandle vbh_cube = bgfx::createVertexBuffer(
+        bgfx::makeRef(cubeVertices, sizeof(cubeVertices)),
+        layout
+    );
+    bgfx::IndexBufferHandle ibh_cube = bgfx::createIndexBuffer(
+        bgfx::makeRef(cubeIndices, sizeof(cubeIndices))
+    );
 
     //capsule generation
-	std::vector<PosColorVertex> capsuleVertices;
-	std::vector<uint16_t> capsuleIndices;
+    std::vector<PosColorVertex> capsuleVertices;
+    std::vector<uint16_t> capsuleIndices;
 
-	generateCapsule(1.0f, 1.5f, 20, 20, capsuleVertices, capsuleIndices);
+    generateCapsule(1.0f, 1.5f, 20, 20, capsuleVertices, capsuleIndices);
 
-	bgfx::VertexBufferHandle vbh_capsule = bgfx::createVertexBuffer(
-		bgfx::makeRef(capsuleVertices.data(), sizeof(PosColorVertex) * capsuleVertices.size()),
-		layout
-	);
+    bgfx::VertexBufferHandle vbh_capsule = bgfx::createVertexBuffer(
+        bgfx::makeRef(capsuleVertices.data(), sizeof(PosColorVertex) * capsuleVertices.size()),
+        layout
+    );
 
-	bgfx::IndexBufferHandle ibh_capsule = bgfx::createIndexBuffer(
-		bgfx::makeRef(capsuleIndices.data(), sizeof(uint16_t) * capsuleIndices.size())
-	);
+    bgfx::IndexBufferHandle ibh_capsule = bgfx::createIndexBuffer(
+        bgfx::makeRef(capsuleIndices.data(), sizeof(uint16_t) * capsuleIndices.size())
+    );
 
-    
-	//cylinder generation
-	bgfx::VertexBufferHandle vbh_cylinder = bgfx::createVertexBuffer(
-		bgfx::makeRef(cylinderVertices, sizeof(cylinderVertices)),
-		layout
-	);
-	bgfx::IndexBufferHandle ibh_cylinder = bgfx::createIndexBuffer(
-		bgfx::makeRef(cylinderIndices, sizeof(cylinderIndices))
-	);
+
+    //cylinder generation
+    bgfx::VertexBufferHandle vbh_cylinder = bgfx::createVertexBuffer(
+        bgfx::makeRef(cylinderVertices, sizeof(cylinderVertices)),
+        layout
+    );
+    bgfx::IndexBufferHandle ibh_cylinder = bgfx::createIndexBuffer(
+        bgfx::makeRef(cylinderIndices, sizeof(cylinderIndices))
+    );
 
     // Cone generation
     std::vector<PosColorVertex> coneVertices;
@@ -1575,21 +1638,21 @@ int main(void)
         bgfx::makeRef(coneIndices.data(), sizeof(uint16_t) * coneIndices.size())
     );
 
-	
+
     //sphere generation
     std::vector<PosColorVertex> sphereVertices;
     std::vector<uint16_t> sphereIndices;
 
-	generateSphere(1.0f, 20, 20, sphereVertices, sphereIndices);
+    generateSphere(1.0f, 20, 20, sphereVertices, sphereIndices);
 
-	bgfx::VertexBufferHandle vbh_sphere = bgfx::createVertexBuffer(
-		bgfx::makeRef(sphereVertices.data(), sizeof(PosColorVertex) * sphereVertices.size()),
-		layout
-	);
+    bgfx::VertexBufferHandle vbh_sphere = bgfx::createVertexBuffer(
+        bgfx::makeRef(sphereVertices.data(), sizeof(PosColorVertex) * sphereVertices.size()),
+        layout
+    );
 
-	bgfx::IndexBufferHandle ibh_sphere = bgfx::createIndexBuffer(
-		bgfx::makeRef(sphereIndices.data(), sizeof(uint16_t) * sphereIndices.size())
-	);
+    bgfx::IndexBufferHandle ibh_sphere = bgfx::createIndexBuffer(
+        bgfx::makeRef(sphereIndices.data(), sizeof(uint16_t) * sphereIndices.size())
+    );
 
     //cornell box generation
     bgfx::VertexBufferHandle vbh_cornell = bgfx::createVertexBuffer(
@@ -1670,22 +1733,22 @@ int main(void)
 
     std::unordered_map<std::string, std::pair<bgfx::VertexBufferHandle, bgfx::IndexBufferHandle>> bufferMap;
 
-	bufferMap["cube"] = { vbh_cube, ibh_cube };
-	bufferMap["capsule"] = { vbh_capsule, ibh_capsule };
-	bufferMap["cylinder"] = { vbh_cylinder, ibh_cylinder };
-	bufferMap["sphere"] = { vbh_sphere, ibh_sphere };
-	bufferMap["plane"] = { vbh_plane, ibh_plane };
-	bufferMap["cornell_box"] = { vbh_cornell, ibh_cornell };
-	bufferMap["innerCube"] = { vbh_innerCube, ibh_innerCube };
-	bufferMap["floor"] = { vbh_floor, ibh_floor };
-	bufferMap["ceiling"] = { vbh_ceiling, ibh_ceiling };
-	bufferMap["back"] = { vbh_back, ibh_back };
-	bufferMap["left"] = { vbh_left, ibh_left };
-	bufferMap["right"] = { vbh_right, ibh_right };
-	bufferMap["mesh"] = { vbh_mesh, ibh_mesh };
-	bufferMap["teapot"] = { vbh_teapot, ibh_teapot };
-	bufferMap["bunny"] = { vbh_bunny, ibh_bunny };
-	bufferMap["lucy"] = { vbh_lucy, ibh_lucy };
+    bufferMap["cube"] = { vbh_cube, ibh_cube };
+    bufferMap["capsule"] = { vbh_capsule, ibh_capsule };
+    bufferMap["cylinder"] = { vbh_cylinder, ibh_cylinder };
+    bufferMap["sphere"] = { vbh_sphere, ibh_sphere };
+    bufferMap["plane"] = { vbh_plane, ibh_plane };
+    bufferMap["cornell_box"] = { vbh_cornell, ibh_cornell };
+    bufferMap["innerCube"] = { vbh_innerCube, ibh_innerCube };
+    bufferMap["floor"] = { vbh_floor, ibh_floor };
+    bufferMap["ceiling"] = { vbh_ceiling, ibh_ceiling };
+    bufferMap["back"] = { vbh_back, ibh_back };
+    bufferMap["left"] = { vbh_left, ibh_left };
+    bufferMap["right"] = { vbh_right, ibh_right };
+    bufferMap["mesh"] = { vbh_mesh, ibh_mesh };
+    bufferMap["teapot"] = { vbh_teapot, ibh_teapot };
+    bufferMap["bunny"] = { vbh_bunny, ibh_bunny };
+    bufferMap["lucy"] = { vbh_lucy, ibh_lucy };
     bufferMap["light"] = { vbh_sphere, ibh_sphere };
 
 
@@ -1696,7 +1759,7 @@ int main(void)
 
     bgfx::setViewRect(0, 0, 0, WNDW_WIDTH, WNDW_HEIGHT);
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
-    
+
     glfwSetKeyCallback(window, glfw_keyCallback);
     InputManager::initialize(window);
 
@@ -1711,12 +1774,12 @@ int main(void)
 
     float lightColor[4] = { 0.5f, 0.5f, 0.5f, 1.0f };
     float lightDir[4] = { 0.0f, 1.0f, 1.0f, 0.0f };
-    float scale[4] = {1.0f, 0.0f, 0.0f, 0.0f};
+    float scale[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
 
     int spawnPrimitive = 0;
 
-	bool* p_open = NULL;
-    
+    bool* p_open = NULL;
+
     float inkColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f }; // Typically black ink.
 
     u_diffuseTex = bgfx::createUniform("u_diffuseTex", bgfx::UniformType::Sampler);
@@ -1951,7 +2014,7 @@ int main(void)
     Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", 8.0f, 0.0f, -5.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
     // Create a walls node (dummy instance without geometry)
     Instance* wallsNode = new Instance(instanceCounter++, "walls", "empty", 0.0f, -1.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
-	wallsNode->scale[0] = 0.2f;
+    wallsNode->scale[0] = 0.2f;
     wallsNode->scale[1] = 0.2f;
     wallsNode->scale[2] = 0.2f;
 
@@ -1960,24 +2023,24 @@ int main(void)
     Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", "plane", 0.0f, 14.0f, 0.0f, vbh_plane, ibh_plane);
     wallsNode->addChild(ceilingPlane);
     Instance* backPlane = new Instance(instanceCounter++, "back", "plane", 0.0f, 4.0f, -10.0f, vbh_plane, ibh_plane);
-	backPlane->rotation[0] = 1.57f;
+    backPlane->rotation[0] = 1.57f;
     wallsNode->addChild(backPlane);
     Instance* leftPlane = new Instance(instanceCounter++, "left_wall", "plane", 10.0f, 4.0f, 0.0f, vbh_plane, ibh_plane);
     leftPlane->objectColor[0] = 1.0f; leftPlane->objectColor[1] = 0.0f; leftPlane->objectColor[2] = 0.0f; leftPlane->objectColor[3] = 1.0f;
-	leftPlane->rotation[2] = 1.57f;
+    leftPlane->rotation[2] = 1.57f;
     wallsNode->addChild(leftPlane);
     Instance* rightPlane = new Instance(instanceCounter++, "right_wall", "plane", -10.0f, 4.0f, 0.0f, vbh_plane, ibh_plane);
     rightPlane->objectColor[0] = 0.0f; rightPlane->objectColor[1] = 1.0f; rightPlane->objectColor[2] = 0.0f; rightPlane->objectColor[3] = 1.0f;
-	rightPlane->rotation[2] = 1.57f;
+    rightPlane->rotation[2] = 1.57f;
     wallsNode->addChild(rightPlane);
 
     Instance* innerCube = new Instance(instanceCounter++, "inner_cube", "cube", 0.8f, -1.5f, 0.4f, vbh_cube, ibh_cube);
     innerCube->rotation[1] = 0.2f;
-	innerCube->scale[0] = 0.6f;
-	innerCube->scale[1] = 0.6f;
-	innerCube->scale[2] = 0.6f;
+    innerCube->scale[0] = 0.6f;
+    innerCube->scale[1] = 0.6f;
+    innerCube->scale[2] = 0.6f;
     Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", "cube", -1.0f, -0.7f, 0.4f, vbh_cube, ibh_cube);
-	innerRectBox->rotation[1] = -0.3f;
+    innerRectBox->rotation[1] = -0.3f;
     innerRectBox->scale[0] = 0.6f;
     innerRectBox->scale[1] = 1.5f;
     innerRectBox->scale[2] = 0.6f;
@@ -1985,7 +2048,7 @@ int main(void)
     cornellBox->addChild(innerCube);
     cornellBox->addChild(innerRectBox);
     instances.push_back(cornellBox);
-    
+
     spawnInstance(camera, "teapot", "teapot", vbh_teapot, ibh_teapot, instances);
     instances.back()->position[0] = 3.0f;
     instances.back()->position[1] = -1.0f;
@@ -2015,16 +2078,16 @@ int main(void)
     static bgfx::FrameBufferHandle g_frameBuffer = BGFX_INVALID_HANDLE;
     static bgfx::TextureHandle g_frameBufferTex = BGFX_INVALID_HANDLE;
 
-	ImGuiWindowFlags menu_flags = 0;
-	menu_flags |= ImGuiWindowFlags_MenuBar |
+    ImGuiWindowFlags menu_flags = 0;
+    menu_flags |= ImGuiWindowFlags_MenuBar |
         ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoBackground;
 
     bool takingScreenshot = false;
 
     //MAIN LOOP
-	while (!glfwWindowShouldClose(window))
-	{
+    while (!glfwWindowShouldClose(window))
+    {
         glfwPollEvents();
 
         ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -2039,7 +2102,7 @@ int main(void)
             //transformation gizmo
             ImGuizmo::BeginFrame();
 
-            
+
             ImGuiID dockspace_id = viewport->ID;
             ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
 
@@ -2393,165 +2456,165 @@ int main(void)
                         isSnapping ? "Snapping ENABLED (CTRL held)" : "Snapping disabled (hold CTRL to enable)"
                     );
 
-                if (selectedInstance->isLight)
-                {
-                    ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
-                   if(ImGui::CollapsingHeader("Light Settings"))
-                   {
-                       ImGui::Separator();
-                       ImGui::Text("Light Properties:");
-                       const char* lightTypes[] = { "Directional", "Point", "Spot" };
-                       int currentType = static_cast<int>(selectedInstance->lightProps.type);
-                       if (ImGui::Combo("Light Type", &currentType, lightTypes, IM_ARRAYSIZE(lightTypes)))
-                       {
-                           selectedInstance->lightProps.type = static_cast<LightType>(currentType);
-
-                           if (selectedInstance->lightProps.type == LightType::Point)
-                           {
-                               selectedInstance->vertexBuffer = vbh_sphere;
-                               selectedInstance->indexBuffer = ibh_sphere;
-                           }
-                           else if (selectedInstance->lightProps.type == LightType::Spot ||
-                               selectedInstance->lightProps.type == LightType::Directional)
-                           {
-                               selectedInstance->vertexBuffer = vbh_cone;
-                               selectedInstance->indexBuffer = ibh_cone;
-                           }
-                       }
-                       if (selectedInstance->lightProps.type == LightType::Directional ||
-                           selectedInstance->lightProps.type == LightType::Spot)
-                       {
-                           ImGui::DragFloat3("Light Direction", selectedInstance->lightProps.direction, 0.1f);
-                       }
-                       if (selectedInstance->lightProps.type == LightType::Point ||
-                           selectedInstance->lightProps.type == LightType::Spot)
-                       {
-                           ImGui::DragFloat3("Light Position", selectedInstance->position, 0.1f);
-                           ImGui::DragFloat("Range", &selectedInstance->lightProps.range, 0.1f, 0.0f, 100.0f);
-                       }
-                       ImGui::ColorEdit4("Light Color", selectedInstance->lightProps.color);
-                       ImGui::DragFloat("Intensity", &selectedInstance->lightProps.intensity, 0.1f, 0.0f, 10.0f);
-                       if (selectedInstance->lightProps.type == LightType::Spot)
-                       {
-                           ImGui::DragFloat("Cone Angle", &selectedInstance->lightProps.coneAngle, 0.1f, 0.0f, 3.14f);
-                       }
-                       // Add a checkbox to show or hide the debug visual of the light.
-                       bool debugVisible = selectedInstance->showDebugVisual;
-                       if (ImGui::Checkbox("Show Light Debug Visual", &debugVisible))
-                       {
-                           selectedInstance->showDebugVisual = debugVisible;
-                       }
-                   }
-                }
-                else {
-                    //Object color Selection
-                    ImGui::Separator();
-                    ImGui::Spacing(); ImGui::Spacing();
-                    ImGui::ColorEdit3("Object Color", selectedInstance->objectColor);
-                    ImGui::Spacing(); ImGui::Spacing();
-                    ImGui::Separator();
-                    // --- Texture/Material Editor ---
-                    ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
-                    if (ImGui::CollapsingHeader("Material Editor")) {
-                        ImGui::Spacing(); ImGui::Spacing();
-
-                        ImGui::Text("Available Material:"); ImGui::Spacing(); ImGui::Spacing();
-                        ImGui::BeginChild("TextureSelection", ImVec2(0, 80), true, ImGuiWindowFlags_HorizontalScrollbar);
-                        for (size_t i = 0; i < availableTextures.size(); i++) {
-                            // Convert your BGFX texture handle to an ImGui texture ID.
-                            ImTextureID texID = static_cast<ImTextureID>(static_cast<uintptr_t>(availableTextures[i].handle.idx));
-                            // Display each texture as an image button (64x64 pixels).
-                            if (ImGui::ImageButton(std::to_string(i).c_str(), texID, ImVec2(64, 64)))
-                            {
-                                // When clicked, update your selected texture.
-                                // For example, assign it to the currently selected instance.
-                                selectedInstance->diffuseTexture = availableTextures[i].handle;
-                            }
-                            if (i < availableTextures.size() - 1)
-                            {
-                                // Use SameLine to arrange buttons horizontally.
-                                ImGui::SameLine();
-                            }
-                        }
-
-                        ImGui::EndChild();
-                        // Add a button to clear the selected texture.
-                        if (ImGui::Button("Clear Texture"))
+                    if (selectedInstance->isLight)
+                    {
+                        ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+                        if (ImGui::CollapsingHeader("Light Settings"))
                         {
-                            selectedInstance->diffuseTexture = BGFX_INVALID_HANDLE;
+                            ImGui::Separator();
+                            ImGui::Text("Light Properties:");
+                            const char* lightTypes[] = { "Directional", "Point", "Spot" };
+                            int currentType = static_cast<int>(selectedInstance->lightProps.type);
+                            if (ImGui::Combo("Light Type", &currentType, lightTypes, IM_ARRAYSIZE(lightTypes)))
+                            {
+                                selectedInstance->lightProps.type = static_cast<LightType>(currentType);
 
-                            // Reset material parameters to defaults:
-                            selectedInstance->material.tiling[0] = 1.0f;
-                            selectedInstance->material.tiling[1] = 1.0f;
-                            selectedInstance->material.offset[0] = 0.0f;
-                            selectedInstance->material.offset[1] = 0.0f;
-                            selectedInstance->material.albedo[0] = 1.0f;
-                            selectedInstance->material.albedo[1] = 1.0f;
-                            selectedInstance->material.albedo[2] = 1.0f;
-                            selectedInstance->material.albedo[3] = 1.0f;
+                                if (selectedInstance->lightProps.type == LightType::Point)
+                                {
+                                    selectedInstance->vertexBuffer = vbh_sphere;
+                                    selectedInstance->indexBuffer = ibh_sphere;
+                                }
+                                else if (selectedInstance->lightProps.type == LightType::Spot ||
+                                    selectedInstance->lightProps.type == LightType::Directional)
+                                {
+                                    selectedInstance->vertexBuffer = vbh_cone;
+                                    selectedInstance->indexBuffer = ibh_cone;
+                                }
+                            }
+                            if (selectedInstance->lightProps.type == LightType::Directional ||
+                                selectedInstance->lightProps.type == LightType::Spot)
+                            {
+                                ImGui::DragFloat3("Light Direction", selectedInstance->lightProps.direction, 0.1f);
+                            }
+                            if (selectedInstance->lightProps.type == LightType::Point ||
+                                selectedInstance->lightProps.type == LightType::Spot)
+                            {
+                                ImGui::DragFloat3("Light Position", selectedInstance->position, 0.1f);
+                                ImGui::DragFloat("Range", &selectedInstance->lightProps.range, 0.1f, 0.0f, 100.0f);
+                            }
+                            ImGui::ColorEdit4("Light Color", selectedInstance->lightProps.color);
+                            ImGui::DragFloat("Intensity", &selectedInstance->lightProps.intensity, 0.1f, 0.0f, 10.0f);
+                            if (selectedInstance->lightProps.type == LightType::Spot)
+                            {
+                                ImGui::DragFloat("Cone Angle", &selectedInstance->lightProps.coneAngle, 0.1f, 0.0f, 3.14f);
+                            }
+                            // Add a checkbox to show or hide the debug visual of the light.
+                            bool debugVisible = selectedInstance->showDebugVisual;
+                            if (ImGui::Checkbox("Show Light Debug Visual", &debugVisible))
+                            {
+                                selectedInstance->showDebugVisual = debugVisible;
+                            }
                         }
+                    }
+                    else {
+                        //Object color Selection
+                        ImGui::Separator();
+                        ImGui::Spacing(); ImGui::Spacing();
+                        ImGui::ColorEdit3("Object Color", selectedInstance->objectColor);
+                        ImGui::Spacing(); ImGui::Spacing();
+                        ImGui::Separator();
+                        // --- Texture/Material Editor ---
+                        ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+                        if (ImGui::CollapsingHeader("Material Editor")) {
+                            ImGui::Spacing(); ImGui::Spacing();
 
-                        ImGui::Separator(); ImGui::Spacing(); ImGui::Spacing();
+                            ImGui::Text("Available Material:"); ImGui::Spacing(); ImGui::Spacing();
+                            ImGui::BeginChild("TextureSelection", ImVec2(0, 80), true, ImGuiWindowFlags_HorizontalScrollbar);
+                            for (size_t i = 0; i < availableTextures.size(); i++) {
+                                // Convert your BGFX texture handle to an ImGui texture ID.
+                                ImTextureID texID = static_cast<ImTextureID>(static_cast<uintptr_t>(availableTextures[i].handle.idx));
+                                // Display each texture as an image button (64x64 pixels).
+                                if (ImGui::ImageButton(std::to_string(i).c_str(), texID, ImVec2(64, 64)))
+                                {
+                                    // When clicked, update your selected texture.
+                                    // For example, assign it to the currently selected instance.
+                                    selectedInstance->diffuseTexture = availableTextures[i].handle;
+                                }
+                                if (i < availableTextures.size() - 1)
+                                {
+                                    // Use SameLine to arrange buttons horizontally.
+                                    ImGui::SameLine();
+                                }
+                            }
 
-                        if (selectedInstance->diffuseTexture.idx != bgfx::kInvalidHandle) {
-                            ImGui::Text("Material Parameters:");
-                            // Let the user edit the UV tiling.
-                            ImGui::DragFloat2("Tiling", selectedInstance->material.tiling, 0.01f, 0.0f, 10.0f);
-                            // Let the user edit the UV offset.
-                            ImGui::DragFloat2("Offset", selectedInstance->material.offset, 0.01f, -10.0f, 10.0f);
-                            // Let the user edit the albedo (color tint).
-                            ImGui::ColorEdit4("Albedo", selectedInstance->material.albedo);
+                            ImGui::EndChild();
+                            // Add a button to clear the selected texture.
+                            if (ImGui::Button("Clear Texture"))
+                            {
+                                selectedInstance->diffuseTexture = BGFX_INVALID_HANDLE;
+
+                                // Reset material parameters to defaults:
+                                selectedInstance->material.tiling[0] = 1.0f;
+                                selectedInstance->material.tiling[1] = 1.0f;
+                                selectedInstance->material.offset[0] = 0.0f;
+                                selectedInstance->material.offset[1] = 0.0f;
+                                selectedInstance->material.albedo[0] = 1.0f;
+                                selectedInstance->material.albedo[1] = 1.0f;
+                                selectedInstance->material.albedo[2] = 1.0f;
+                                selectedInstance->material.albedo[3] = 1.0f;
+                            }
 
                             ImGui::Separator(); ImGui::Spacing(); ImGui::Spacing();
-                            ImGui::Text("Raw Material Preview:");
 
-                            ImTextureID texID = static_cast<ImTextureID>(static_cast<uintptr_t>(selectedInstance->diffuseTexture.idx));
-                            ImGui::Image(texID, ImVec2(256, 256));
-                            ImGui::Separator();
+                            if (selectedInstance->diffuseTexture.idx != bgfx::kInvalidHandle) {
+                                ImGui::Text("Material Parameters:");
+                                // Let the user edit the UV tiling.
+                                ImGui::DragFloat2("Tiling", selectedInstance->material.tiling, 0.01f, 0.0f, 10.0f);
+                                // Let the user edit the UV offset.
+                                ImGui::DragFloat2("Offset", selectedInstance->material.offset, 0.01f, -10.0f, 10.0f);
+                                // Let the user edit the albedo (color tint).
+                                ImGui::ColorEdit4("Albedo", selectedInstance->material.albedo);
+
+                                ImGui::Separator(); ImGui::Spacing(); ImGui::Spacing();
+                                ImGui::Text("Raw Material Preview:");
+
+                                ImTextureID texID = static_cast<ImTextureID>(static_cast<uintptr_t>(selectedInstance->diffuseTexture.idx));
+                                ImGui::Image(texID, ImVec2(256, 256));
+                                ImGui::Separator();
+                            }
+                            else {
+                                //ImGui::Text("No texture applied.");
+                            }
+
                         }
-                        else {
-                            //ImGui::Text("No texture applied.");
-                        }
-                        
+
                     }
-
-                }
-                //ImGui::Separator();
-                // You can add a button to remove the selected instance from the hierarchy.
-                ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
-                if (ImGui::Button("Delete Object"))
-                {
-                    // If the selected instance has a parent, remove it from the parent's children list.
-                    if (selectedInstance->parent)
+                    //ImGui::Separator();
+                    // You can add a button to remove the selected instance from the hierarchy.
+                    ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
+                    if (ImGui::Button("Delete Object"))
                     {
-                        Instance* parent = selectedInstance->parent;
-                        auto it = std::find(parent->children.begin(), parent->children.end(), selectedInstance);
-                        if (it != parent->children.end())
+                        // If the selected instance has a parent, remove it from the parent's children list.
+                        if (selectedInstance->parent)
                         {
-                            parent->children.erase(it);
+                            Instance* parent = selectedInstance->parent;
+                            auto it = std::find(parent->children.begin(), parent->children.end(), selectedInstance);
+                            if (it != parent->children.end())
+                            {
+                                parent->children.erase(it);
+                            }
                         }
-                    }
-                    else
-                    {
-                        // Otherwise, it's top-level. Remove it from the global instances vector.
-                        auto it = std::find(instances.begin(), instances.end(), selectedInstance);
-                        if (it != instances.end())
+                        else
                         {
-                            instances.erase(it);
+                            // Otherwise, it's top-level. Remove it from the global instances vector.
+                            auto it = std::find(instances.begin(), instances.end(), selectedInstance);
+                            if (it != instances.end())
+                            {
+                                instances.erase(it);
+                            }
                         }
-                    }
 
-                    // Delete the instance (which will recursively delete its children)
-                    deleteInstance(selectedInstance);
-                    selectedInstance = nullptr;
-                }
-                bool highlighted = highlightVisible;
-                if (ImGui::Checkbox("Show highlight tint", &highlighted))
-                {
-                    highlightVisible = highlighted;
+                        // Delete the instance (which will recursively delete its children)
+                        deleteInstance(selectedInstance);
+                        selectedInstance = nullptr;
+                    }
+                    bool highlighted = highlightVisible;
+                    if (ImGui::Checkbox("Show highlight tint", &highlighted))
+                    {
+                        highlightVisible = highlighted;
+                    }
                 }
             }
-        }
 
             ImGui::End();
 
@@ -2577,47 +2640,47 @@ int main(void)
             }
             ImGui::End();
 
-		/*
-        ImGui::Begin("Cross Hatch Settings", p_open, window_flags);
-		ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
-        if (ImGui::CollapsingHeader("Crosshatch Settings"))
-        {
-            // ColorEdit4 allows you to edit a vec4 (RGBA)
-            ImGui::ColorEdit4("Ink Color", inkColor);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Angle 2", &lineAngle2, 0.1f, 0.0f, TAU);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, 0.1f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
-        }
-		ImGui::End();
-        */
-          
-        ImGui::Begin("Info", p_open, window_flags);
-        ImGui::Text("Crosshatch Editor Demo Build");
-		ImGui::Text("Press F1 to toggle bgfx stats");
-        ImGui::Text("FPS: %.1f ", ImGui::GetIO().Framerate);
-		ImGui::Text("Frame Time: %.3f ms", 1000.0f / ImGui::GetIO().Framerate);
-        ImGui::Separator();
-		ImGui::Text("Rendered Instances: %d", instances.size());
-		ImGui::Text("Selected Instance: %s", selectedInstance ? selectedInstance->name.c_str() : "None");
-		ImGui::Text("Selected Instance ID: %d", selectedInstance ? selectedInstance->id : -1);
-        ImGui::Text("Selected Instance Parent: %s", selectedInstance&& selectedInstance->parent ? selectedInstance->parent->name.c_str() : "None");
-		ImGui::Text("Selected Instance Children: %d", selectedInstance ? selectedInstance->children.size() : 0);
-        ImGui::Separator();
-		ImGui::Text("Camera Position: %.2f, %.2f, %.2f", camera.position.x, camera.position.y, camera.position.z);
-        //ImGui::Text("Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
-        ImGui::Text("");
-        ImGui::End();
+            /*
+            ImGui::Begin("Cross Hatch Settings", p_open, window_flags);
+            ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+            if (ImGui::CollapsingHeader("Crosshatch Settings"))
+            {
+                // ColorEdit4 allows you to edit a vec4 (RGBA)
+                ImGui::ColorEdit4("Ink Color", inkColor);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Line Angle 2", &lineAngle2, 0.1f, 0.0f, TAU);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, 0.1f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
+            }
+            ImGui::End();
+            */
+
+            ImGui::Begin("Info", p_open, window_flags);
+            ImGui::Text("Crosshatch Editor Demo Build");
+            ImGui::Text("Press F1 to toggle bgfx stats");
+            ImGui::Text("FPS: %.1f ", ImGui::GetIO().Framerate);
+            ImGui::Text("Frame Time: %.3f ms", 1000.0f / ImGui::GetIO().Framerate);
+            ImGui::Separator();
+            ImGui::Text("Rendered Instances: %d", instances.size());
+            ImGui::Text("Selected Instance: %s", selectedInstance ? selectedInstance->name.c_str() : "None");
+            ImGui::Text("Selected Instance ID: %d", selectedInstance ? selectedInstance->id : -1);
+            ImGui::Text("Selected Instance Parent: %s", selectedInstance && selectedInstance->parent ? selectedInstance->parent->name.c_str() : "None");
+            ImGui::Text("Selected Instance Children: %d", selectedInstance ? selectedInstance->children.size() : 0);
+            ImGui::Separator();
+            ImGui::Text("Camera Position: %.2f, %.2f, %.2f", camera.position.x, camera.position.y, camera.position.z);
+            //ImGui::Text("Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
+            ImGui::Text("");
+            ImGui::End();
 
             ImGui::Begin("Controls", p_open, window_flags);
             ImGui::Text("Controls:");
@@ -2633,79 +2696,81 @@ int main(void)
             ImGui::Text("Z - Reset Light Direction");
             ImGui::Text("F1 - Toggle bgfx stats");
             ImGui::Text("F2 - Disable/Enable UI");
-			ImGui::Text("F3 - Take Screenshot");
+            ImGui::Text("F3 - Take Screenshot");
             ImGui::End();
 
 
             ImGui::Begin("Crosshatch Shader Settings");
-            const char* modeItems[] = { "Crosshatch Ver 1.0", "Crosshatch Ver 1.1", "Crosshatch Ver 1.2", "Simple Lighting" };
-            ImGui::Combo("Shader Mode", &crosshatchMode, modeItems, IM_ARRAYSIZE(modeItems));
-            // --- Show controls depending on the mode ---
-            if (crosshatchMode == 0)
-            {
-                ImGui::Text("Crosshatch Ver 1.0 Settings:");
-                ImGui::ColorEdit4("Hatch Color", inkColor);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Line Smoothness", &epsilonValue, 0.001f, 0.0f, 0.1f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Hatch Density", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Primary Hatch Angle", &lineAngle1, 0.1f, 0.0f, TAU);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Secondary Hatch Angle", &lineAngle2, 0.1f, 0.0f, TAU);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Hatch Scale", &patternScale, 0.1f, 0.1f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Line Weight", &lineThickness, 0.1f, -10.0f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Hatch Opacity", &transparencyValue, 0.01f, 0.0f, 1.0f);
-            }
-            else if (crosshatchMode == 1)
-            {
-                ImGui::Text("Crosshatch Ver 1.1 Settings:");
-                ImGui::ColorEdit4("Hatch Color", inkColor);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Line Smoothness", &epsilonValue, 0.001f, 0.0f, 0.1f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Hatch Density", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Hatch Angle", &lineAngle1, 0.1f, 0.0f, TAU);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Hatch Scale", &patternScale, 0.1f, 0.1f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Line Weight", &lineThickness, 0.1f, -10.0f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Hatch Opacity", &transparencyValue, 0.01f, 0.0f, 1.0f);
-            }
-            else if (crosshatchMode == 2)
-            {
-                ImGui::Text("Crosshatch Ver 1.2 Settings:");
-                ImGui::ColorEdit4("Hatch Color", inkColor);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Outer Line Smoothness", &epsilonValue, 0.001f, 0.0f, 0.1f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Outer Hatch Density", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Outer Hatch Angle", &lineAngle1, 0.1f, 0.0f, TAU);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Outer Hatch Scale", &patternScale, 0.1f, 0.1f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Outer Hatch Weight", &lineThickness, 0.1f, -10.0f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                // Inner layer settings:
-                ImGui::DragFloat("Inner Hatch Scale", &layerPatternScale, 0.1f, 0.1f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Inner Hatch Density", &layerStrokeMult, 0.1f, 0.0f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Inner Hatch Angle", &layerAngle, 0.1f, 0.0f, TAU);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Inner Hatch Weight", &layerLineThickness, 0.1f, -10.0f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Hatch Opacity", &transparencyValue, 0.01f, 0.0f, 1.0f);
-            }
-            else if (crosshatchMode == 3)
-            {
-                ImGui::Text("Simple Lighting (No Crosshatch)");
+            if (selectedInstance) {
+                const char* modeItems[] = { "Crosshatch Ver 1.0", "Crosshatch Ver 1.1", "Crosshatch Ver 1.2", "Simple Lighting" };
+                ImGui::Combo("Shader Mode", &selectedInstance->crosshatchMode, modeItems, IM_ARRAYSIZE(modeItems));
+                // --- Show controls depending on the mode ---
+                if (selectedInstance->crosshatchMode == 0)
+                {
+                    ImGui::Text("Crosshatch Ver 1.0 Settings:");
+                    ImGui::ColorEdit4("Hatch Color", selectedInstance->inkColor);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Line Smoothness", &selectedInstance->epsilonValue, 0.001f, 0.0f, 0.1f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Density", &selectedInstance->strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Primary Hatch Angle", &selectedInstance->lineAngle1, 0.1f, 0.0f, TAU);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Secondary Hatch Angle", &selectedInstance->lineAngle2, 0.1f, 0.0f, TAU);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Scale", &selectedInstance->patternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Line Weight", &selectedInstance->lineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Opacity", &selectedInstance->transparencyValue, 0.01f, 0.0f, 1.0f);
+                }
+                else if (selectedInstance->crosshatchMode == 1)
+                {
+                    ImGui::Text("Crosshatch Ver 1.1 Settings:");
+                    ImGui::ColorEdit4("Hatch Color", selectedInstance->inkColor);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Line Smoothness", &selectedInstance->epsilonValue, 0.001f, 0.0f, 0.1f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Density", &selectedInstance->strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Angle", &selectedInstance->lineAngle1, 0.1f, 0.0f, TAU);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Scale", &selectedInstance->patternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Line Weight", &selectedInstance->lineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Opacity", &selectedInstance->transparencyValue, 0.01f, 0.0f, 1.0f);
+                }
+                else if (selectedInstance->crosshatchMode == 2)
+                {
+                    ImGui::Text("Crosshatch Ver 1.2 Settings:");
+                    ImGui::ColorEdit4("Hatch Color", selectedInstance->inkColor);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Line Smoothness", &selectedInstance->epsilonValue, 0.001f, 0.0f, 0.1f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Density", &selectedInstance->strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Angle", &selectedInstance->lineAngle1, 0.1f, 0.0f, TAU);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Scale", &selectedInstance->patternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Weight", &selectedInstance->lineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    // Inner layer settings:
+                    ImGui::DragFloat("Inner Hatch Scale", &selectedInstance->layerPatternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Inner Hatch Density", &selectedInstance->layerStrokeMult, 0.1f, 0.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Inner Hatch Angle", &selectedInstance->layerAngle, 0.1f, 0.0f, TAU);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Inner Hatch Weight", &selectedInstance->layerLineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Opacity", &selectedInstance->transparencyValue, 0.01f, 0.0f, 1.0f);
+                }
+                else if (selectedInstance->crosshatchMode == 3)
+                {
+                    ImGui::Text("Simple Lighting (No Crosshatch)");
+                }
             }
             ImGui::End();
 
@@ -2716,21 +2781,21 @@ int main(void)
         //handle inputs
         InputManager::update(camera, 0.016f);
 
-		if (InputManager::isKeyToggled(GLFW_KEY_F2))
-		{
-			takingScreenshot = !takingScreenshot;
-		}
+        if (InputManager::isKeyToggled(GLFW_KEY_F2))
+        {
+            takingScreenshot = !takingScreenshot;
+        }
 
-		if (InputManager::isKeyToggled(GLFW_KEY_F3))
-		{
-			bgfx::requestScreenShot(BGFX_INVALID_HANDLE, "screenshot");
-		}
+        if (InputManager::isKeyToggled(GLFW_KEY_F3))
+        {
+            bgfx::requestScreenShot(BGFX_INVALID_HANDLE, "screenshot");
+        }
 
 
         /*
         //call spawnInstance when key is pressed based on spawnPrimitive value
-		if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && InputManager::getCursorDisabled())
-		{
+        if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && InputManager::getCursorDisabled())
+        {
             if (spawnPrimitive == 0)
             {
                 spawnInstance(camera, "cube", "cube", vbh_cube, ibh_cube, instances);
@@ -2805,7 +2870,7 @@ int main(void)
                 spawnInstance(camera, "lucy", "lucy", vbh_lucy, ibh_lucy, instances);
                 std::cout << "Lucy spawned" << std::endl;
             }
-		}
+        }
         */
 
 
@@ -2880,7 +2945,7 @@ int main(void)
             bgfx::blit(PICKING_BLIT_VIEW, s_pickingReadTex, 0, 0, s_pickingRT);
             // Submit a frame to ensure the blit is complete.
             bgfx::frame();
-            
+
             // Read back the texture data into s_pickingBlitData.
             bgfx::readTexture(s_pickingReadTex, s_pickingBlitData);
 
@@ -2932,7 +2997,7 @@ int main(void)
         //    delete inst;
         //    std::cout << "Last Instance removed" << std::endl;
         //}
-        
+
         float lightsData[MAX_LIGHTS * 16]; // 16 floats per light.
         int numLights = 0;
         for (const Instance* inst : instances) {
@@ -2964,7 +3029,7 @@ int main(void)
 
         bgfx::touch(0);
 
-        
+
         float viewPos[4] = { camera.position.x, camera.position.y, camera.position.z, 1.0f };
 
         //bgfx::setUniform(u_lightDir, lightDir);
@@ -2974,7 +3039,7 @@ int main(void)
 
         float cameraPos[4] = { camera.position.x, camera.position.y, camera.position.z, 1.0f };
         float epsilon[4] = { 0.02f, 0.0f, 0.0f, 0.0f }; // Pack the epsilon value into the first element; the other three can be 0.
-        
+
         bgfx::setUniform(u_inkColor, inkColor);
         bgfx::setUniform(u_cameraPos, cameraPos);
         // Set epsilon uniform:
@@ -3042,7 +3107,7 @@ int main(void)
             //    (r, g, b, a)
             bgfx::setUniform(u_albedoFactor, instance->material.albedo);
 
-            drawInstance(instance, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, u_tint, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
+            drawInstance(instance, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, u_tint, u_inkColor, u_e, u_params, u_extraParams, u_paramsLayer, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
         }
 
         // Update your vertex layout to include normals
@@ -3059,48 +3124,48 @@ int main(void)
         bgfx::setTransform(mtx);
 
         // End frame
-		
+
         bgfx::frame();
 
-        
-	}
+
+    }
     for (const auto& instance : instances)
     {
         const bgfx::VertexBufferHandle invalidVbh = BGFX_INVALID_HANDLE;
         const bgfx::IndexBufferHandle invalidIbh = BGFX_INVALID_HANDLE;
-		// Destroy the vertex and index buffers if they are valid.
+        // Destroy the vertex and index buffers if they are valid.
         if (instance->vertexBuffer.idx != invalidVbh.idx &&
             instance->indexBuffer.idx != invalidIbh.idx)
         {
             bgfx::destroy(instance->vertexBuffer);
-		    bgfx::destroy(instance->indexBuffer);
-		}
+            bgfx::destroy(instance->indexBuffer);
+        }
         deleteInstance(instance);
     }
-    
+
     bgfx::destroy(vbh_plane);
-	bgfx::destroy(ibh_plane);
-	bgfx::destroy(vbh_sphere);
-	bgfx::destroy(ibh_sphere);
-	bgfx::destroy(vbh_cube);
-	bgfx::destroy(ibh_cube);
-	bgfx::destroy(vbh_capsule);
-	bgfx::destroy(ibh_capsule);
-	bgfx::destroy(vbh_cylinder);
-	bgfx::destroy(ibh_cylinder);
+    bgfx::destroy(ibh_plane);
+    bgfx::destroy(vbh_sphere);
+    bgfx::destroy(ibh_sphere);
+    bgfx::destroy(vbh_cube);
+    bgfx::destroy(ibh_cube);
+    bgfx::destroy(vbh_capsule);
+    bgfx::destroy(ibh_capsule);
+    bgfx::destroy(vbh_cylinder);
+    bgfx::destroy(ibh_cylinder);
     bgfx::destroy(vbh_mesh);
     bgfx::destroy(ibh_mesh);
     bgfx::destroy(vbh_cornell);
     bgfx::destroy(ibh_cornell);
     bgfx::destroy(vbh_innerCube);
     bgfx::destroy(ibh_innerCube);
-	bgfx::destroy(defaultProgram);
-	bgfx::destroy(lightDebugProgram);
+    bgfx::destroy(defaultProgram);
+    bgfx::destroy(lightDebugProgram);
     ImGui_ImplGlfw_Shutdown();
-	
+
     bgfx::shutdown();
     glfwDestroyWindow(window);
-	glfwTerminate();
+    glfwTerminate();
 
-	return 0;
+    return 0;
 }
