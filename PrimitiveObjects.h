@@ -405,4 +405,69 @@ static PosColorVertex cornellBoxLeftVertices[] = {
 static const uint16_t cornellBoxLeftIndices[] = {
     2, 0, 3, 3, 0, 1  // Left wall (back)
 };
+
+// Generates a cone mesh with the given base radius, height, and number of sectors.
+// The cone is oriented with its apex at (0, height, 0) and its base centered on the plane y = 0.
+inline void generateCone(float radius, float height, int sectors,
+    std::vector<PosColorVertex>& vertices,
+    std::vector<uint16_t>& indices)
+{
+    const float PI = 3.14159265359f;
+
+    // Apex vertex at (0, height, 0)
+    PosColorVertex apex = { 0.0f, height, 0.0f,  0.0f, 1.0f, 0.0f, 0xffffffff, 0.5f, 1.0f };
+    vertices.push_back(apex);
+
+    // Base center vertex at (0, 0, 0)
+    PosColorVertex baseCenter = { 0.0f, 0.0f, 0.0f,  0.0f, -1.0f, 0.0f, 0xffffffff, 0.5f, 0.5f };
+    vertices.push_back(baseCenter);
+
+    // Generate base perimeter vertices.
+    // They will be stored starting at index 2.
+    for (int i = 0; i <= sectors; ++i)
+    {
+        float angle = 2 * PI * i / sectors;
+        float x = radius * cosf(angle);
+        float z = radius * sinf(angle);
+
+        PosColorVertex v;
+        v.x = x;
+        v.y = 0.0f;
+        v.z = z;
+
+        // Compute the side normal.
+        // For a cone, a common approximation is to set the normal to (x, radius, z) normalized.
+        float nx = x;
+        float ny = radius;
+        float nz = z;
+        float len = sqrtf(nx * nx + ny * ny + nz * nz);
+        v.nx = nx / len;
+        v.ny = ny / len;
+        v.nz = nz / len;
+
+        v.abgr = 0xffffffff;
+        // Simple UV mapping based on angle.
+        v.u = (cosf(angle) + 1.0f) * 0.5f;
+        v.v = (sinf(angle) + 1.0f) * 0.5f;
+        vertices.push_back(v);
+    }
+
+    // Create indices for the side surface.
+    // The apex is vertex 0; base perimeter vertices start at index 2.
+    for (int i = 0; i < sectors; ++i)
+    {
+        indices.push_back(0);
+        indices.push_back(2 + i);
+        indices.push_back(2 + i + 1);
+    }
+
+    // Create indices for the base (using a triangle fan centered at vertex 1).
+    for (int i = 0; i < sectors; ++i)
+    {
+        indices.push_back(1);
+        indices.push_back(2 + i + 1);
+        indices.push_back(2 + i);
+    }
+}
+
 #endif

@@ -713,7 +713,7 @@ static void spawnInstanceAtCenter(const std::string& instanceName, const std::st
     std::cout << "New instance created at (" << 0 << ", " << 0 << ", " << 0 << ")" << std::endl;
 }
 
-static void spawnLight(const Camera& camera, bgfx::VertexBufferHandle vbh_sphere, bgfx::IndexBufferHandle ibh_sphere, std::vector<Instance*>& instances)
+static void spawnLight(const Camera& camera, bgfx::VertexBufferHandle vbh_sphere, bgfx::IndexBufferHandle ibh_sphere, bgfx::VertexBufferHandle vbh_cone, bgfx::IndexBufferHandle ibh_cone, std::vector<Instance*>& instances)
 {
     float spawnDistance = 5.0f;
     float x = camera.position.x + camera.front.x * spawnDistance;
@@ -729,6 +729,27 @@ static void spawnLight(const Camera& camera, bgfx::VertexBufferHandle vbh_sphere
     lightInst->lightProps.coneAngle = 1.0f;
     lightInst->lightProps.color[0] = 1.0f; lightInst->lightProps.color[1] = 1.0f;
     lightInst->lightProps.color[2] = 1.0f; lightInst->lightProps.color[3] = 1.0f;
+
+    // Update the debug geometry based on the light type.
+    switch (lightInst->lightProps.type)
+    {
+    case LightType::Point:
+        // Use sphere: already set
+        break;
+    case LightType::Spot:
+        // Use cone mesh for a spot light.
+        lightInst->vertexBuffer = vbh_cone;
+        lightInst->indexBuffer = ibh_cone;
+        break;
+    case LightType::Directional:
+        // use a cone for now
+        lightInst->vertexBuffer = vbh_cone;
+        lightInst->indexBuffer = ibh_cone;
+        break;
+    default:
+        break;
+    }
+
     // Make the visual representation small.
     lightInst->scale[0] = lightInst->scale[1] = lightInst->scale[2] = 0.2f;
     instances.push_back(lightInst);
@@ -1539,6 +1560,21 @@ int main(void)
 		bgfx::makeRef(cylinderIndices, sizeof(cylinderIndices))
 	);
 
+    // Cone generation
+    std::vector<PosColorVertex> coneVertices;
+    std::vector<uint16_t> coneIndices;
+
+    generateCone(1.0f, 2.0f, 20, coneVertices, coneIndices);
+
+    bgfx::VertexBufferHandle vbh_cone = bgfx::createVertexBuffer(
+        bgfx::makeRef(coneVertices.data(), sizeof(PosColorVertex) * coneVertices.size()),
+        layout
+    );
+
+    bgfx::IndexBufferHandle ibh_cone = bgfx::createIndexBuffer(
+        bgfx::makeRef(coneIndices.data(), sizeof(uint16_t) * coneIndices.size())
+    );
+
 	
     //sphere generation
     std::vector<PosColorVertex> sphereVertices;
@@ -1718,18 +1754,176 @@ int main(void)
     std::vector<TextureOption> availableTextures;
     {
         TextureOption tex;
-        tex.name = "Rock";
-        tex.handle = loadTextureDDS("shaders\\texture1.dds");
+
+        // Asphalt 1
+        tex.name = "Asphalt 1";
+        tex.handle = loadTextureDDS("shaders\\Asphalt 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
-        tex.name = "Wood";
-        tex.handle = loadTextureDDS("shaders\\texture2.dds");
+        // Bark 1
+        tex.name = "Bark 1";
+        tex.handle = loadTextureDDS("shaders\\Bark 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
-        // add texture
+        // Brick 1
+        tex.name = "Brick 1";
+        tex.handle = loadTextureDDS("shaders\\Brick 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Carpet 1
+        tex.name = "Carpet 1";
+        tex.handle = loadTextureDDS("shaders\\Carpet 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Cobblestone 1
+        tex.name = "Cobblestone 1";
+        tex.handle = loadTextureDDS("shaders\\Cobblestone 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Concrete 1
+        tex.name = "Concrete 1";
+        tex.handle = loadTextureDDS("shaders\\Concrete 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Dirt 1
+        tex.name = "Dirt 1";
+        tex.handle = loadTextureDDS("shaders\\Dirt 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Fabric 1
+        tex.name = "Fabric 1";
+        tex.handle = loadTextureDDS("shaders\\Fabric 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Food 1
+        tex.name = "Food 1";
+        tex.handle = loadTextureDDS("shaders\\Food 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Glass 1
+        tex.name = "Glass 1";
+        tex.handle = loadTextureDDS("shaders\\Glass 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Glass 2
+        tex.name = "Glass 2";
+        tex.handle = loadTextureDDS("shaders\\Glass 2.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Grass 1
+        tex.name = "Grass 1";
+        tex.handle = loadTextureDDS("shaders\\Grass 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Grass 2
+        tex.name = "Grass 2";
+        tex.handle = loadTextureDDS("shaders\\Grass 2.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Leaves 1
+        tex.name = "Leaves 1";
+        tex.handle = loadTextureDDS("shaders\\Leaves 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Metal 1
+        tex.name = "Metal 10";
+        tex.handle = loadTextureDDS("shaders\\Metal 10.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Paint 1
+        tex.name = "Paint 1";
+        tex.handle = loadTextureDDS("shaders\\Paint 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Rock 1
+        tex.name = "Rock 1";
+        tex.handle = loadTextureDDS("shaders\\Rocks 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Shingles 1
+        tex.name = "Shingles 1";
+        tex.handle = loadTextureDDS("shaders\\Shingles 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Snow 1
+        tex.name = "Snow 1";
+        tex.handle = loadTextureDDS("shaders\\Snow 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Stone 1
+        tex.name = "Stone 1";
+        tex.handle = loadTextureDDS("shaders\\Stone 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Stone 2
+        tex.name = "Stone 2";
+        tex.handle = loadTextureDDS("shaders\\Stone 2.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Tile 1
+        tex.name = "Tile 1";
+        tex.handle = loadTextureDDS("shaders\\Tile 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Tile 2
+        tex.name = "Tile 2";
+        tex.handle = loadTextureDDS("shaders\\Tile 2.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Wood 1
+        tex.name = "Wood 1";
+        tex.handle = loadTextureDDS("shaders\\Wood 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Wood 2
+        tex.name = "Wood 2";
+        tex.handle = loadTextureDDS("shaders\\Wood 2.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Wood 3
+        tex.name = "Wood 3";
+        tex.handle = loadTextureDDS("shaders\\Wood 3.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Wooden Boards 1
+        tex.name = "Wooden Boards 1";
+        tex.handle = loadTextureDDS("shaders\\Wooden Boards 1.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Wooden Boards 2
+        tex.name = "Wooden Boards 2";
+        tex.handle = loadTextureDDS("shaders\\Wooden Boards 2.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
     }
+
 
     //plane
     bgfx::TextureHandle planeTexture = loadTextureDDS("shaders\\texture2.dds");
@@ -2066,7 +2260,7 @@ int main(void)
                     }
                     if (ImGui::MenuItem("Lights"))
                     {
-                        spawnLight(camera, vbh_sphere, ibh_sphere, instances);
+                        spawnLight(camera, vbh_sphere, ibh_sphere, vbh_cone, ibh_cone, instances);
                         std::cout << "Light spawned" << std::endl;
                     }
                     if (ImGui::MenuItem("Import OBJ"))
@@ -2211,6 +2405,18 @@ int main(void)
                        if (ImGui::Combo("Light Type", &currentType, lightTypes, IM_ARRAYSIZE(lightTypes)))
                        {
                            selectedInstance->lightProps.type = static_cast<LightType>(currentType);
+
+                           if (selectedInstance->lightProps.type == LightType::Point)
+                           {
+                               selectedInstance->vertexBuffer = vbh_sphere;
+                               selectedInstance->indexBuffer = ibh_sphere;
+                           }
+                           else if (selectedInstance->lightProps.type == LightType::Spot ||
+                               selectedInstance->lightProps.type == LightType::Directional)
+                           {
+                               selectedInstance->vertexBuffer = vbh_cone;
+                               selectedInstance->indexBuffer = ibh_cone;
+                           }
                        }
                        if (selectedInstance->lightProps.type == LightType::Directional ||
                            selectedInstance->lightProps.type == LightType::Spot)
@@ -2431,78 +2637,77 @@ int main(void)
             ImGui::End();
 
 
-        ImGui::Begin("Crosshatch Shader Settings");
-        const char* modeItems[] = { "Original", "Modified 1", "Modified 2", "Simple Lighting" };
-        ImGui::Combo("Shader Mode", &crosshatchMode, modeItems, IM_ARRAYSIZE(modeItems));
-        // --- Show controls depending on the mode ---
-        if (crosshatchMode == 0)
-        {
-            ImGui::Text("Original Crosshatch Settings:");
-            ImGui::ColorEdit4("Ink Color", inkColor);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Angle 2", &lineAngle2, 0.1f, 0.0f, TAU);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, -10.0f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
-        }
-        else if (crosshatchMode == 1)
-        {
-            ImGui::Text("Modified 1 Crosshatch Settings:");
-            ImGui::ColorEdit4("Ink Color", inkColor);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, -10.0f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
-        }
-        else if (crosshatchMode == 2)
-        {
-            ImGui::Text("Modified 2 Crosshatch Settings:");
-            ImGui::ColorEdit4("Ink Color", inkColor);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, -10.0f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            //------------
-            ImGui::DragFloat("Layer Pattern Scale", &layerPatternScale, 0.1f, 0.1f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Layer Stroke Multiplier", &layerStrokeMult, 0.1f, 0.0f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Layer Line Angle", &layerAngle, 0.1f, 0.0f, TAU);
-            ImGui::SetNextItemWidth(100);
-            ImGui::DragFloat("Layer Line Thickness", &layerLineThickness, 0.1f, -10.0f, 10.0f);
-            ImGui::SetNextItemWidth(100);
-            //------------
-            ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
-        }
-        else if (crosshatchMode == 3)
-        {
-            ImGui::Text("Simple Lighting (No Crosshatch)");
-        }
-        ImGui::End();
+            ImGui::Begin("Crosshatch Shader Settings");
+            const char* modeItems[] = { "Crosshatch Ver 1.0", "Crosshatch Ver 1.1", "Crosshatch Ver 1.2", "Simple Lighting" };
+            ImGui::Combo("Shader Mode", &crosshatchMode, modeItems, IM_ARRAYSIZE(modeItems));
+            // --- Show controls depending on the mode ---
+            if (crosshatchMode == 0)
+            {
+                ImGui::Text("Crosshatch Ver 1.0 Settings:");
+                ImGui::ColorEdit4("Hatch Color", inkColor);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Line Smoothness", &epsilonValue, 0.001f, 0.0f, 0.1f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Hatch Density", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Primary Hatch Angle", &lineAngle1, 0.1f, 0.0f, TAU);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Secondary Hatch Angle", &lineAngle2, 0.1f, 0.0f, TAU);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Hatch Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Line Weight", &lineThickness, 0.1f, -10.0f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Hatch Opacity", &transparencyValue, 0.01f, 0.0f, 1.0f);
+            }
+            else if (crosshatchMode == 1)
+            {
+                ImGui::Text("Crosshatch Ver 1.1 Settings:");
+                ImGui::ColorEdit4("Hatch Color", inkColor);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Line Smoothness", &epsilonValue, 0.001f, 0.0f, 0.1f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Hatch Density", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Hatch Angle", &lineAngle1, 0.1f, 0.0f, TAU);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Hatch Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Line Weight", &lineThickness, 0.1f, -10.0f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Hatch Opacity", &transparencyValue, 0.01f, 0.0f, 1.0f);
+            }
+            else if (crosshatchMode == 2)
+            {
+                ImGui::Text("Crosshatch Ver 1.2 Settings:");
+                ImGui::ColorEdit4("Hatch Color", inkColor);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Outer Line Smoothness", &epsilonValue, 0.001f, 0.0f, 0.1f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Outer Hatch Density", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Outer Hatch Angle", &lineAngle1, 0.1f, 0.0f, TAU);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Outer Hatch Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Outer Hatch Weight", &lineThickness, 0.1f, -10.0f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                // Inner layer settings:
+                ImGui::DragFloat("Inner Hatch Scale", &layerPatternScale, 0.1f, 0.1f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Inner Hatch Density", &layerStrokeMult, 0.1f, 0.0f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Inner Hatch Angle", &layerAngle, 0.1f, 0.0f, TAU);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Inner Hatch Weight", &layerLineThickness, 0.1f, -10.0f, 10.0f);
+                ImGui::SetNextItemWidth(100);
+                ImGui::DragFloat("Hatch Opacity", &transparencyValue, 0.01f, 0.0f, 1.0f);
+            }
+            else if (crosshatchMode == 3)
+            {
+                ImGui::Text("Simple Lighting (No Crosshatch)");
+            }
+            ImGui::End();
 
             ImGui::Render();
             ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
