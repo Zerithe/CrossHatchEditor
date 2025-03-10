@@ -77,23 +77,24 @@ bgfx::UniformHandle u_viewPos;
 // (Define TAU in C++ too)
 const float TAU = 6.28318530718f;
 // Declare static variables to hold our crosshatch parameters:
-static float epsilonValue = 0.02f;       // default epsilon
-static float strokeMultiplier = 5.0f;      // default stroke multiplier
-static float lineAngle1 = TAU / 8.0f;        // default first hatch angle factor
-static float lineAngle2 = TAU / 16.0f;       // default second hatch angle factor
+static float epsilonValue = 0.02f;              // Outer Line Smoothness or Epsilon
+static float strokeMultiplier = 1.0f;           // Outer Hatch Density or Stroke Multiplier
+static float lineAngle1 = TAU / 8.0f;           // Outer Hatch Angle or Line Angle 1
+static float lineAngle2 = TAU / 16.0f;          // Line Angle 2
 
 // These static variables will hold the extra parameter values.
-static float patternScale = 1.0f;   // default: no scaling
-static float lineThickness = 1.0f;  // default: no change
+static float patternScale = 3.0f;               // Outer Hatch Scale or Pattern Scale
+static float lineThickness = 0.3f;              // Outer Hatch Weight or Line Thickness
+
 // You can leave the remaining components as 0 (or later repurpose them)
-static float transparencyValue = 1.0f; //transparency value of lines or extraParamZ
-static int crosshatchMode = 2; // 0 = original, 1 = modified, 2 = another modified, 3 = basic shader
+static float transparencyValue = 1.0f;          // Hatch Opacity or Transparency
+static int crosshatchMode = 2;                  // 0 = hatch ver 1.0, 1 = hatch ver 1.1, 2 = hatch ver 1.2, 3 = basic shader
 
 // These static variables will hold the values for u_paramsLayer
-static float layerPatternScale = 0.7f;   // default: 0.3 or 0.7?
-static float layerStrokeMult = 0.3f;   // default: 0.3
-static float layerAngle = 2.983f;   // default: 2.983
-static float layerLineThickness = 10.0f;   // default: 10.0
+static float layerPatternScale = 1.0f;          // Inner Hatch Scale or Layer Pattern Scale
+static float layerStrokeMult = 2.50f;           // Inner Hatch Density or Layer Stroke Multiplier
+static float layerAngle = 2.983f;               // Inner Hatch Angle or Layer Angle
+static float layerLineThickness = 10.0f;        // Inner Hatch Weight or Layer Line Thickness
 
 static bgfx::UniformHandle u_uvTransform = BGFX_INVALID_HANDLE;
 static bgfx::UniformHandle u_albedoFactor = BGFX_INVALID_HANDLE;
@@ -111,6 +112,14 @@ static uint8_t s_pickingBlitData[PICKING_DIM * PICKING_DIM * 4] = { 0 };
 static bgfx::UniformHandle u_id = BGFX_INVALID_HANDLE;
 // Program handle for the picking pass.
 static bgfx::ProgramHandle pickingProgram = BGFX_INVALID_HANDLE;
+
+struct TextureOption {
+    std::string name;
+    bgfx::TextureHandle handle;
+};
+
+std::vector<TextureOption> availableNoiseTextures;
+int currentNoiseIndex = 0; // which noise texture is selected by the user
 
 struct MaterialParams
 {
@@ -135,6 +144,10 @@ struct Instance
     float objectColor[4];
     // NEW: optional diffuse texture for the object.
     bgfx::TextureHandle diffuseTexture = BGFX_INVALID_HANDLE;
+
+    // NEW: noise texture
+    bgfx::TextureHandle noiseTexture = BGFX_INVALID_HANDLE;
+
     MaterialParams material;
 
     // --- New for lights ---
@@ -150,23 +163,24 @@ struct Instance
 
     float inkColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
     // Declare variables to hold our crosshatch parameters:
-    float epsilonValue = 0.02f;       // default epsilon
-    float strokeMultiplier = 5.0f;      // default stroke multiplier
-    float lineAngle1 = TAU / 8.0f;        // default first hatch angle factor
-    float lineAngle2 = TAU / 16.0f;       // default second hatch angle factor
+    float epsilonValue = 0.02f;             // Outer Line Smoothness or Epsilon
+    float strokeMultiplier = 1.0f;          // Outer Hatch Density or Stroke Multiplier
+    float lineAngle1 = TAU / 8.0f;          // Outer Hatch Angle or Line Angle 1
+    float lineAngle2 = TAU / 16.0f;         // Line Angle 2
 
     // These variables will hold the extra parameter values.
-    float patternScale = 1.0f;   // default: no scaling
-    float lineThickness = 1.0f;  // default: no change
+    float patternScale = 3.0f;              // Outer Hatch Scale or Pattern Scale
+    float lineThickness = 0.3f;             // Outer Hatch Weight or Line Thickness
+
     // You can leave the remaining components as 0 (or later repurpose them)
-    float transparencyValue = 1.0f; //transparency value of lines or extraParamZ
-    int crosshatchMode = 2; // 0 = original, 1 = modified, 2 = another modified, 3 = basic shader
+    float transparencyValue = 1.0f;         // Hatch Opacity or Transparency
+    int crosshatchMode = 2;                 // 0 = hatch ver 1.0, 1 = hatch ver 1.1, 2 = hatch ver 1.2, 3 = basic shader
 
     // These variables will hold the values for u_paramsLayer
-    float layerPatternScale = 0.7f;   // default: 0.3 or 0.7?
-    float layerStrokeMult = 0.3f;   // default: 0.3
-    float layerAngle = 2.983f;   // default: 2.983
-    float layerLineThickness = 10.0f;   // default: 10.0
+    float layerPatternScale = 1.0f;         // Inner Hatch Scale or Layer Pattern Scale
+    float layerStrokeMult = 0.250f;         // Inner Hatch Density or Layer Stroke Multiplier
+    float layerAngle = 2.983f;              // Inner Hatch Angle or Layer Angle
+    float layerLineThickness = 10.0f;       // Inner Hatch Weight or Layer Line Thickness
 
     Instance(int instanceId, const std::string& instanceName, const std::string& instanceType, float x, float y, float z, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh)
         : id(instanceId), name(instanceName), type(instanceType), vertexBuffer(vbh), indexBuffer(ibh)
@@ -190,6 +204,8 @@ struct Instance
         material.albedo[1] = 1.0f; // g
         material.albedo[2] = 1.0f; // b
         material.albedo[3] = 1.0f; // a
+
+        noiseTexture = availableNoiseTextures[0].handle;
     }
     void addChild(Instance* child) {
         children.push_back(child);
@@ -197,10 +213,6 @@ struct Instance
     }
 };
 static Instance* selectedInstance = nullptr;
-struct TextureOption {
-    std::string name;
-    bgfx::TextureHandle handle;
-};
 
 struct MeshData {
     std::vector<PosColorVertex> vertices;
@@ -784,8 +796,8 @@ bool IsWhite(const float color[4], float epsilon = 0.001f)
         std::fabs(color[3] - 1.0f) < epsilon;
 }
 // Recursive draw function for hierarchy.
-void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, bgfx::ProgramHandle lightDebugProgram, bgfx::UniformHandle u_diffuseTex, bgfx::UniformHandle u_objectColor, bgfx::UniformHandle u_tint, bgfx::UniformHandle u_inkColor, bgfx::UniformHandle u_e, bgfx::UniformHandle u_params, bgfx::UniformHandle u_extraParams, bgfx::UniformHandle u_paramsLayer,
-    bgfx::TextureHandle defaultWhiteTexture, bgfx::TextureHandle inheritedTexture, const float* parentColor = nullptr, const float* parentTransform = nullptr)
+void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, bgfx::ProgramHandle lightDebugProgram, bgfx::UniformHandle u_noiseTex, bgfx::UniformHandle u_diffuseTex, bgfx::UniformHandle u_objectColor, bgfx::UniformHandle u_tint, bgfx::UniformHandle u_inkColor, bgfx::UniformHandle u_e, bgfx::UniformHandle u_params, bgfx::UniformHandle u_extraParams, bgfx::UniformHandle u_paramsLayer,
+    bgfx::TextureHandle defaultWhiteTexture, bgfx::TextureHandle inheritedNoiseTex, bgfx::TextureHandle inheritedTexture, const float* parentColor = nullptr, const float* parentTransform = nullptr)
 {
     float local[16];
     bx::mtxSRT(local,
@@ -870,6 +882,22 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, 
             textureToUse = defaultWhiteTexture;
         }
         bgfx::setTexture(1, u_diffuseTex, textureToUse);
+
+        // Decide which noise tex to use
+        bgfx::TextureHandle noiseTextureToUse;
+        if (inheritedNoiseTex.idx != bgfx::kInvalidHandle) {
+            noiseTextureToUse = inheritedNoiseTex;
+        }
+        else if (instance->noiseTexture.idx != bgfx::kInvalidHandle)
+        {
+            noiseTextureToUse = instance->noiseTexture;
+        }
+        else
+        {
+            noiseTextureToUse = availableNoiseTextures[0].handle;
+        }
+        bgfx::setTexture(0, u_noiseTex, noiseTextureToUse);
+
         // If the instance is a light and its debug visual is turned off,
         // skip drawing the sphere representation.
         if (instance->type == "light" && !instance->showDebugVisual)
@@ -893,10 +921,18 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, 
     {
         newInheritedTexture = instance->diffuseTexture;
     }
+    
+    // For children
+    bgfx::TextureHandle newInheritedNoiseTex = inheritedNoiseTex;
+    if (inheritedTexture.idx == bgfx::kInvalidHandle)
+    {
+        newInheritedNoiseTex = instance->noiseTexture;
+    }
+
     // Recursively draw children.
     for (const Instance* child : instance->children)
     {
-        drawInstance(child, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, u_tint, u_inkColor, u_e, u_params, u_extraParams, u_paramsLayer, defaultWhiteTexture, newInheritedTexture, childParentColor, world);
+        drawInstance(child, defaultProgram, lightDebugProgram, u_noiseTex, u_diffuseTex, u_objectColor, u_tint, u_inkColor, u_e, u_params, u_extraParams, u_paramsLayer, defaultWhiteTexture, inheritedNoiseTex, newInheritedTexture, childParentColor, world);
     }
 }
 // Recursive deletion for hierarchy.
@@ -1809,8 +1845,55 @@ int main(void)
     u_albedoFactor = bgfx::createUniform("u_albedoFactor", bgfx::UniformType::Vec4);
 
 
-    // SHADER TEXTURE
-    bgfx::TextureHandle noiseTexture = loadTextureDDS("shaders\\noise1.dds");
+    // SHADER NOISE TEXTURE
+    //bgfx::TextureHandle noiseTexture = loadTextureDDS("shaders\\noise1.dds");
+    {
+        TextureOption noiseTex;
+
+        noiseTex.name = "Noise 1 (Default)";
+        noiseTex.handle = loadTextureDDS("noise textures\\noise1.dds");
+        availableNoiseTextures.push_back(noiseTex);
+
+        noiseTex.name = "Noise 2";
+        noiseTex.handle = loadTextureDDS("noise textures\\noise2.dds");
+        availableNoiseTextures.push_back(noiseTex);
+
+        noiseTex.name = "Noise 3";
+        noiseTex.handle = loadTextureDDS("noise textures\\noise3.dds");
+        availableNoiseTextures.push_back(noiseTex);
+
+        noiseTex.name = "Noise 4";
+        noiseTex.handle = loadTextureDDS("noise textures\\noise4.dds");
+        availableNoiseTextures.push_back(noiseTex);
+
+        noiseTex.name = "Noise 5";
+        noiseTex.handle = loadTextureDDS("noise textures\\noise5.dds");
+        availableNoiseTextures.push_back(noiseTex);
+
+        noiseTex.name = "Noise 6";
+        noiseTex.handle = loadTextureDDS("noise textures\\noise6.dds");
+        availableNoiseTextures.push_back(noiseTex);
+
+        noiseTex.name = "Noise 7";
+        noiseTex.handle = loadTextureDDS("noise textures\\noise7.dds");
+        availableNoiseTextures.push_back(noiseTex);
+
+        noiseTex.name = "Noise 8";
+        noiseTex.handle = loadTextureDDS("noise textures\\noise8.dds");
+        availableNoiseTextures.push_back(noiseTex);
+
+        noiseTex.name = "Noise 9";
+        noiseTex.handle = loadTextureDDS("noise textures\\noise9.dds");
+        availableNoiseTextures.push_back(noiseTex);
+
+        noiseTex.name = "Noise 10";
+        noiseTex.handle = loadTextureDDS("noise textures\\noise10.dds");
+        availableNoiseTextures.push_back(noiseTex);
+
+        noiseTex.name = "Noise 11";
+        noiseTex.handle = loadTextureDDS("noise textures\\noise11.dds");
+        availableNoiseTextures.push_back(noiseTex);
+    }
 
 
     // Texture
@@ -2009,6 +2092,12 @@ int main(void)
     bgfx::ShaderHandle debugVsh = loadShader("shaders\\v_lightdebug_out1.bin");
     bgfx::ShaderHandle debugFsh = loadShader("shaders\\f_lightdebug_out1.bin");
     bgfx::ProgramHandle lightDebugProgram = bgfx::createProgram(debugVsh, debugFsh, true);
+
+    //spawn plane
+    spawnInstance(camera, "plane", "plane", vbh_plane, ibh_plane, instances);
+    instances.back()->position[0] = 0.0f;
+    instances.back()->position[1] = -4.0f;
+    instances.back()->position[2] = 0.0f;
 
     // --- Spawn Cornell Box with Hierarchy ---
     Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", 8.0f, 0.0f, -5.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
@@ -2701,9 +2790,10 @@ int main(void)
 
 
             ImGui::Begin("Crosshatch Shader Settings");
-            if (selectedInstance) {
+            if (selectedInstance && selectedInstance->isLight == false) {
                 const char* modeItems[] = { "Crosshatch Ver 1.0", "Crosshatch Ver 1.1", "Crosshatch Ver 1.2", "Simple Lighting" };
                 ImGui::Combo("Shader Mode", &selectedInstance->crosshatchMode, modeItems, IM_ARRAYSIZE(modeItems));
+                ImGui::Spacing(); ImGui::Spacing();
                 // --- Show controls depending on the mode ---
                 if (selectedInstance->crosshatchMode == 0)
                 {
@@ -2770,6 +2860,56 @@ int main(void)
                 else if (selectedInstance->crosshatchMode == 3)
                 {
                     ImGui::Text("Simple Lighting (No Crosshatch)");
+                }
+
+                // New: noise texture selection
+                if (!availableNoiseTextures.empty() && selectedInstance->crosshatchMode != 3)
+                {
+                    // Automatically update currentNoiseIndex based on the instance's noise texture.
+                    bool found = false;
+                    for (int i = 0; i < (int)availableNoiseTextures.size(); i++)
+                    {
+                        if (availableNoiseTextures[i].handle.idx == selectedInstance->noiseTexture.idx)
+                        {
+                            currentNoiseIndex = i;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                    {
+                        // If the instance doesn't have a valid noise texture, default to index 0.
+                        currentNoiseIndex = 0;
+                        selectedInstance->noiseTexture = availableNoiseTextures[0].handle;
+                    }
+
+                    // Build an array of c-strings from the names in availableNoiseTextures
+                    std::vector<const char*> noiseNames;
+                    noiseNames.reserve(availableNoiseTextures.size());
+                    for (auto& n : availableNoiseTextures)
+                    {
+                        noiseNames.push_back(n.name.c_str());
+                    }
+
+                    ImGui::Spacing(); ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::Spacing(); ImGui::Spacing();
+                    // Let user pick which noise texture to use
+                    if (ImGui::Combo("Noise Pattern", &currentNoiseIndex, noiseNames.data(), (int)noiseNames.size()))
+                    {
+                        selectedInstance->noiseTexture = availableNoiseTextures[currentNoiseIndex].handle;
+                    }
+
+                    ImGui::Text("Noise Texture Preview:");
+                    if (bgfx::isValid(selectedInstance->noiseTexture))
+                    {
+                        ImTextureID noiseID = (ImTextureID)(uintptr_t)(selectedInstance->noiseTexture.idx);
+                        ImGui::Image(noiseID, ImVec2(256, 256));
+                    }
+                    else
+                    {
+                        ImGui::Text("No valid noise texture selected.");
+                    }
                 }
             }
             ImGui::End();
@@ -3045,7 +3185,7 @@ int main(void)
         // Set epsilon uniform:
         float epsilonUniform[4] = { epsilonValue, 0.0f, 0.0f, 0.0f };
         bgfx::setUniform(u_e, epsilonUniform);
-        bgfx::setTexture(0, u_noiseTex, noiseTexture); // Bind the noise texture to texture stage 0.
+        //bgfx::setTexture(0, u_noiseTex, availableNoiseTextures[currentNoiseIndex].handle); // Bind the noise texture to texture
 
         // Prepare an array of 4 floats.
         // Set u_params uniform:
@@ -3066,14 +3206,6 @@ int main(void)
         // Enable stats or debug text
         bgfx::setDebug(s_showStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 
-        float planeModel[16];
-        //bx::mtxIdentity(planeModel);
-        bx::mtxTranslate(planeModel, 0.0f, -4.0f, 0.0f); // Adjust -1.0f to your desired offset
-        bgfx::setTransform(planeModel);
-
-        bgfx::setVertexBuffer(0, vbh_plane);
-        bgfx::setIndexBuffer(ibh_plane);
-        bgfx::setTexture(1, u_diffuseTex, planeTexture); // Bind the fixed plane texture:
         const float tintBasic[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
         bgfx::setUniform(u_tint, tintBasic);
         bgfx::submit(0, defaultProgram);
@@ -3107,7 +3239,7 @@ int main(void)
             //    (r, g, b, a)
             bgfx::setUniform(u_albedoFactor, instance->material.albedo);
 
-            drawInstance(instance, defaultProgram, lightDebugProgram, u_diffuseTex, u_objectColor, u_tint, u_inkColor, u_e, u_params, u_extraParams, u_paramsLayer, defaultWhiteTexture, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
+            drawInstance(instance, defaultProgram, lightDebugProgram, u_noiseTex, u_diffuseTex, u_objectColor, u_tint, u_inkColor, u_e, u_params, u_extraParams, u_paramsLayer, defaultWhiteTexture, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
         }
 
         // Update your vertex layout to include normals

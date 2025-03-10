@@ -13,6 +13,7 @@ project ("CrossHatchEditor")
 
 set(SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
 set(MESHES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/meshes")
+set(NOISE_TEX_DIR "${CMAKE_CURRENT_SOURCE_DIR}/noise textures")
 
 # Generate Shaders
 
@@ -60,6 +61,8 @@ include_directories(${SHADERS_DIR})
 file(COPY ${MESHES_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${MESHES_DIR})
 
+file(COPY ${NOISE_TEX_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${NOISE_TEX_DIR})
 
 set(IMGUI_PATH ${CMAKE_CURRENT_LIST_DIR}/imgui)
 file(GLOB IMGUI_GLOB
