@@ -1228,6 +1228,14 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
         instance->lightProps.color[0] = lightColor[0]; instance->lightProps.color[1] = lightColor[1]; instance->lightProps.color[2] = lightColor[2]; instance->lightProps.color[3] = lightColor[3];
         if (instance->type == "light") {
             instance->isLight = true;
+            if (instance->lightProps.type == LightType::Spot || instance->lightProps.type == LightType::Directional) {
+                auto it = bufferMap.find("cone");
+                if (it != bufferMap.end())
+                {
+                    instance->vertexBuffer = it->second.first;
+                    instance->indexBuffer = it->second.second;
+                }
+            }
         }
         instance->inkColor[0] = inkColor[0]; instance->inkColor[1] = inkColor[1]; instance->inkColor[2] = inkColor[2]; instance->inkColor[3] = inkColor[3];
         instance->epsilonValue = epsilonValue;
@@ -1786,6 +1794,7 @@ int main(void)
     bufferMap["bunny"] = { vbh_bunny, ibh_bunny };
     bufferMap["lucy"] = { vbh_lucy, ibh_lucy };
     bufferMap["light"] = { vbh_sphere, ibh_sphere };
+	bufferMap["cone"] = { vbh_cone, ibh_cone };
 
 
     std::unordered_map<std::string, std::string> importedObjMap;
