@@ -128,6 +128,14 @@ struct MaterialParams
     float albedo[4];     // (r, g, b, a)
 };
 
+// Define a struct to hold animation parameters for a light.
+struct LightAnimation {
+    bool enabled = false;                       // Toggle animation on/off.
+    float amplitude[3] = { 6.0f, 0.0f, 0.0f };  // Amplitude for x, y, z motion.
+    float frequency[3] = { 1.0f, 1.0f, 1.0f };  // Frequency (Hz) for each axis.
+    float phase[3]     = { 0.0f, 0.0f, 0.0f };  // Phase offset for each axis.
+};
+
 struct Instance
 {
     int id;
@@ -153,6 +161,12 @@ struct Instance
     // --- New for lights ---
     bool isLight = false;
     LightProperties lightProps; // Valid if isLight == true.
+
+    // NEW: Store the base (original) position for animation.
+    float basePosition[3];
+
+    // NEW: Animation parameters for lights.
+    LightAnimation lightAnim;
 
     // NEW: For light objects only – determines if the debug visual (the sphere)
     // is drawn. (Default true.)
@@ -206,6 +220,8 @@ struct Instance
         material.albedo[3] = 1.0f; // a
 
         noiseTexture = availableNoiseTextures[0].handle;
+        // Store base position for animation.
+        basePosition[0] = x; basePosition[1] = y; basePosition[2] = z;
     }
     void addChild(Instance* child) {
         children.push_back(child);
@@ -2556,6 +2572,7 @@ int main(void)
 
                     if (selectedInstance->isLight)
                     {
+                        ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
                         ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
                         if (ImGui::CollapsingHeader("Light Settings"))
                         {
@@ -2596,6 +2613,37 @@ int main(void)
                             {
                                 ImGui::DragFloat("Cone Angle", &selectedInstance->lightProps.coneAngle, 0.1f, 0.0f, 3.14f);
                             }
+
+                            if (selectedInstance->lightProps.type == LightType::Point ||
+                                selectedInstance->lightProps.type == LightType::Spot)
+                            {
+                                ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
+                                ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+                                if (ImGui::CollapsingHeader("Light Animation Settings"))
+                                {
+                                    ImGui::Separator();
+                                    // Animate Light control:
+                                    bool animEnabled = selectedInstance->lightAnim.enabled;
+                                    if (ImGui::Checkbox("Animate Light", &animEnabled))
+                                    {
+                                        // When the user toggles the checkbox, update the instance's animation state.
+                                        selectedInstance->lightAnim.enabled = animEnabled;
+                                        // If animation has just been enabled, set the base position to the current position.
+                                        if (animEnabled)
+                                        {
+                                            for (int i = 0; i < 3; i++)
+                                            {
+                                                selectedInstance->basePosition[i] = selectedInstance->position[i];
+                                            }
+                                        }
+                                    }
+                                    ImGui::DragFloat3("Animation Amplitude", selectedInstance->lightAnim.amplitude, 0.1f, 0.0f, 10.0f);
+                                    ImGui::DragFloat3("Animation Frequency", selectedInstance->lightAnim.frequency, 0.1f, 0.0f, 10.0f);
+                                    ImGui::DragFloat3("Animation Phase", selectedInstance->lightAnim.phase, 0.1f, 0.0f, 10.0f);
+                                }
+                            }
+
+                            ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
                             // Add a checkbox to show or hide the debug visual of the light.
                             bool debugVisible = selectedInstance->showDebugVisual;
                             if (ImGui::Checkbox("Show Light Debug Visual", &debugVisible))
@@ -3247,6 +3295,15 @@ int main(void)
             // 2) Albedo factor
             //    (r, g, b, a)
             bgfx::setUniform(u_albedoFactor, instance->material.albedo);
+
+            if (instance->isLight && instance->lightAnim.enabled) {
+                float time = static_cast<float>(glfwGetTime());
+                // Update each axis (x, y, z) with a sine-based offset.
+                for (int i = 0; i < 3; i++) {
+                    instance->position[i] = instance->basePosition[i] +
+                        instance->lightAnim.amplitude[i] * sin(time * instance->lightAnim.frequency[i] + instance->lightAnim.phase[i]);
+                }
+            }
 
             drawInstance(instance, defaultProgram, lightDebugProgram, u_noiseTex, u_diffuseTex, u_objectColor, u_tint, u_inkColor, u_e, u_params, u_extraParams, u_paramsLayer, defaultWhiteTexture, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
         }
