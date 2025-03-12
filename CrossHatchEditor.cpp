@@ -196,6 +196,13 @@ struct Instance
     float layerAngle = 2.983f;              // Inner Hatch Angle or Layer Angle
     float layerLineThickness = 10.0f;       // Inner Hatch Weight or Layer Line Thickness
 
+    //variables for rotating spot light
+    float centerX = 0.0f;
+    float centerZ = 0.0f;
+    float radius = 5.0f;
+    float rotationSpeed = 0.5f;
+    float instanceAngle = 0.0f;
+
     Instance(int instanceId, const std::string& instanceName, const std::string& instanceType, float x, float y, float z, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh)
         : id(instanceId), name(instanceName), type(instanceType), vertexBuffer(vbh), indexBuffer(ibh)
     {
@@ -1083,19 +1090,35 @@ void saveInstance(std::ofstream& file, const Instance* instance,
         }
     }
 
+    std::string noiseTextureName = "none";
+    for (const auto& tex : availableNoiseTextures)
+    {
+        if (instance->noiseTexture.idx == tex.handle.idx)
+        {
+            noiseTextureName = tex.name;
+            break;
+        }
+    }
+
     file << instance->id << " " << instance->type << " " << instance->name << " "
         << instance->position[0] << " " << instance->position[1] << " " << instance->position[2] << " "
         << instance->rotation[0] << " " << instance->rotation[1] << " " << instance->rotation[2] << " "
         << instance->scale[0] << " " << instance->scale[1] << " " << instance->scale[2] << " "
         << instance->objectColor[0] << " " << instance->objectColor[1] << " " << instance->objectColor[2] << " " << instance->objectColor[3] << " "
-        << textureName << " " << parentID << " " << static_cast<int>(instance->lightProps.type) << " " << instance->lightProps.direction[0] << " "
+        << textureName << " " << noiseTextureName << " " << parentID << " " << static_cast<int>(instance->lightProps.type) << " " << instance->lightProps.direction[0] << " "
         << instance->lightProps.direction[1] << " " << instance->lightProps.direction[2] << " " << instance->lightProps.intensity << " "
         << instance->lightProps.range << " " << instance->lightProps.coneAngle << " " << instance->lightProps.color[0] << " "
         << instance->lightProps.color[1] << " " << instance->lightProps.color[2] << " " << instance->lightProps.color[3] << " "
         << instance->inkColor[0] << " " << instance->inkColor[1] << " " << instance->inkColor[2] << " " << instance->inkColor[3] << " "
         << instance->epsilonValue << " " << instance->strokeMultiplier << " " << instance->lineAngle1 << " " << instance->lineAngle2 << " "
         << instance->patternScale << " " << instance->lineThickness << " " << instance->transparencyValue << " " << instance->crosshatchMode << " "
-        << instance->layerPatternScale << " " << instance->layerStrokeMult << " " << instance->layerAngle << " " << instance->layerLineThickness << "\n"; // Save `type` and parentID
+        << instance->layerPatternScale << " " << instance->layerStrokeMult << " " << instance->layerAngle << " " << instance->layerLineThickness << " "
+        << instance->centerX << " " << instance->centerZ << " " << instance->radius << " " << instance->rotationSpeed << " " << instance->instanceAngle << " "
+        << instance->basePosition[0] << " " << instance->basePosition[1] << " " << instance->basePosition[2] << " " 
+        << instance->lightAnim.amplitude[0] << " " << instance->lightAnim.amplitude[1] << " " << instance->lightAnim.amplitude[2] << " " 
+        << instance->lightAnim.frequency[0] << " " << instance->lightAnim.frequency[1] << " " << instance->lightAnim.frequency[2] << " "
+        << instance->lightAnim.phase[0] << " " << instance->lightAnim.phase[1] << " " << instance->lightAnim.phase[2] << " "
+        << static_cast<int>(instance->lightAnim.enabled) << "\n"; // Save `type` and parentID
 
     // Recursively save children
     for (const Instance* child : instance->children)
@@ -1193,23 +1216,29 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
     while (std::getline(file, line))
     {
         std::istringstream iss(line);
-        int id, parentID, lightType, crosshatchMode;
-        std::string type, name, textureName;
-        float pos[3], rot[3], scale[3], color[4], lightDirection[3], intensity, range, coneAngle, lightColor[4], inkColor[4], epsilonValue, strokeMultiplier, lineAngle1, lineAngle2, patternScale, lineThickness, transparencyValue, layerPatternScale, layerStrokeMult, layerAngle, layerLineThickness;
+        int id, parentID, lightType, crosshatchMode, animationEnabled;
+        std::string type, name, textureName, noiseTextureName;
+        float pos[3], rot[3], scale[3], color[4], lightDirection[3], intensity, range, coneAngle, lightColor[4], inkColor[4], epsilonValue, strokeMultiplier, lineAngle1, lineAngle2, patternScale, lineThickness, transparencyValue, layerPatternScale, layerStrokeMult, layerAngle, layerLineThickness, centerX, centerZ, radius, rotationSpeed, instanceAngle, basePosition[3], amplitude[3], frequency[3], phase[3];
 
         iss >> id >> type >> name
             >> pos[0] >> pos[1] >> pos[2]
             >> rot[0] >> rot[1] >> rot[2]
             >> scale[0] >> scale[1] >> scale[2]
             >> color[0] >> color[1] >> color[2] >> color[3]
-            >> textureName >> parentID >> lightType
+            >> textureName >> noiseTextureName >> parentID >> lightType
             >> lightDirection[0] >> lightDirection[1] >> lightDirection[2]
             >> intensity >> range >> coneAngle
             >> lightColor[0] >> lightColor[1] >> lightColor[2] >> lightColor[3]
             >> inkColor[0] >> inkColor[1] >> inkColor[2] >> inkColor[3]
             >> epsilonValue >> strokeMultiplier >> lineAngle1 >> lineAngle2
             >> patternScale >> lineThickness >> transparencyValue >> crosshatchMode
-            >> layerPatternScale >> layerStrokeMult >> layerAngle >> layerLineThickness;
+            >> layerPatternScale >> layerStrokeMult >> layerAngle >> layerLineThickness
+            >> centerX >> centerZ >> radius >> rotationSpeed >> instanceAngle
+            >> basePosition[0] >> basePosition[1] >> basePosition[2]
+            >> amplitude[0] >> amplitude[1] >> amplitude[2]
+			>> frequency[0] >> frequency[1] >> frequency[2]
+            >> phase[0] >> phase[1] >> phase[2]
+            >> animationEnabled;
 
         // Fetch correct buffers using `type`
         bgfx::VertexBufferHandle vbh = BGFX_INVALID_HANDLE;
@@ -1266,6 +1295,16 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
         instance->layerStrokeMult = layerStrokeMult;
         instance->layerAngle = layerAngle;
         instance->layerLineThickness = layerLineThickness;
+        instance->centerX = centerX;
+        instance->centerZ = centerZ;
+        instance->radius = radius;
+        instance->rotationSpeed = rotationSpeed;
+        instance->instanceAngle = instanceAngle;
+		instance->basePosition[0] = basePosition[0]; instance->basePosition[1] = basePosition[1]; instance->basePosition[2] = basePosition[2];
+		instance->lightAnim.amplitude[0] = amplitude[0]; instance->lightAnim.amplitude[1] = amplitude[1]; instance->lightAnim.amplitude[2] = amplitude[2];
+		instance->lightAnim.frequency[0] = frequency[0]; instance->lightAnim.frequency[1] = frequency[1]; instance->lightAnim.frequency[2] = frequency[2];
+		instance->lightAnim.phase[0] = phase[0]; instance->lightAnim.phase[1] = phase[1]; instance->lightAnim.phase[2] = phase[2];
+		instance->lightAnim.enabled = static_cast<bool>(animationEnabled);
 
         // Assign texture
         instance->diffuseTexture = BGFX_INVALID_HANDLE;
@@ -1280,6 +1319,20 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
                 }
             }
         }
+
+		// Assign noise texture
+		instance->noiseTexture = BGFX_INVALID_HANDLE;
+		if (noiseTextureName != "none")
+		{
+			for (const auto& tex : availableNoiseTextures)
+			{
+				if (tex.name == noiseTextureName)
+				{
+					instance->noiseTexture = tex.handle;
+					break;
+				}
+			}
+		}
 
         instanceMap[id] = instance;
 
@@ -1546,6 +1599,43 @@ void collectLights(const Instance* inst, float* lightsData, int& numLights, cons
     }
 }
 
+// Add this to your code - preferably right before main() or in a utility file
+void updateRotatingLights(std::vector<Instance*>& instances, float deltaTime) {
+    for (Instance* inst : instances) {
+        if (inst->isLight && inst->name.find("rotating_light") != std::string::npos) {
+            // Update angle by speed factor 
+            inst->instanceAngle -= deltaTime * inst->rotationSpeed;
+
+            if (inst->instanceAngle < 0) {
+                inst->instanceAngle += TAU;  // Keep the angle within [0, TAU]
+            }
+            else if (inst->instanceAngle > TAU) {
+                inst->instanceAngle -= TAU;  // Keep the angle within [0, TAU]
+            }
+            // Update position
+            inst->position[0] = inst->centerX + inst->radius * cos(inst->instanceAngle);
+            inst->position[2] = inst->centerZ + inst->radius * sin(inst->instanceAngle);
+
+            // Calculate direction vector to center point (0,0,0)
+            float dirX = inst->centerX - inst->position[0];
+            float dirZ = inst->centerZ - inst->position[2];
+
+            // Normalize the direction
+            float length = sqrt(dirX * dirX + dirZ * dirZ);
+            if (length > 0.001f) {
+                dirX /= length;
+                dirZ /= length;
+
+                // Convert direction to rotation angles
+                // Yaw (Y-axis rotation) - determines the horizontal orientation
+                inst->rotation[1] = atan2(dirZ, dirX) + 3.14159f / 2.0f;
+
+                // Keep roll (Z-axis rotation) at 0
+                inst->rotation[2] = 0.0f;
+            }
+        }
+    }
+}
 
 int main(void)
 {
@@ -1875,47 +1965,47 @@ int main(void)
     {
         TextureOption noiseTex;
 
-        noiseTex.name = "Noise 1 (Default)";
+        noiseTex.name = "Noise1(Default)";
         noiseTex.handle = loadTextureDDS("noise textures\\noise1.dds");
         availableNoiseTextures.push_back(noiseTex);
 
-        noiseTex.name = "Noise 2";
+        noiseTex.name = "Noise2";
         noiseTex.handle = loadTextureDDS("noise textures\\noise2.dds");
         availableNoiseTextures.push_back(noiseTex);
 
-        noiseTex.name = "Noise 3";
+        noiseTex.name = "Noise3";
         noiseTex.handle = loadTextureDDS("noise textures\\noise3.dds");
         availableNoiseTextures.push_back(noiseTex);
 
-        noiseTex.name = "Noise 4";
+        noiseTex.name = "Noise4";
         noiseTex.handle = loadTextureDDS("noise textures\\noise4.dds");
         availableNoiseTextures.push_back(noiseTex);
 
-        noiseTex.name = "Noise 5";
+        noiseTex.name = "Noise5";
         noiseTex.handle = loadTextureDDS("noise textures\\noise5.dds");
         availableNoiseTextures.push_back(noiseTex);
 
-        noiseTex.name = "Noise 6";
+        noiseTex.name = "Noise6";
         noiseTex.handle = loadTextureDDS("noise textures\\noise6.dds");
         availableNoiseTextures.push_back(noiseTex);
 
-        noiseTex.name = "Noise 7";
+        noiseTex.name = "Noise7";
         noiseTex.handle = loadTextureDDS("noise textures\\noise7.dds");
         availableNoiseTextures.push_back(noiseTex);
 
-        noiseTex.name = "Noise 8";
+        noiseTex.name = "Noise8";
         noiseTex.handle = loadTextureDDS("noise textures\\noise8.dds");
         availableNoiseTextures.push_back(noiseTex);
 
-        noiseTex.name = "Noise 9";
+        noiseTex.name = "Noise9";
         noiseTex.handle = loadTextureDDS("noise textures\\noise9.dds");
         availableNoiseTextures.push_back(noiseTex);
 
-        noiseTex.name = "Noise 10";
+        noiseTex.name = "Noise10";
         noiseTex.handle = loadTextureDDS("noise textures\\noise10.dds");
         availableNoiseTextures.push_back(noiseTex);
 
-        noiseTex.name = "Noise 11";
+        noiseTex.name = "Noise11";
         noiseTex.handle = loadTextureDDS("noise textures\\noise11.dds");
         availableNoiseTextures.push_back(noiseTex);
     }
@@ -1927,169 +2017,169 @@ int main(void)
         TextureOption tex;
 
         // Asphalt 1
-        tex.name = "Asphalt 1";
+        tex.name = "Asphalt1";
         tex.handle = loadTextureDDS("shaders\\Asphalt 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Bark 1
-        tex.name = "Bark 1";
+        tex.name = "Bark1";
         tex.handle = loadTextureDDS("shaders\\Bark 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Brick 1
-        tex.name = "Brick 1";
+        tex.name = "Brick1";
         tex.handle = loadTextureDDS("shaders\\Brick 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Carpet 1
-        tex.name = "Carpet 1";
+        tex.name = "Carpet1";
         tex.handle = loadTextureDDS("shaders\\Carpet 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Cobblestone 1
-        tex.name = "Cobblestone 1";
+        tex.name = "Cobblestone1";
         tex.handle = loadTextureDDS("shaders\\Cobblestone 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Concrete 1
-        tex.name = "Concrete 1";
+        tex.name = "Concrete1";
         tex.handle = loadTextureDDS("shaders\\Concrete 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Dirt 1
-        tex.name = "Dirt 1";
+        tex.name = "Dirt1";
         tex.handle = loadTextureDDS("shaders\\Dirt 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Fabric 1
-        tex.name = "Fabric 1";
+        tex.name = "Fabric1";
         tex.handle = loadTextureDDS("shaders\\Fabric 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Food 1
-        tex.name = "Food 1";
+        tex.name = "Food1";
         tex.handle = loadTextureDDS("shaders\\Food 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Glass 1
-        tex.name = "Glass 1";
+        tex.name = "Glass1";
         tex.handle = loadTextureDDS("shaders\\Glass 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Glass 2
-        tex.name = "Glass 2";
+        tex.name = "Glass2";
         tex.handle = loadTextureDDS("shaders\\Glass 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Grass 1
-        tex.name = "Grass 1";
+        tex.name = "Grass1";
         tex.handle = loadTextureDDS("shaders\\Grass 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Grass 2
-        tex.name = "Grass 2";
+        tex.name = "Grass2";
         tex.handle = loadTextureDDS("shaders\\Grass 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Leaves 1
-        tex.name = "Leaves 1";
+        tex.name = "Leaves1";
         tex.handle = loadTextureDDS("shaders\\Leaves 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Metal 1
-        tex.name = "Metal 10";
+        tex.name = "Metal10";
         tex.handle = loadTextureDDS("shaders\\Metal 10.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Paint 1
-        tex.name = "Paint 1";
+        tex.name = "Paint1";
         tex.handle = loadTextureDDS("shaders\\Paint 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Rock 1
-        tex.name = "Rock 1";
+        tex.name = "Rock1";
         tex.handle = loadTextureDDS("shaders\\Rocks 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Shingles 1
-        tex.name = "Shingles 1";
+        tex.name = "Shingles1";
         tex.handle = loadTextureDDS("shaders\\Shingles 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Snow 1
-        tex.name = "Snow 1";
+        tex.name = "Snow1";
         tex.handle = loadTextureDDS("shaders\\Snow 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Stone 1
-        tex.name = "Stone 1";
+        tex.name = "Stone1";
         tex.handle = loadTextureDDS("shaders\\Stone 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Stone 2
-        tex.name = "Stone 2";
+        tex.name = "Stone2";
         tex.handle = loadTextureDDS("shaders\\Stone 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Tile 1
-        tex.name = "Tile 1";
+        tex.name = "Tile1";
         tex.handle = loadTextureDDS("shaders\\Tile 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Tile 2
-        tex.name = "Tile 2";
+        tex.name = "Tile2";
         tex.handle = loadTextureDDS("shaders\\Tile 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Wood 1
-        tex.name = "Wood 1";
+        tex.name = "Wood1";
         tex.handle = loadTextureDDS("shaders\\Wood 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Wood 2
-        tex.name = "Wood 2";
+        tex.name = "Wood2";
         tex.handle = loadTextureDDS("shaders\\Wood 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Wood 3
-        tex.name = "Wood 3";
+        tex.name = "Wood3";
         tex.handle = loadTextureDDS("shaders\\Wood 3.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Wooden Boards 1
-        tex.name = "Wooden Boards 1";
+        tex.name = "Wooden Boards1";
         tex.handle = loadTextureDDS("shaders\\Wooden Boards 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Wooden Boards 2
-        tex.name = "Wooden Boards 2";
+        tex.name = "Wooden Boards2";
         tex.handle = loadTextureDDS("shaders\\Wooden Boards 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
@@ -2435,11 +2525,30 @@ int main(void)
                         }
                         ImGui::EndMenu();
                     }
-                    if (ImGui::MenuItem("Lights"))
+                    if (ImGui::BeginMenu("Lights"))
                     {
-                        spawnLight(camera, vbh_sphere, ibh_sphere, vbh_cone, ibh_cone, instances);
-                        std::cout << "Light spawned" << std::endl;
+                        if (ImGui::MenuItem("Regular Light"))
+                        {
+                            spawnLight(camera, vbh_sphere, ibh_sphere, vbh_cone, ibh_cone, instances);
+                            std::cout << "Light spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Rotating Spotlight"))
+                        {
+                            float radius = 5.0f;
+                            float height = 5.0f;
+                            Instance* rotatingLight = new Instance(instanceCounter++, "rotating_light", "light",
+                                radius, height, 0.0f, vbh_cone, ibh_cone);
+                            rotatingLight->isLight = true;
+                            rotatingLight->lightProps.type = LightType::Spot;
+                            rotatingLight->lightProps.intensity = 2.0f;
+                            rotatingLight->lightProps.range = 20.0f;
+                            rotatingLight->lightProps.coneAngle = 0.5f;  // Narrower beam
+                            instances.push_back(rotatingLight);
+                            std::cout << "Rotating spotlight added" << std::endl;
+                        }
+                        ImGui::EndMenu();
                     }
+
                     if (ImGui::MenuItem("Import OBJ"))
                     {
                         // Define filter for multiple 3D model formats
@@ -2650,6 +2759,15 @@ int main(void)
                             {
                                 selectedInstance->showDebugVisual = debugVisible;
                             }
+                            ImGui::Separator();
+                            if (selectedInstance->name.find("rotating_light") != std::string::npos) {
+                                ImGui::Text("Rotating Light Properties:");
+                                ImGui::DragFloat("Radius", &selectedInstance->radius, 0.1f, 0.0f, 100.0f);
+                                ImGui::DragFloat("Center X", &selectedInstance->centerX, 0.1f);
+                                ImGui::DragFloat("Center Z", &selectedInstance->centerZ, 0.1f);
+                                ImGui::DragFloat("Rotation Speed", &selectedInstance->rotationSpeed, 0.1f);
+                            }
+
                         }
                     }
                     else {
@@ -3262,6 +3380,14 @@ int main(void)
 
         // Enable stats or debug text
         bgfx::setDebug(s_showStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
+
+        // Calculate delta time
+        static float lastFrameTime = 0.0f;
+        float currentTime = glfwGetTime();
+        float deltaTime = currentTime - lastFrameTime;
+        lastFrameTime = currentTime;
+        // Update rotating lights
+        updateRotatingLights(instances, deltaTime);
 
         const float tintBasic[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
         bgfx::setUniform(u_tint, tintBasic);
