@@ -1637,6 +1637,130 @@ void updateRotatingLights(std::vector<Instance*>& instances, float deltaTime) {
     }
 }
 
+// Structure to hold mesh data along with its node’s global transform.
+struct ImportedMesh {
+    MeshData meshData;
+    aiMatrix4x4 transform; // Global transform (accumulated from the scene hierarchy)
+};
+
+// Recursive function to traverse the scene graph. For each node, we extract its meshes and
+// record the global transform (parentTransform * node->mTransformation).
+void processNode(const aiScene* scene, aiNode* node, const aiMatrix4x4& parentTransform, std::vector<ImportedMesh>& importedMeshes) {
+    aiMatrix4x4 globalTransform = parentTransform * node->mTransformation;
+
+    // Process each mesh referenced by this node.
+    for (unsigned int i = 0; i < node->mNumMeshes; i++) {
+        unsigned int meshIndex = node->mMeshes[i];
+        aiMesh* mesh = scene->mMeshes[meshIndex];
+        MeshData meshData;
+        size_t baseIndex = meshData.vertices.size();
+
+        // Process vertices.
+        for (unsigned int j = 0; j < mesh->mNumVertices; j++) {
+            PosColorVertex vertex;
+            vertex.x = mesh->mVertices[j].x;
+            vertex.y = mesh->mVertices[j].y;
+            vertex.z = mesh->mVertices[j].z;
+            if (mesh->HasNormals()) {
+                vertex.nx = mesh->mNormals[j].x;
+                vertex.ny = mesh->mNormals[j].y;
+                vertex.nz = mesh->mNormals[j].z;
+            }
+            else {
+                vertex.nx = vertex.ny = vertex.nz = 0.0f;
+            }
+            if (mesh->HasTextureCoords(0)) {
+                vertex.u = mesh->mTextureCoords[0][j].x;
+                vertex.v = mesh->mTextureCoords[0][j].y;
+            }
+            else {
+                vertex.u = vertex.v = 0.0f;
+            }
+            if (mesh->HasVertexColors(0)) {
+                vertex.abgr = ((uint8_t)(mesh->mColors[0][j].r * 255) << 24) |
+                    ((uint8_t)(mesh->mColors[0][j].g * 255) << 16) |
+                    ((uint8_t)(mesh->mColors[0][j].b * 255) << 8) |
+                    (uint8_t)(mesh->mColors[0][j].a * 255);
+            }
+            else {
+                vertex.abgr = 0xffffffff;
+            }
+            meshData.vertices.push_back(vertex);
+        }
+
+        // Process indices (reverse winding order as in your original code).
+        for (unsigned int j = 0; j < mesh->mNumFaces; j++) {
+            aiFace face = mesh->mFaces[j];
+            for (int k = face.mNumIndices - 1; k >= 0; k--) {
+                meshData.indices.push_back(static_cast<uint32_t>(baseIndex + face.mIndices[k]));
+            }
+        }
+
+        // If normals were missing, recompute them.
+        if (!mesh->HasNormals()) {
+            computeNormals(meshData.vertices, meshData.indices);
+        }
+
+        ImportedMesh impMesh;
+        impMesh.meshData = meshData;
+        impMesh.transform = globalTransform;
+        importedMeshes.push_back(impMesh);
+    }
+
+    // Process children recursively.
+    for (unsigned int i = 0; i < node->mNumChildren; i++) {
+        processNode(scene, node->mChildren[i], globalTransform, importedMeshes);
+    }
+}
+
+// Load the file and extract all meshes and their transforms.
+std::vector<ImportedMesh> loadImportedMeshes(const std::string& filePath) {
+    Assimp::Importer importer;
+    const aiScene* scene = importer.ReadFile(filePath, aiProcess_Triangulate | aiProcess_FlipUVs);
+    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
+        std::cerr << "Error: Assimp - " << importer.GetErrorString() << std::endl;
+        return {};
+    }
+
+    std::vector<ImportedMesh> importedMeshes;
+    aiMatrix4x4 identity; // Identity matrix
+    processNode(scene, scene->mRootNode, identity, importedMeshes);
+
+    // Compute the global bounding box (in world space) across all imported meshes.
+    aiVector3D globalMin(FLT_MAX, FLT_MAX, FLT_MAX);
+    aiVector3D globalMax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+    for (const auto& impMesh : importedMeshes) {
+        for (const auto& vertex : impMesh.meshData.vertices) {
+            aiVector3D pos(vertex.x, vertex.y, vertex.z);
+            pos = impMesh.transform * pos;
+            globalMin.x = std::min(globalMin.x, pos.x);
+            globalMin.y = std::min(globalMin.y, pos.y);
+            globalMin.z = std::min(globalMin.z, pos.z);
+            globalMax.x = std::max(globalMax.x, pos.x);
+            globalMax.y = std::max(globalMax.y, pos.y);
+            globalMax.z = std::max(globalMax.z, pos.z);
+        }
+    }
+    aiVector3D globalCenter = (globalMin + globalMax) * 0.5f;
+
+    // Adjust each imported mesh’s transform so that the entire model is centered at the origin.
+    for (auto& impMesh : importedMeshes) {
+        aiVector3D scaling, position;
+        aiQuaternion rotation;
+        impMesh.transform.Decompose(scaling, rotation, position);
+        position -= globalCenter;
+        // Recompose the transform:
+        aiMatrix4x4 scaleMat, rotMat, transMat;
+        aiMatrix4x4::Scaling(scaling, scaleMat);
+        rotMat = aiMatrix4x4(rotation.GetMatrix());
+        aiMatrix4x4::Translation(position, transMat);
+        impMesh.transform = transMat * rotMat * scaleMat;
+    }
+
+    return importedMeshes;
+}
+
+
 int main(void)
 {
     // Initialize GLFW
@@ -2353,9 +2477,21 @@ int main(void)
                         //    saveScene(saveFilePath, instances, availableTextures);
                         saveSceneToFile(instances, availableTextures, importedObjMap);
                     }
+                    // ========================
+                    // UPDATED IMPORT MENU CODE
+                    // ========================
+
+                    /*
+                    Inside your ImGui File menu, replace the old OBJ import code with the following:
+                    This code:
+                      1. Opens a file dialog.
+                      2. Loads all meshes from the file (with centering, as done in loadImportedMeshes).
+                      3. Creates an empty parent instance (a grouping node) at the center.
+                      4. For each imported mesh, creates vertex/index buffers and spawns a child instance.
+                      5. Adds each child to the empty parent so that scaling the parent scales all children.
+                    */
                     if (ImGui::MenuItem("Import OBJ"))
                     {
-                        // Define filter for multiple 3D model formats
                         const char* modelFilter =
                             "All 3D Models\0*.obj;*.fbx;*.dae;*.gltf;*.glb;*.ply;*.stl;*.3ds\0"
                             "OBJ Files (*.obj)\0*.obj\0"
@@ -2366,26 +2502,52 @@ int main(void)
                             "STL Files (*.stl)\0*.stl\0"
                             "3DS Files (*.3ds)\0*.3ds\0"
                             "All Files (*.*)\0*.*\0";
-                        // Use a filter for OBJ files and all files.
+
                         std::string absPath = OpenFileDialog(glfwGetWin32Window(window), modelFilter);
                         std::string relPath = GetRelativePath(absPath);
                         std::string normalizedRelPath = ConvertBackslashesToForward(relPath);
                         std::cout << "filePath: " << normalizedRelPath << std::endl;
+
                         if (!normalizedRelPath.empty())
                         {
-                            // Load the mesh from the selected file.
-                            MeshData importedMesh = loadMesh(normalizedRelPath);
-                            std::cout << "Imported mesh vertices: " << importedMesh.vertices.size()
-                                << ", indices: " << importedMesh.indices.size() << std::endl;
-                            bgfx::VertexBufferHandle vbh_imported;
-                            bgfx::IndexBufferHandle ibh_imported;
-                            createMeshBuffers(importedMesh, vbh_imported, ibh_imported);
-                            // Create a key based on the file name (without extension).
+                            // Load all meshes using the new multi–mesh importer.
+                            std::vector<ImportedMesh> importedMeshes = loadImportedMeshes(normalizedRelPath);
                             std::string fileName = fs::path(normalizedRelPath).stem().string();
-                            // Spawn the imported mesh as an instance.
-                            spawnInstanceAtCenter("imported_model", fileName, vbh_imported, ibh_imported, instances);
-                            std::cout << "imported obj spawned" << std::endl;
-                            // Add to our map: key is fileName, value is normalizedRelPath.
+
+                            // Create an empty parent instance to group the imported meshes.
+                            // We use BGFX_INVALID_HANDLE for geometry since this is just a container.
+                            Instance* parentInstance = new Instance(instanceCounter++, fileName + "_group", "empty", 0.0f, 0.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
+                            instances.push_back(parentInstance);
+
+                            // For each imported mesh, create vertex/index buffers and spawn a child instance.
+                            for (size_t i = 0; i < importedMeshes.size(); ++i)
+                            {
+                                bgfx::VertexBufferHandle vbh_imported;
+                                bgfx::IndexBufferHandle ibh_imported;
+                                createMeshBuffers(importedMeshes[i].meshData, vbh_imported, ibh_imported);
+
+                                // Create a child instance. (The instance type can be set to the fileName or any appropriate identifier.)
+                                Instance* childInst = new Instance(instanceCounter++, fileName + "_" + std::to_string(i), fileName, 0.0f, 0.0f, 0.0f, vbh_imported, ibh_imported);
+
+                                // Decompose the imported mesh’s transform to set the child's transform.
+                                aiVector3D scaling, position;
+                                aiQuaternion rotation;
+                                importedMeshes[i].transform.Decompose(scaling, rotation, position);
+                                childInst->position[0] = position.x;
+                                childInst->position[1] = position.y;
+                                childInst->position[2] = position.z;
+                                // (Optionally, you can convert the quaternion to Euler angles here;
+                                // for simplicity we leave rotation as zero.)
+                                childInst->rotation[0] = childInst->rotation[1] = childInst->rotation[2] = 0.0f;
+                                childInst->scale[0] = scaling.x;
+                                childInst->scale[1] = scaling.y;
+                                childInst->scale[2] = scaling.z;
+
+                                // Add the child instance to the parent.
+                                parentInstance->addChild(childInst);
+                            }
+
+                            std::cout << "Imported OBJ spawned with " << importedMeshes.size() << " mesh(es) under group " << fileName << std::endl;
                             importedObjMap[fileName] = normalizedRelPath;
                         }
                     }
