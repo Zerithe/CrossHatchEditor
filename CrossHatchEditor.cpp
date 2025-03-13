@@ -79,9 +79,11 @@ bgfx::UniformHandle u_viewPos;
 // Define the picking render target dimensions.
 #define PICKING_DIM 128
 
+static bool useGlobalCrosshatchSettings = true;
 // (Define TAU in C++ too)
 const float TAU = 6.28318530718f;
 // Declare static variables to hold our crosshatch parameters:
+static float inkColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f }; // Typically black ink.
 static float epsilonValue = 0.02f;              // Outer Line Smoothness or Epsilon
 static float strokeMultiplier = 1.0f;           // Outer Hatch Density or Stroke Multiplier
 static float lineAngle1 = TAU / 8.0f;           // Outer Hatch Angle or Line Angle 1
@@ -97,7 +99,7 @@ static int crosshatchMode = 2;                  // 0 = hatch ver 1.0, 1 = hatch 
 
 // These static variables will hold the values for u_paramsLayer
 static float layerPatternScale = 1.0f;          // Inner Hatch Scale or Layer Pattern Scale
-static float layerStrokeMult = 2.50f;           // Inner Hatch Density or Layer Stroke Multiplier
+static float layerStrokeMult = 0.250f;           // Inner Hatch Density or Layer Stroke Multiplier
 static float layerAngle = 2.983f;               // Inner Hatch Angle or Layer Angle
 static float layerLineThickness = 10.0f;        // Inner Hatch Weight or Layer Line Thickness
 
@@ -899,27 +901,28 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, 
     else {
         bgfx::setUniform(u_tint, tintBasic);
     }
+    if (!useGlobalCrosshatchSettings) {
+        bgfx::setUniform(u_inkColor, instance->inkColor);
+        // Set epsilon uniform:
+        float epsilonUniform[4] = { instance->epsilonValue, 0.0f, 0.0f, 0.0f };
+        bgfx::setUniform(u_e, epsilonUniform);
 
-    bgfx::setUniform(u_inkColor, instance->inkColor);
-    // Set epsilon uniform:
-    float epsilonUniform[4] = { instance->epsilonValue, 0.0f, 0.0f, 0.0f };
-    bgfx::setUniform(u_e, epsilonUniform);
+        // Prepare an array of 4 floats.
+        // Set u_params uniform:
+        float paramsUniform[4] = { 0.0f, instance->strokeMultiplier, instance->lineAngle1, instance->lineAngle2 };
+        bgfx::setUniform(u_params, paramsUniform);
 
-    // Prepare an array of 4 floats.
-    // Set u_params uniform:
-    float paramsUniform[4] = { 0.0f, instance->strokeMultiplier, instance->lineAngle1, instance->lineAngle2 };
-    bgfx::setUniform(u_params, paramsUniform);
-
-    // Prepare an array of 4 floats.
-    float extraParamsUniform[4] = { instance->patternScale, instance->lineThickness, instance->transparencyValue, float(instance->crosshatchMode) };
-    // Set the uniform for extra parameters.
-    bgfx::setUniform(u_extraParams, extraParamsUniform);
+        // Prepare an array of 4 floats.
+        float extraParamsUniform[4] = { instance->patternScale, instance->lineThickness, instance->transparencyValue, float(instance->crosshatchMode) };
+        // Set the uniform for extra parameters.
+        bgfx::setUniform(u_extraParams, extraParamsUniform);
 
 
-    // Prepare an array of 4 floats.
-    float paramsLayerUniform[4] = { instance->layerPatternScale, instance->layerStrokeMult, instance->layerAngle, instance->layerLineThickness };
-    // Set the uniform for extra parameters.
-    bgfx::setUniform(u_paramsLayer, paramsLayerUniform);
+        // Prepare an array of 4 floats.
+        float paramsLayerUniform[4] = { instance->layerPatternScale, instance->layerStrokeMult, instance->layerAngle, instance->layerLineThickness };
+        // Set the uniform for extra parameters.
+        bgfx::setUniform(u_paramsLayer, paramsLayerUniform);
+    }
     const bgfx::VertexBufferHandle invalidVbh = BGFX_INVALID_HANDLE;
     const bgfx::IndexBufferHandle invalidIbh = BGFX_INVALID_HANDLE;
     // Draw geometry if valid.
@@ -2160,8 +2163,6 @@ int main(void)
 
     bool* p_open = NULL;
 
-    float inkColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f }; // Typically black ink.
-
     u_diffuseTex = bgfx::createUniform("u_diffuseTex", bgfx::UniformType::Sampler);
 
     // Create uniforms (do this once)
@@ -2436,7 +2437,7 @@ int main(void)
     bgfx::ShaderHandle debugVsh = loadShader("shaders\\v_lightdebug_out1.bin");
     bgfx::ShaderHandle debugFsh = loadShader("shaders\\f_lightdebug_out1.bin");
     bgfx::ProgramHandle lightDebugProgram = bgfx::createProgram(debugVsh, debugFsh, true);
-
+    
     //spawn plane
     spawnInstance(camera, "plane", "plane", vbh_plane, ibh_plane, instances);
     instances.back()->position[0] = 0.0f;
@@ -2505,7 +2506,7 @@ int main(void)
     instances.back()->scale[0] *= 0.01f;
     instances.back()->scale[1] *= 0.01f;
     instances.back()->scale[2] *= 0.01f;
-
+    
     Logger::GetInstance();
 
     static bgfx::FrameBufferHandle g_frameBuffer = BGFX_INVALID_HANDLE;
@@ -3295,7 +3296,80 @@ int main(void)
 
 
             ImGui::Begin("Crosshatch Shader Settings");
-            if (selectedInstance && selectedInstance->isLight == false) {
+            ImGui::Checkbox("Use Global Crosshatch Shader Settings", &useGlobalCrosshatchSettings);
+            if (useGlobalCrosshatchSettings) {
+                const char* modeItems[] = { "Crosshatch Ver 1.0", "Crosshatch Ver 1.1", "Crosshatch Ver 1.2", "Simple Lighting" };
+                ImGui::Combo("Shader Mode", &crosshatchMode, modeItems, IM_ARRAYSIZE(modeItems));
+                ImGui::Spacing(); ImGui::Spacing();
+                // --- Show controls depending on the mode ---
+                if (crosshatchMode == 0)
+                {
+                    ImGui::Text("Crosshatch Ver 1.0 Settings:");
+                    ImGui::ColorEdit4("Hatch Color", inkColor);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Line Smoothness", &epsilonValue, 0.001f, 0.0f, 0.1f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Density", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Primary Hatch Angle", &lineAngle1, 0.1f, 0.0f, TAU);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Secondary Hatch Angle", &lineAngle2, 0.1f, 0.0f, TAU);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Line Weight", &lineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Opacity", &transparencyValue, 0.01f, 0.0f, 1.0f);
+                }
+                else if (crosshatchMode == 1)
+                {
+                    ImGui::Text("Crosshatch Ver 1.1 Settings:");
+                    ImGui::ColorEdit4("Hatch Color", inkColor);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Line Smoothness", &epsilonValue, 0.001f, 0.0f, 0.1f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Density", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Angle", &lineAngle1, 0.1f, 0.0f, TAU);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Line Weight", &lineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Opacity", &transparencyValue, 0.01f, 0.0f, 1.0f);
+                }
+                else if (crosshatchMode == 2)
+                {
+                    ImGui::Text("Crosshatch Ver 1.2 Settings:");
+                    ImGui::ColorEdit4("Hatch Color", inkColor);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Line Smoothness", &epsilonValue, 0.001f, 0.0f, 0.1f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Density", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Angle", &lineAngle1, 0.1f, 0.0f, TAU);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Weight", &lineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    // Inner layer settings:
+                    ImGui::DragFloat("Inner Hatch Scale", &layerPatternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Inner Hatch Density", &layerStrokeMult, 0.1f, 0.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Inner Hatch Angle", &layerAngle, 0.1f, 0.0f, TAU);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Inner Hatch Weight", &layerLineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Opacity", &transparencyValue, 0.01f, 0.0f, 1.0f);
+                }
+                else if (crosshatchMode == 3)
+                {
+                    ImGui::Text("Simple Lighting (No Crosshatch)");
+                }
+            }
+            else if (selectedInstance && selectedInstance->isLight == false) {
                 const char* modeItems[] = { "Crosshatch Ver 1.0", "Crosshatch Ver 1.1", "Crosshatch Ver 1.2", "Simple Lighting" };
                 ImGui::Combo("Shader Mode", &selectedInstance->crosshatchMode, modeItems, IM_ARRAYSIZE(modeItems));
                 ImGui::Spacing(); ImGui::Spacing();
