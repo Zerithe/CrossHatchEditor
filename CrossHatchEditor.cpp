@@ -29,6 +29,9 @@ namespace fs = std::filesystem;
 #include <bx/math.h>
 #include <bx/readerwriter.h>
 #include <bx/string.h>
+#include <bx/allocator.h>
+#include <bx/file.h>
+#include <bimg/bimg.h>
 
 #include <algorithm>
 #include <string>
@@ -1637,6 +1640,77 @@ void updateRotatingLights(std::vector<Instance*>& instances, float deltaTime) {
     }
 }
 
+bgfx::FrameBufferHandle g_frameBuffer = BGFX_INVALID_HANDLE;  // Offscreen render target
+bgfx::TextureHandle g_renderTexture = BGFX_INVALID_HANDLE;    // Texture used for rendering
+bgfx::TextureHandle g_readBackTexture = BGFX_INVALID_HANDLE;  // Readable texture
+uint32_t g_width = 1280, g_height = 720;
+
+void createScreenshotFramebuffer(uint32_t width, uint32_t height)
+{
+    // Destroy old framebuffer if it exists
+    if (bgfx::isValid(g_frameBuffer)) {
+        bgfx::destroy(g_frameBuffer);
+        bgfx::destroy(g_renderTexture);
+        bgfx::destroy(g_readBackTexture);
+    }
+
+    // Create a standard render texture WITHOUT `BGFX_TEXTURE_READ_BACK`
+    g_renderTexture = bgfx::createTexture2D(
+        width, height, false, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_RT
+    );
+
+    // Create the framebuffer with the render texture
+    g_frameBuffer = bgfx::createFrameBuffer(1, &g_renderTexture, true);
+
+    // Create a separate `read-back` texture
+    g_readBackTexture = bgfx::createTexture2D(
+        width, height, false, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_BLIT_DST | BGFX_TEXTURE_READ_BACK
+    );
+
+    g_width = width;
+    g_height = height;
+}
+
+void captureScreenshot()
+{
+    if (!bgfx::isValid(g_readBackTexture)) {
+        std::cerr << "Error: Read-back texture is invalid!" << std::endl;
+        return;
+    }
+
+    // Blit framebuffer texture into read-back texture
+    bgfx::blit(0, g_readBackTexture, 0, 0, g_renderTexture);
+
+    // Ensure blit has finished
+    bgfx::frame();
+
+    // Read the texture into CPU memory
+    std::vector<uint8_t> buffer(g_width * g_height * 4);
+    bgfx::readTexture(g_readBackTexture, buffer.data());
+
+    // Open file before writing
+    const char* filePath = "F:\\Files\\College Stuff\\programs\\Repositories\\CrossHatchEditor\\out\\build\\x64-debug\\screenshot.png";
+    bx::FileWriter writer;
+	bx::Error err;
+    if (!bx::open(&writer, filePath, false, &err)) {
+        std::cerr << "Failed to open file for writing!" << std::endl;
+        return;
+    }
+
+    // Ensure `imageWritePng` is successful
+    bool success = bimg::imageWritePng(&writer, g_width, g_height, g_width * 4, buffer.data(), bimg::TextureFormat::RGBA8, true);
+    if (!success) {
+        std::cerr << "Error: imageWritePng failed!" << std::endl;
+        bx::close(&writer);
+        return;
+    }
+
+    // Only close if everything succeeded
+    bx::close(&writer);
+
+    std::cout << "Screenshot saved successfully!" << std::endl;
+}
+
 int main(void)
 {
     // Initialize GLFW
@@ -2288,6 +2362,8 @@ int main(void)
         ImGuiWindowFlags_NoBackground;
 
     bool takingScreenshot = false;
+
+    createScreenshotFramebuffer(WNDW_WIDTH, WNDW_HEIGHT);
 
     //MAIN LOOP
     while (!glfwWindowShouldClose(window))
@@ -3093,101 +3169,6 @@ int main(void)
             ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
         }
 
-        //handle inputs
-        InputManager::update(camera, 0.016f);
-
-        if (InputManager::isKeyToggled(GLFW_KEY_F2))
-        {
-            takingScreenshot = !takingScreenshot;
-        }
-
-        if (InputManager::isKeyToggled(GLFW_KEY_F3))
-        {
-            bgfx::requestScreenShot(BGFX_INVALID_HANDLE, "screenshot");
-        }
-
-
-        /*
-        //call spawnInstance when key is pressed based on spawnPrimitive value
-        if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && InputManager::getCursorDisabled())
-        {
-            if (spawnPrimitive == 0)
-            {
-                spawnInstance(camera, "cube", "cube", vbh_cube, ibh_cube, instances);
-                std::cout << "Cube spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 1)
-            {
-                spawnInstance(camera, "capsule", "capsule", vbh_capsule, ibh_capsule, instances);
-                std::cout << "Capsule spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 2)
-            {
-                spawnInstance(camera, "cylinder", "cylinder", vbh_cylinder, ibh_cylinder, instances);
-                std::cout << "Cylinder spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 3)
-            {
-                spawnInstance(camera, "sphere", "sphere", vbh_sphere, ibh_sphere, instances);
-                std::cout << "Sphere spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 4)
-            {
-                spawnInstance(camera, "plane", "plane", vbh_plane, ibh_plane, instances);
-                std::cout << "Plane spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 5)
-            {
-                spawnInstance(camera, "mesh", "mesh", vbh_mesh, ibh_mesh, instances);
-                std::cout << "Test Import spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 6)
-            {
-                // --- Spawn Cornell Box with Hierarchy ---
-                Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", 8.0f, 0.0f, -5.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
-                // Create a walls node (dummy instance without geometry)
-                Instance* wallsNode = new Instance(instanceCounter++, "walls", "empty", 0.0f, 0.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
-
-                Instance* floorPlane = new Instance(instanceCounter++, "floor", "floor", 0.0f, 0.0f, 0.0f, vbh_floor, ibh_floor);
-                wallsNode->addChild(floorPlane);
-                Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", "ceiling", 0.0f, 0.0f, 0.0f, vbh_ceiling, ibh_ceiling);
-                wallsNode->addChild(ceilingPlane);
-                Instance* backPlane = new Instance(instanceCounter++, "back", "back", 0.0f, 0.0f, 0.0f, vbh_back, ibh_back);
-                wallsNode->addChild(backPlane);
-                Instance* leftPlane = new Instance(instanceCounter++, "left_wall", "left", 0.0f, 0.0f, 0.0f, vbh_left, ibh_left);
-                wallsNode->addChild(leftPlane);
-                Instance* rightPlane = new Instance(instanceCounter++, "right_wall", "right", 0.0f, 0.0f, 0.0f, vbh_right, ibh_right);
-                wallsNode->addChild(rightPlane);
-
-                Instance* innerCube = new Instance(instanceCounter++, "inner_cube", "innerCube", 0.3f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
-                Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", "innerCube", 1.1f, 1.0f, -0.9f, vbh_innerCube, ibh_innerCube);
-                innerRectBox->scale[0] = 0.8f;
-                innerRectBox->scale[1] = 2.0f;
-                innerRectBox->scale[2] = 0.8f;
-                cornellBox->addChild(wallsNode);
-                cornellBox->addChild(innerCube);
-                cornellBox->addChild(innerRectBox);
-                instances.push_back(cornellBox);
-                std::cout << "Cornell Box spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 7)
-            {
-                spawnInstance(camera, "teapot", "teapot", vbh_teapot, ibh_teapot, instances);
-                std::cout << "Teapot spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 8)
-            {
-                spawnInstance(camera, "bunny", "bunny", vbh_bunny, ibh_bunny, instances);
-                std::cout << "Bunny spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 9)
-            {
-                spawnInstance(camera, "lucy", "lucy", vbh_lucy, ibh_lucy, instances);
-                std::cout << "Lucy spawned" << std::endl;
-            }
-        }
-        */
-
 
         int width = static_cast<int>(viewport->Size.x);
         int height = static_cast<int>(viewport->Size.y);
@@ -3196,6 +3177,35 @@ int main(void)
         {
             continue;
         }
+
+        //handle inputs
+        InputManager::update(camera, 0.016f);
+
+        if (InputManager::isKeyToggled(GLFW_KEY_F2))
+        {
+            takingScreenshot = !takingScreenshot;
+        }
+
+		
+
+        // Set rendering to the custom framebuffer
+        bgfx::setViewFrameBuffer(0, g_frameBuffer); // Render to the framebuffer
+
+        // Set the viewport to match the framebuffer size
+        bgfx::setViewRect(0, 0, 0, uint16_t(g_width), uint16_t(g_height));
+
+        // Clear the framebuffer with a background color
+        bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
+
+        if (InputManager::isKeyToggled(GLFW_KEY_F3))
+        {
+			captureScreenshot();
+
+            std::cout << "Screenshot taken and saved as 'screenshot.png'" << std::endl;
+            //bgfx::requestScreenShot(BGFX_INVALID_HANDLE, "screenshot");
+        }
+
+
 
         // --- Object Picking Pass ---
         // Only execute picking when the left mouse button is clicked and ImGui is not capturing the mouse.
