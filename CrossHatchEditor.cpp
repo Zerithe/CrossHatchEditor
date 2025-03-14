@@ -103,6 +103,8 @@ static float layerStrokeMult = 0.250f;           // Inner Hatch Density or Layer
 static float layerAngle = 2.983f;               // Inner Hatch Angle or Layer Angle
 static float layerLineThickness = 10.0f;        // Inner Hatch Weight or Layer Line Thickness
 
+bgfx::TextureHandle noiseTexture = BGFX_INVALID_HANDLE;
+
 static bgfx::UniformHandle u_uvTransform = BGFX_INVALID_HANDLE;
 static bgfx::UniformHandle u_albedoFactor = BGFX_INVALID_HANDLE;
 
@@ -127,6 +129,7 @@ struct TextureOption {
 
 std::vector<TextureOption> availableNoiseTextures;
 int currentNoiseIndex = 0; // which noise texture is selected by the user
+int globalCurrentNoiseIndex = 0; // which noise texture is selected by the user
 
 struct MaterialParams
 {
@@ -952,7 +955,10 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, 
 
         // Decide which noise tex to use
         bgfx::TextureHandle noiseTextureToUse;
-        if (inheritedNoiseTex.idx != bgfx::kInvalidHandle) {
+        if (useGlobalCrosshatchSettings) {
+            noiseTextureToUse = noiseTexture;
+        }
+        else if (inheritedNoiseTex.idx != bgfx::kInvalidHandle) {
             noiseTextureToUse = inheritedNoiseTex;
         }
         else if (instance->noiseTexture.idx != bgfx::kInvalidHandle)
@@ -2240,6 +2246,7 @@ int main(void)
         availableNoiseTextures.push_back(noiseTex);
     }
 
+    noiseTexture = availableNoiseTextures[0].handle;
 
     // Texture
     std::vector<TextureOption> availableTextures;
@@ -3367,6 +3374,55 @@ int main(void)
                 else if (crosshatchMode == 3)
                 {
                     ImGui::Text("Simple Lighting (No Crosshatch)");
+                }
+                // New: noise texture selection
+                if (!availableNoiseTextures.empty() && crosshatchMode != 3)
+                {
+                    // Automatically update currentNoiseIndex based on the instance's noise texture.
+                    bool found = false;
+                    for (int i = 0; i < (int)availableNoiseTextures.size(); i++)
+                    {
+                        if (availableNoiseTextures[i].handle.idx == noiseTexture.idx)
+                        {
+                            globalCurrentNoiseIndex = i;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                    {
+                        // If the instance doesn't have a valid noise texture, default to index 0.
+                        globalCurrentNoiseIndex = 0;
+                        noiseTexture = availableNoiseTextures[0].handle;
+                    }
+
+                    // Build an array of c-strings from the names in availableNoiseTextures
+                    std::vector<const char*> noiseNames;
+                    noiseNames.reserve(availableNoiseTextures.size());
+                    for (auto& n : availableNoiseTextures)
+                    {
+                        noiseNames.push_back(n.name.c_str());
+                    }
+
+                    ImGui::Spacing(); ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::Spacing(); ImGui::Spacing();
+                    // Let user pick which noise texture to use
+                    if (ImGui::Combo("Noise Pattern", &globalCurrentNoiseIndex, noiseNames.data(), (int)noiseNames.size()))
+                    {
+                        noiseTexture = availableNoiseTextures[globalCurrentNoiseIndex].handle;
+                    }
+
+                    ImGui::Text("Noise Texture Preview:");
+                    if (bgfx::isValid(noiseTexture))
+                    {
+                        ImTextureID noiseID = (ImTextureID)(uintptr_t)(noiseTexture.idx);
+                        ImGui::Image(noiseID, ImVec2(256, 256));
+                    }
+                    else
+                    {
+                        ImGui::Text("No valid noise texture selected.");
+                    }
                 }
             }
             else if (selectedInstance && selectedInstance->isLight == false) {
