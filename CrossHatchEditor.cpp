@@ -1415,6 +1415,17 @@ std::vector<ImportedMesh> loadImportedMeshes(const std::string& filePath) {
     return importedMeshes;
 }
 
+// Find the highest instance ID in the hierarchy
+void findMaxInstanceId(const Instance* instance, int& maxId) {
+    // Check this instance's ID
+    maxId = std::max(maxId, instance->id);
+
+    // Recursively check all children
+    for (const Instance* child : instance->children) {
+        findMaxInstanceId(child, maxId);
+    }
+}
+
 std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Instance*>& instances,
     const std::vector<TextureOption>& availableTextures,
     const std::unordered_map<std::string, std::pair<bgfx::VertexBufferHandle, bgfx::IndexBufferHandle>>& bufferMap)
@@ -1605,11 +1616,12 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
 
     file.close();
     std::cout << "Scene loaded from " << loadFilePath << std::endl;
-    for (const auto* inst : instances)
-    {
-        instanceCounter = std::max(instanceCounter, inst->id);
+    // Replace the existing code with this
+    int maxId = 0;
+    for (const Instance* inst : instances) {
+        findMaxInstanceId(inst, maxId);
     }
-    instanceCounter++;
+    instanceCounter = maxId + 1;
     return importedObjMap;
 }
 
