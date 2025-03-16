@@ -2000,14 +2000,19 @@ int main(void)
         bgfx::makeRef(capsuleIndices.data(), sizeof(uint16_t) * capsuleIndices.size())
     );
 
+    std::vector<PosColorVertex> cylinderVertices;
+    std::vector<uint16_t> cylinderIndices;
+
+	generateCylinder(1.0f, 2.0f, 20, cylinderVertices, cylinderIndices);
 
     //cylinder generation
     bgfx::VertexBufferHandle vbh_cylinder = bgfx::createVertexBuffer(
-        bgfx::makeRef(cylinderVertices, sizeof(cylinderVertices)),
+        bgfx::makeRef(cylinderVertices.data(), sizeof(PosColorVertex) * cylinderVertices.size()),
         layout
     );
+
     bgfx::IndexBufferHandle ibh_cylinder = bgfx::createIndexBuffer(
-        bgfx::makeRef(cylinderIndices, sizeof(cylinderIndices))
+        bgfx::makeRef(cylinderIndices.data(), sizeof(uint16_t) * cylinderIndices.size())
     );
 
     // Cone generation
@@ -2736,6 +2741,11 @@ int main(void)
                         {
                             spawnInstanceAtCenter("cylinder", "cylinder", vbh_cylinder, ibh_cylinder, instances);
                             std::cout << "Cylinder spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Cone"))
+                        {
+							spawnInstanceAtCenter("cone", "cone", vbh_cone, ibh_cone, instances);
+							std::cout << "Cone spawned" << std::endl;
                         }
                         if (ImGui::MenuItem("Sphere"))
                         {

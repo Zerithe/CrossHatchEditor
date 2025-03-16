@@ -4,6 +4,9 @@
 #include <vector>
 #include <cmath>
 #include <cstdint>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 struct PosColorVertex {
     float x, y, z;        // Position
@@ -219,21 +222,89 @@ void generateCapsule(float radius, float halfHeight, int stacks, int sectors,
         }
     }
 }
-static PosColorVertex cylinderVertices[] = {
-    {  0.0f,  1.0f,  0.0f,  0.0f,  1.0f,  0.0f, 0xffff0000},
-    {  1.0f,  1.0f,  0.0f,  0.707f, 0.707f,  0.0f, 0xff00ff00},
-    { -1.0f,  1.0f,  0.0f, -0.707f, 0.707f,  0.0f, 0xff0000ff},
-    {  0.0f, -1.0f,  0.0f,  0.0f, -1.0f,  0.0f, 0xffffff00},
-    {  1.0f, -1.0f,  0.0f,  0.707f, -0.707f,  0.0f, 0xff00ffff},
-    { -1.0f, -1.0f,  0.0f, -0.707f, -0.707f,  0.0f, 0xff888888}
-};
+//static PosColorVertex cylinderVertices[] = {
+//    {  0.0f,  1.0f,  0.0f,  0.0f,  1.0f,  0.0f, 0xffff0000},
+//    {  1.0f,  1.0f,  0.0f,  0.707f, 0.707f,  0.0f, 0xff00ff00},
+//    { -1.0f,  1.0f,  0.0f, -0.707f, 0.707f,  0.0f, 0xff0000ff},
+//    {  0.0f, -1.0f,  0.0f,  0.0f, -1.0f,  0.0f, 0xffffff00},
+//    {  1.0f, -1.0f,  0.0f,  0.707f, -0.707f,  0.0f, 0xff00ffff},
+//    { -1.0f, -1.0f,  0.0f, -0.707f, -0.707f,  0.0f, 0xff888888}
+//};
+//
+//static const uint16_t cylinderIndices[] = {
+//    0, 1, 2,
+//    3, 5, 4,
+//    1, 4, 2,
+//    2, 4, 5
+//};
 
-static const uint16_t cylinderIndices[] = {
-    0, 1, 2,
-    3, 5, 4,
-    1, 4, 2,
-    2, 4, 5
-};
+void generateCylinder(float radius, float height, size_t resolution,
+    std::vector<PosColorVertex>& vertices,
+    std::vector<uint16_t>& indices)
+{
+    float halfHeight = height * 0.5f;
+    float angleStep = 2.0f * M_PI / resolution;
+
+    std::vector<uint16_t> bottomVertices;
+    std::vector<uint16_t> topVertices;
+
+    // Generate bottom and top circle vertices
+    for (size_t i = 0; i < resolution; i++) {
+        float angle = i * angleStep;
+        float x = radius * cos(angle);
+        float z = radius * sin(angle);
+        float nx = cos(angle);
+        float nz = sin(angle);
+
+        // Bottom vertex
+        uint16_t vBottom = vertices.size();
+        vertices.push_back({ x, -halfHeight, z, nx, 0, nz, 0xffffffff, (float)i / resolution, 0.0f });
+        bottomVertices.push_back(vBottom);
+
+        // Top vertex
+        uint16_t vTop = vertices.size();
+        vertices.push_back({ x, halfHeight, z, nx, 0, nz, 0xffffffff, (float)i / resolution, 1.0f });
+        topVertices.push_back(vTop);
+    }
+
+    // Generate side faces
+    for (size_t i = 0; i < resolution; i++) {
+        size_t next = (i + 1) % resolution;
+        indices.push_back(bottomVertices[i]);
+        indices.push_back(bottomVertices[next]);
+        indices.push_back(topVertices[i]);
+
+        indices.push_back(topVertices[i]);
+        indices.push_back(bottomVertices[next]);
+        indices.push_back(topVertices[next]);
+    }
+
+    // Center vertices for caps
+    uint16_t topCenter = vertices.size();
+    vertices.push_back({ 0, halfHeight, 0, 0, 1, 0, 0xffffffff, 0.5f, 0.5f });
+    uint16_t bottomCenter = vertices.size();
+    vertices.push_back({ 0, -halfHeight, 0, 0, -1, 0, 0xffffffff, 0.5f, 0.5f });
+
+    // Top cap
+    for (size_t i = 0; i < resolution; i++) {
+        size_t next = (i + 1) % resolution;
+        indices.push_back(topCenter);
+        indices.push_back(topVertices[i]);
+        indices.push_back(topVertices[next]);
+    }
+
+    // Reverse bottom vertices order for consistent face orientation
+    std::reverse(bottomVertices.begin(), bottomVertices.end());
+
+    // Bottom cap
+    for (size_t i = 0; i < resolution; i++) {
+        size_t next = (i + 1) % resolution;
+        indices.push_back(bottomCenter);
+        indices.push_back(bottomVertices[next]);
+        indices.push_back(bottomVertices[i]);
+    }
+}
+
 
 void generateSphere(float radius, int stacks, int sectors,
     std::vector<PosColorVertex>& vertices,
