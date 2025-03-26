@@ -94,7 +94,7 @@ static const uint16_t cubeIndices[] = {
     20,21,22, 20,22,23
 };
 
-void generateCapsule(float radius, float halfHeight, int stacks, int sectors,
+inline void generateCapsule(float radius, float halfHeight, int stacks, int sectors,
     std::vector<PosColorVertex>& vertices,
     std::vector<uint16_t>& indices)
 {
@@ -238,7 +238,7 @@ void generateCapsule(float radius, float halfHeight, int stacks, int sectors,
 //    2, 4, 5
 //};
 
-void generateCylinder(float radius, float height, size_t resolution,
+inline void generateCylinder(float radius, float height, size_t resolution,
     std::vector<PosColorVertex>& vertices,
     std::vector<uint16_t>& indices)
 {
@@ -306,7 +306,7 @@ void generateCylinder(float radius, float height, size_t resolution,
 }
 
 
-void generateSphere(float radius, int stacks, int sectors,
+inline void generateSphere(float radius, int stacks, int sectors,
     std::vector<PosColorVertex>& vertices,
     std::vector<uint16_t>& indices)
 {

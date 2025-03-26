@@ -11,6 +11,7 @@
 #include "Camera.h"
 #include "PrimitiveObjects.h"
 #include "ObjLoader.h"
+#include "MeshLoader.h"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -59,8 +60,6 @@ namespace fs = std::filesystem;
 
 //png, jpg image support #1179
 //reference: https://github.com/bkaradzic/bgfx/issues/1179
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
 
 static bool highlightVisible = true;
 static float RadToDeg(float rad) { return rad * (180.0f / 3.14159265358979f); }
@@ -247,15 +246,6 @@ struct Instance
 };
 static Instance* selectedInstance = nullptr;
 
-struct MeshData {
-    std::vector<PosColorVertex> vertices;
-    std::vector<uint32_t> indices;
-};
-
-struct Vec3 {
-    float x, y, z;
-};
-
 void BuildWorldMatrix(const Instance* inst, float* outMatrix) {
     float local[16];
     float translation[3] = { inst->position[0], inst->position[1], inst->position[2] };
@@ -435,66 +425,6 @@ void DrawGizmoForSelected(Instance* selectedInstance, const float* view, const f
         }
     }
 }
-//transfer to ObjLoader.cpp
-void computeNormals(std::vector<PosColorVertex>& vertices, const std::vector<uint32_t>& indices) {
-
-    // Reset all normals to zero
-    for (auto& vertex : vertices) {
-        vertex.nx = 0.0f;
-        vertex.ny = 0.0f;
-        vertex.nz = 0.0f;
-    }
-    // Create an array to accumulate normals
-    std::vector<Vec3> accumulatedNormals(vertices.size(), { 0.0f, 0.0f, 0.0f });
-
-    for (size_t i = 0; i < indices.size(); i += 3) {
-        uint32_t i0 = indices[i];
-        uint32_t i1 = indices[i + 1];
-        uint32_t i2 = indices[i + 2];
-
-        Vec3 v0 = { vertices[i0].x, vertices[i0].y, vertices[i0].z };
-        Vec3 v1 = { vertices[i1].x, vertices[i1].y, vertices[i1].z };
-        Vec3 v2 = { vertices[i2].x, vertices[i2].y, vertices[i2].z };
-
-        Vec3 edge1 = { v1.x - v0.x, v1.y - v0.y, v1.z - v0.z };
-        Vec3 edge2 = { v2.x - v0.x, v2.y - v0.y, v2.z - v0.z };
-
-        Vec3 normal = {
-            edge2.y * edge1.z - edge2.z * edge1.y,
-            edge2.z * edge1.x - edge2.x * edge1.z,
-            edge2.x * edge1.y - edge2.y * edge1.x
-        };
-
-        float length = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
-        if (length > 0.0f) {
-            normal.x /= length;
-            normal.y /= length;
-            normal.z /= length;
-        }
-
-
-        // Accumulate the normal for each vertex in the face
-        accumulatedNormals[i0].x += normal.x; accumulatedNormals[i0].y += normal.y; accumulatedNormals[i0].z += normal.z;
-        accumulatedNormals[i1].x += normal.x; accumulatedNormals[i1].y += normal.y; accumulatedNormals[i1].z += normal.z;
-        accumulatedNormals[i2].x += normal.x; accumulatedNormals[i2].y += normal.y; accumulatedNormals[i2].z += normal.z;
-    }
-
-    // Normalize the accumulated normals for each vertex
-    for (size_t i = 0; i < vertices.size(); i++) {
-        Vec3& normal = accumulatedNormals[i];
-        float length = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
-        if (length > 0.0f) {
-            normal.x /= length;
-            normal.y /= length;
-            normal.z /= length;
-        }
-
-        // Assign the normalized normal to the vertex
-        vertices[i].nx = normal.x;
-        vertices[i].ny = normal.y;
-        vertices[i].nz = normal.z;
-    }
-}
 
 std::string openFileDialog(bool save) {
 #ifdef _WIN32
@@ -522,140 +452,6 @@ std::string openFileDialog(bool save) {
     return "";
 }
 
-MeshData loadMesh(const std::string& filePath) {
-    Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(filePath, aiProcess_Triangulate | aiProcess_FlipUVs);
-
-    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
-        std::cerr << "Error: Assimp - " << importer.GetErrorString() << std::endl;
-        return {};
-    }
-
-    std::vector<PosColorVertex> vertices;
-    std::vector<uint32_t> indices;
-
-    // used for making origin of imported objects at 0 0 0 to center gizmo
-    // works for both single mesh and multi mesh objects
-    // Global bounding box for the entire model.
-    float globalMinX = FLT_MAX, globalMinY = FLT_MAX, globalMinZ = FLT_MAX;
-    float globalMaxX = -FLT_MAX, globalMaxY = -FLT_MAX, globalMaxZ = -FLT_MAX;
-
-    // Iterate through all meshes in the scene
-    for (unsigned int meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex) {
-        aiMesh* mesh = scene->mMeshes[meshIndex];
-        size_t baseIndex = vertices.size();
-        std::unordered_map<std::string, uint16_t> uniqueVertices;
-
-        for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
-            PosColorVertex vertex;
-            vertex.x = mesh->mVertices[i].x;
-            vertex.y = mesh->mVertices[i].y;
-            vertex.z = mesh->mVertices[i].z;
-
-            // Update global bounding box.
-            if (vertex.x < globalMinX) globalMinX = vertex.x;
-            if (vertex.y < globalMinY) globalMinY = vertex.y;
-            if (vertex.z < globalMinZ) globalMinZ = vertex.z;
-            if (vertex.x > globalMaxX) globalMaxX = vertex.x;
-            if (vertex.y > globalMaxY) globalMaxY = vertex.y;
-            if (vertex.z > globalMaxZ) globalMaxZ = vertex.z;
-
-            // Retrieve normals if available
-            if (mesh->HasNormals()) {
-                vertex.nx = mesh->mNormals[i].x;
-                vertex.ny = mesh->mNormals[i].y;
-                vertex.nz = mesh->mNormals[i].z;
-            }
-            else {
-                vertex.nx = 0.0f;
-                vertex.ny = 0.0f;
-                vertex.nz = 0.0f; // Default to zero, will recompute later
-            }
-
-            // Retrieve texture coordinates (UVs) if available.
-            if (mesh->HasTextureCoords(0)) {
-                // Assimp stores texture coordinates in a 3D vector; we use only x and y.
-                vertex.u = mesh->mTextureCoords[0][i].x;
-                vertex.v = mesh->mTextureCoords[0][i].y;
-            }
-            else {
-                vertex.u = 0.0f;
-                vertex.v = 0.0f;
-            }
-
-            if (mesh->HasVertexColors(0)) {
-                vertex.abgr = ((uint8_t)(mesh->mColors[0][i].r * 255) << 24) |
-                    ((uint8_t)(mesh->mColors[0][i].g * 255) << 16) |
-                    ((uint8_t)(mesh->mColors[0][i].b * 255) << 8) |
-                    (uint8_t)(mesh->mColors[0][i].a * 255);
-            }
-            else {
-                vertex.abgr = 0xffffffff; // Default color
-            }
-
-            vertices.push_back(vertex);
-        }
-
-
-        for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
-            aiFace face = mesh->mFaces[i];
-            // Reverse the winding order
-            for (int j = face.mNumIndices - 1; j >= 0; j--) {
-                indices.push_back(static_cast<uint32_t>(baseIndex + face.mIndices[j]));
-            }
-        }
-
-        // Compute normals if the mesh does not have them
-        if (!mesh->HasNormals()) {
-            computeNormals(vertices, indices);
-        }
-    }
-
-    // Compute the global center.
-    float centerX = (globalMinX + globalMaxX) * 0.5f;
-    float centerY = (globalMinY + globalMaxY) * 0.5f;
-    float centerZ = (globalMinZ + globalMaxZ) * 0.5f;
-
-    // Second pass: recenter all vertices by subtracting the global center.
-    for (auto& v : vertices) {
-        v.x -= centerX;
-        v.y -= centerY;
-        v.z -= centerZ;
-    }
-
-    return { vertices, indices };
-}
-
-void createMeshBuffers(const MeshData& meshData, bgfx::VertexBufferHandle& vbh, bgfx::IndexBufferHandle& ibh) {
-    bgfx::VertexLayout layout;
-    layout.begin()
-        .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true, true)
-        .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float) // NEW: UV coordinates
-        .end();
-
-    vbh = bgfx::createVertexBuffer(
-        bgfx::copy(meshData.vertices.data(), sizeof(PosColorVertex) * meshData.vertices.size()),
-        layout
-    );
-
-    // Detect if we need 32-bit indices
-    if (meshData.vertices.size() > std::numeric_limits<uint16_t>::max()) {
-        std::cout << "Using 32-bit index buffer due to high poly count.\n";
-        ibh = bgfx::createIndexBuffer(
-            bgfx::copy(meshData.indices.data(), sizeof(uint32_t) * meshData.indices.size()),
-            BGFX_BUFFER_INDEX32 // Enables 32-bit index buffer
-        );
-    }
-    else {
-        std::cout << "Using 16-bit index buffer for efficiency.\n";
-        std::vector<uint16_t> indices16(meshData.indices.begin(), meshData.indices.end());
-        ibh = bgfx::createIndexBuffer(
-            bgfx::copy(indices16.data(), sizeof(uint16_t) * indices16.size())
-        );
-    }
-}
 static void glfw_keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if (key == GLFW_KEY_F1 && action == GLFW_RELEASE)
@@ -690,100 +486,6 @@ bgfx::ShaderHandle loadShader(const char* shaderPath)
     const bgfx::Memory* mem = bgfx::copy(buffer.data(), static_cast<uint32_t>(fileSize));
     //std::cout << "Shader loaded: " << shaderPath << std::endl;
     return bgfx::createShader(mem);
-}
-
-const bgfx::Memory* loadMem(const char* _filePath)
-{
-    std::ifstream file(_filePath, std::ios::binary | std::ios::ate);
-    if (!file)
-    {
-        fprintf(stderr, "Failed to load file: %s\n", _filePath);
-        return nullptr;
-    }
-
-    // Get the file size.
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-
-    // Read file contents into a buffer.
-    std::vector<char> buffer(static_cast<size_t>(size));
-    if (!file.read(buffer.data(), size))
-    {
-        fprintf(stderr, "Failed to read file: %s\n", _filePath);
-        return nullptr;
-    }
-
-    // Create a BGFX memory block from the buffer.
-    return bgfx::copy(buffer.data(), static_cast<uint32_t>(size));
-}
-
-bgfx::TextureHandle loadTextureDDS(const char* _filePath)
-{
-    const bgfx::Memory* mem = loadMem(_filePath);
-    if (mem == nullptr)
-    {
-        return BGFX_INVALID_HANDLE;
-    }
-    // Create texture from memory.
-    return bgfx::createTexture(mem);
-}
-
-// The new function that checks extension and calls either your DDS loader or stb_image.
-bgfx::TextureHandle loadTextureFile(const char* filePath)
-{
-    fs::path p(filePath);
-    std::string ext = p.extension().string();
-    // Convert extension to lowercase
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-
-    // If DDS, use your existing function
-    if (ext == ".dds")
-    {
-        return loadTextureDDS(filePath);
-    }
-    else
-    {
-        // Otherwise, use stb_image to load the file
-        int width, height, channels;
-        // Force RGBA (4 channels)
-        unsigned char* data = stbi_load(filePath, &width, &height, &channels, 4);
-        if (!data)
-        {
-            std::cerr << "Failed to load image via stb_image: " << filePath << std::endl;
-            return BGFX_INVALID_HANDLE;
-        }
-
-        // Create a BGFX memory block from the raw pixels
-        // We now have width * height * 4 bytes (RGBA).
-        const bgfx::Memory* mem = bgfx::copy(data, width * height * 4);
-
-        // Free stb_image’s data
-        stbi_image_free(data);
-
-        // Create a 2D texture from that memory
-        // Note: If you want MIP maps, pass e.g. BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE,
-        //       then call bgfx::generateMips(...) or generate them offline.
-        bgfx::TextureHandle texHandle = bgfx::createTexture2D(
-            (uint16_t)width,
-            (uint16_t)height,
-            false,          // Has MIPs?
-            1,              // Number of layers
-            bgfx::TextureFormat::RGBA8, // We loaded RGBA
-            0,              // Flags
-            mem
-        );
-
-        if (!bgfx::isValid(texHandle))
-        {
-            std::cerr << "Failed to create BGFX texture from: " << filePath << std::endl;
-        }
-        else
-        {
-            std::cout << "Successfully loaded image (stb_image): " << filePath
-                << "  (" << width << "x" << height << ")\n";
-        }
-        return texHandle;
-    }
 }
 
 static int instanceCounter = 0;
@@ -1235,186 +937,6 @@ void saveSceneToFile(std::vector<Instance*>& instances, const std::vector<Textur
     std::cout << "Imported obj paths saved to " << importedObjMapPath << std::endl;
 }
 
-std::string ConvertBackslashesToForward(const std::string& path)
-{
-    std::string result = path;
-    std::replace(result.begin(), result.end(), '\\', '/');
-    return result;
-}
-
-// ========================
-// UPDATED IMPORTER CODE WITH TEXTURE LOADING
-// ========================
-
-// Structure to hold mesh data, its transform, and its diffuse texture.
-struct ImportedMesh {
-    MeshData meshData;
-    aiMatrix4x4 transform; // Global transform (accumulated from the scene hierarchy)
-    bgfx::TextureHandle diffuseTexture; // Diffuse texture for this mesh, if available.
-};
-
-// Recursive function to traverse the scene graph.
-// The additional 'baseDir' parameter lets us resolve relative texture paths.
-void processNode(const aiScene* scene, aiNode* node, const aiMatrix4x4& parentTransform,
-    const std::string& baseDir, std::vector<ImportedMesh>& importedMeshes)
-{
-    aiMatrix4x4 globalTransform = parentTransform * node->mTransformation;
-
-    // Process each mesh referenced by this node.
-    for (unsigned int i = 0; i < node->mNumMeshes; i++) {
-        unsigned int meshIndex = node->mMeshes[i];
-        aiMesh* mesh = scene->mMeshes[meshIndex];
-        MeshData meshData;
-        size_t baseIndex = meshData.vertices.size();
-
-        // Process vertices.
-        for (unsigned int j = 0; j < mesh->mNumVertices; j++) {
-            PosColorVertex vertex;
-            vertex.x = mesh->mVertices[j].x;
-            vertex.y = mesh->mVertices[j].y;
-            vertex.z = mesh->mVertices[j].z;
-            if (mesh->HasNormals()) {
-                vertex.nx = mesh->mNormals[j].x;
-                vertex.ny = mesh->mNormals[j].y;
-                vertex.nz = mesh->mNormals[j].z;
-            }
-            else {
-                vertex.nx = vertex.ny = vertex.nz = 0.0f;
-            }
-            if (mesh->HasTextureCoords(0)) {
-                vertex.u = mesh->mTextureCoords[0][j].x;
-                vertex.v = mesh->mTextureCoords[0][j].y;
-            }
-            else {
-                vertex.u = vertex.v = 0.0f;
-            }
-            if (mesh->HasVertexColors(0)) {
-                vertex.abgr = ((uint8_t)(mesh->mColors[0][j].r * 255) << 24) |
-                    ((uint8_t)(mesh->mColors[0][j].g * 255) << 16) |
-                    ((uint8_t)(mesh->mColors[0][j].b * 255) << 8) |
-                    (uint8_t)(mesh->mColors[0][j].a * 255);
-            }
-            else {
-                vertex.abgr = 0xffffffff;
-            }
-            meshData.vertices.push_back(vertex);
-        }
-
-        // Process indices (reversed winding order).
-        for (unsigned int j = 0; j < mesh->mNumFaces; j++) {
-            aiFace face = mesh->mFaces[j];
-            for (int k = face.mNumIndices - 1; k >= 0; k--) {
-                meshData.indices.push_back(static_cast<uint32_t>(baseIndex + face.mIndices[k]));
-            }
-        }
-
-        // Recompute normals if missing.
-        if (!mesh->HasNormals()) {
-            computeNormals(meshData.vertices, meshData.indices);
-        }
-
-        // Create an ImportedMesh to store this mesh’s data.
-        ImportedMesh impMesh;
-        impMesh.meshData = meshData;
-        impMesh.transform = globalTransform;
-        impMesh.diffuseTexture = BGFX_INVALID_HANDLE;
-
-        // --- New: Retrieve diffuse texture from the material ---
-        // Attempt to load a texture from the material.
-        if (scene->HasMaterials()) {
-            aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
-            aiString texPath;
-            // For glTF, check for the base color texture.
-            if (material->GetTexture(aiTextureType_BASE_COLOR, 0, &texPath) == AI_SUCCESS) {
-                std::string textureFile = texPath.C_Str();
-                fs::path fullTexPath = fs::path(baseDir) / textureFile;
-                std::string normalizedTexPath = ConvertBackslashesToForward(fullTexPath.string());
-                std::cout << "[DEBUG] Found baseColor texture: " << normalizedTexPath << std::endl;
-                bgfx::TextureHandle texHandle = loadTextureFile(normalizedTexPath.c_str());
-                if (bgfx::isValid(texHandle)) {
-                    std::cout << "[DEBUG] Successfully loaded texture: " << normalizedTexPath << std::endl;
-                    impMesh.diffuseTexture = texHandle;
-                }
-                else {
-                    std::cout << "[DEBUG] FAILED to load texture: " << normalizedTexPath << std::endl;
-                }
-            }
-            // Fallback: if no baseColor texture, try diffuse.
-            else if (material->GetTexture(aiTextureType_DIFFUSE, 0, &texPath) == AI_SUCCESS) {
-                std::string textureFile = texPath.C_Str();
-                fs::path fullTexPath = fs::path(baseDir) / textureFile;
-                std::string normalizedTexPath = ConvertBackslashesToForward(fullTexPath.string());
-                std::cout << "[DEBUG] Found diffuse texture (fallback): " << normalizedTexPath << std::endl;
-                bgfx::TextureHandle texHandle = loadTextureFile(normalizedTexPath.c_str());
-                if (bgfx::isValid(texHandle)) {
-                    std::cout << "[DEBUG] Successfully loaded texture: " << normalizedTexPath << std::endl;
-                    impMesh.diffuseTexture = texHandle;
-                }
-                else {
-                    std::cout << "[DEBUG] FAILED to load texture: " << normalizedTexPath << std::endl;
-                }
-            }
-            else {
-                std::cout << "[DEBUG] No baseColor or diffuse texture found for material index "
-                    << mesh->mMaterialIndex << std::endl;
-            }
-        }
-
-        importedMeshes.push_back(impMesh);
-    }
-
-    // Recursively process child nodes.
-    for (unsigned int i = 0; i < node->mNumChildren; i++) {
-        processNode(scene, node->mChildren[i], globalTransform, baseDir, importedMeshes);
-    }
-}
-
-// Load the file and extract all meshes, their transforms, and diffuse textures.
-// The baseDir is computed from the model file path.
-std::vector<ImportedMesh> loadImportedMeshes(const std::string& filePath) {
-    Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(filePath, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_PreTransformVertices);
-    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
-        std::cerr << "Error: Assimp - " << importer.GetErrorString() << std::endl;
-        return {};
-    }
-
-    std::vector<ImportedMesh> importedMeshes;
-    aiMatrix4x4 identity; // Identity matrix
-    // Determine the base directory from the model file path.
-    fs::path modelPath(filePath);
-    std::string baseDir = modelPath.parent_path().string();
-    processNode(scene, scene->mRootNode, identity, baseDir, importedMeshes);
-
-    // ---- Per–Mesh Recentering (as before) ----
-    for (auto& impMesh : importedMeshes) {
-        aiVector3D localMin(FLT_MAX, FLT_MAX, FLT_MAX);
-        aiVector3D localMax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
-        for (const auto& vertex : impMesh.meshData.vertices) {
-            aiVector3D pos(vertex.x, vertex.y, vertex.z);
-            localMin.x = std::min(localMin.x, pos.x);
-            localMin.y = std::min(localMin.y, pos.y);
-            localMin.z = std::min(localMin.z, pos.z);
-            localMax.x = std::max(localMax.x, pos.x);
-            localMax.y = std::max(localMax.y, pos.y);
-            localMax.z = std::max(localMax.z, pos.z);
-        }
-        aiVector3D meshCenter = (localMin + localMax) * 0.5f;
-        // Shift vertices so the mesh geometry is centered at (0,0,0)
-        for (auto& vertex : impMesh.meshData.vertices) {
-            vertex.x -= meshCenter.x;
-            vertex.y -= meshCenter.y;
-            vertex.z -= meshCenter.z;
-        }
-        // Update the mesh's transform to account for the shift.
-        aiMatrix4x4 translationMat;
-        aiMatrix4x4::Translation(meshCenter, translationMat);
-        impMesh.transform = impMesh.transform * translationMat;
-    }
-
-    return importedMeshes;
-}
-
 // Find the highest instance ID in the hierarchy
 void findMaxInstanceId(const Instance* instance, int& maxId) {
     // Check this instance's ID
@@ -1453,7 +975,7 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
     std::unordered_map<int, Instance*> instanceMap; // Stores instances by their IDs
     std::vector<std::pair<int, int>> parentAssignments; // Stores parent-child assignments
 
-    std::vector<ImportedMesh> importedMeshes;
+    std::vector<MeshLoader::ImportedMesh> importedMeshes;
     std::string importedMeshesName = "";
 
     std::string line;
@@ -1505,10 +1027,10 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
 				if (importedMeshesName != meshType)
 				{
 					importedMeshes.clear();
-					importedMeshes = loadImportedMeshes(i->second);
+					importedMeshes = MeshLoader::loadImportedMeshes(i->second);
 					importedMeshesName = meshType;
 				}
-                createMeshBuffers(importedMeshes[meshNumber].meshData, vbh, ibh);
+                MeshLoader::createMeshBuffers(importedMeshes[meshNumber].meshData, vbh, ibh);
                 diffuseTexture = importedMeshes[meshNumber].diffuseTexture;
             }
         }
@@ -2112,28 +1634,28 @@ int main(void)
     );
 
     //mesh generation
-    MeshData meshData = loadMesh("meshes/suzanne.obj");
+    MeshLoader::MeshData meshData = MeshLoader::loadMesh("meshes/suzanne.obj");
     bgfx::VertexBufferHandle vbh_mesh;
     bgfx::IndexBufferHandle ibh_mesh;
-    createMeshBuffers(meshData, vbh_mesh, ibh_mesh);
+    MeshLoader::createMeshBuffers(meshData, vbh_mesh, ibh_mesh);
 
     //teapot generation
-    MeshData teapotData = loadMesh("meshes/teapot.obj");
+    MeshLoader::MeshData teapotData = MeshLoader::loadMesh("meshes/teapot.obj");
     bgfx::VertexBufferHandle vbh_teapot;
     bgfx::IndexBufferHandle ibh_teapot;
-    createMeshBuffers(teapotData, vbh_teapot, ibh_teapot);
+    MeshLoader::createMeshBuffers(teapotData, vbh_teapot, ibh_teapot);
 
     //stanford bunny generation
-    MeshData bunnyData = loadMesh("meshes/bunny.obj");
+    MeshLoader::MeshData bunnyData = MeshLoader::loadMesh("meshes/bunny.obj");
     bgfx::VertexBufferHandle vbh_bunny;
     bgfx::IndexBufferHandle ibh_bunny;
-    createMeshBuffers(bunnyData, vbh_bunny, ibh_bunny);
+    MeshLoader::createMeshBuffers(bunnyData, vbh_bunny, ibh_bunny);
 
     //lucy generation
-    MeshData lucyData = loadMesh("meshes/lucy.obj");
+    MeshLoader::MeshData lucyData = MeshLoader::loadMesh("meshes/lucy.obj");
     bgfx::VertexBufferHandle vbh_lucy;
     bgfx::IndexBufferHandle ibh_lucy;
-    createMeshBuffers(lucyData, vbh_lucy, ibh_lucy);
+    MeshLoader::createMeshBuffers(lucyData, vbh_lucy, ibh_lucy);
 
     std::unordered_map<std::string, std::pair<bgfx::VertexBufferHandle, bgfx::IndexBufferHandle>> bufferMap;
 
@@ -2219,47 +1741,47 @@ int main(void)
         TextureOption noiseTex;
 
         noiseTex.name = "Noise1(Default)";
-        noiseTex.handle = loadTextureDDS("noise textures\\noise1.dds");
+        noiseTex.handle = MeshLoader::loadTextureDDS("noise textures\\noise1.dds");
         availableNoiseTextures.push_back(noiseTex);
 
         noiseTex.name = "Noise2";
-        noiseTex.handle = loadTextureDDS("noise textures\\noise2.dds");
+        noiseTex.handle = MeshLoader::loadTextureDDS("noise textures\\noise2.dds");
         availableNoiseTextures.push_back(noiseTex);
 
         noiseTex.name = "Noise3";
-        noiseTex.handle = loadTextureDDS("noise textures\\noise3.dds");
+        noiseTex.handle = MeshLoader::loadTextureDDS("noise textures\\noise3.dds");
         availableNoiseTextures.push_back(noiseTex);
 
         noiseTex.name = "Noise4";
-        noiseTex.handle = loadTextureDDS("noise textures\\noise4.dds");
+        noiseTex.handle = MeshLoader::loadTextureDDS("noise textures\\noise4.dds");
         availableNoiseTextures.push_back(noiseTex);
 
         noiseTex.name = "Noise5";
-        noiseTex.handle = loadTextureDDS("noise textures\\noise5.dds");
+        noiseTex.handle = MeshLoader::loadTextureDDS("noise textures\\noise5.dds");
         availableNoiseTextures.push_back(noiseTex);
 
         noiseTex.name = "Noise6";
-        noiseTex.handle = loadTextureDDS("noise textures\\noise6.dds");
+        noiseTex.handle = MeshLoader::loadTextureDDS("noise textures\\noise6.dds");
         availableNoiseTextures.push_back(noiseTex);
 
         noiseTex.name = "Noise7";
-        noiseTex.handle = loadTextureDDS("noise textures\\noise7.dds");
+        noiseTex.handle = MeshLoader::loadTextureDDS("noise textures\\noise7.dds");
         availableNoiseTextures.push_back(noiseTex);
 
         noiseTex.name = "Noise8";
-        noiseTex.handle = loadTextureDDS("noise textures\\noise8.dds");
+        noiseTex.handle = MeshLoader::loadTextureDDS("noise textures\\noise8.dds");
         availableNoiseTextures.push_back(noiseTex);
 
         noiseTex.name = "Noise9";
-        noiseTex.handle = loadTextureDDS("noise textures\\noise9.dds");
+        noiseTex.handle = MeshLoader::loadTextureDDS("noise textures\\noise9.dds");
         availableNoiseTextures.push_back(noiseTex);
 
         noiseTex.name = "Noise10";
-        noiseTex.handle = loadTextureDDS("noise textures\\noise10.dds");
+        noiseTex.handle = MeshLoader::loadTextureDDS("noise textures\\noise10.dds");
         availableNoiseTextures.push_back(noiseTex);
 
         noiseTex.name = "Noise11";
-        noiseTex.handle = loadTextureDDS("noise textures\\noise11.dds");
+        noiseTex.handle = MeshLoader::loadTextureDDS("noise textures\\noise11.dds");
         availableNoiseTextures.push_back(noiseTex);
     }
 
@@ -2272,176 +1794,176 @@ int main(void)
 
         // Asphalt 1
         tex.name = "Asphalt1";
-        tex.handle = loadTextureDDS("shaders\\Asphalt 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Asphalt 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Bark 1
         tex.name = "Bark1";
-        tex.handle = loadTextureDDS("shaders\\Bark 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Bark 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Brick 1
         tex.name = "Brick1";
-        tex.handle = loadTextureDDS("shaders\\Brick 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Brick 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Carpet 1
         tex.name = "Carpet1";
-        tex.handle = loadTextureDDS("shaders\\Carpet 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Carpet 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Cobblestone 1
         tex.name = "Cobblestone1";
-        tex.handle = loadTextureDDS("shaders\\Cobblestone 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Cobblestone 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Concrete 1
         tex.name = "Concrete1";
-        tex.handle = loadTextureDDS("shaders\\Concrete 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Concrete 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Dirt 1
         tex.name = "Dirt1";
-        tex.handle = loadTextureDDS("shaders\\Dirt 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Dirt 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Fabric 1
         tex.name = "Fabric1";
-        tex.handle = loadTextureDDS("shaders\\Fabric 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Fabric 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Food 1
         tex.name = "Food1";
-        tex.handle = loadTextureDDS("shaders\\Food 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Food 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Glass 1
         tex.name = "Glass1";
-        tex.handle = loadTextureDDS("shaders\\Glass 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Glass 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Glass 2
         tex.name = "Glass2";
-        tex.handle = loadTextureDDS("shaders\\Glass 2.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Glass 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Grass 1
         tex.name = "Grass1";
-        tex.handle = loadTextureDDS("shaders\\Grass 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Grass 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Grass 2
         tex.name = "Grass2";
-        tex.handle = loadTextureDDS("shaders\\Grass 2.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Grass 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Leaves 1
         tex.name = "Leaves1";
-        tex.handle = loadTextureDDS("shaders\\Leaves 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Leaves 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Metal 1
         tex.name = "Metal10";
-        tex.handle = loadTextureDDS("shaders\\Metal 10.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Metal 10.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Paint 1
         tex.name = "Paint1";
-        tex.handle = loadTextureDDS("shaders\\Paint 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Paint 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Rock 1
         tex.name = "Rock1";
-        tex.handle = loadTextureDDS("shaders\\Rocks 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Rocks 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Shingles 1
         tex.name = "Shingles1";
-        tex.handle = loadTextureDDS("shaders\\Shingles 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Shingles 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Snow 1
         tex.name = "Snow1";
-        tex.handle = loadTextureDDS("shaders\\Snow 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Snow 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Stone 1
         tex.name = "Stone1";
-        tex.handle = loadTextureDDS("shaders\\Stone 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Stone 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Stone 2
         tex.name = "Stone2";
-        tex.handle = loadTextureDDS("shaders\\Stone 2.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Stone 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Tile 1
         tex.name = "Tile1";
-        tex.handle = loadTextureDDS("shaders\\Tile 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Tile 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Tile 2
         tex.name = "Tile2";
-        tex.handle = loadTextureDDS("shaders\\Tile 2.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Tile 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Wood 1
         tex.name = "Wood1";
-        tex.handle = loadTextureDDS("shaders\\Wood 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Wood 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Wood 2
         tex.name = "Wood2";
-        tex.handle = loadTextureDDS("shaders\\Wood 2.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Wood 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Wood 3
         tex.name = "Wood3";
-        tex.handle = loadTextureDDS("shaders\\Wood 3.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Wood 3.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Wooden Boards 1
         tex.name = "Wooden Boards1";
-        tex.handle = loadTextureDDS("shaders\\Wooden Boards 1.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Wooden Boards 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Wooden Boards 2
         tex.name = "Wooden Boards2";
-        tex.handle = loadTextureDDS("shaders\\Wooden Boards 2.dds");
+        tex.handle = MeshLoader::loadTextureDDS("shaders\\Wooden Boards 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
     }
 
 
     //plane
-    bgfx::TextureHandle planeTexture = loadTextureDDS("shaders\\texture2.dds");
+    bgfx::TextureHandle planeTexture = MeshLoader::loadTextureDDS("shaders\\texture2.dds");
     // Create a default white texture once (static variable)
     static bgfx::TextureHandle defaultWhiteTexture = BGFX_INVALID_HANDLE;
     if (defaultWhiteTexture.idx == bgfx::kInvalidHandle)
@@ -2635,13 +2157,13 @@ int main(void)
 
                         std::string absPath = OpenFileDialog(glfwGetWin32Window(window), modelFilter);
                         std::string relPath = GetRelativePath(absPath);
-                        std::string normalizedRelPath = ConvertBackslashesToForward(relPath);
+                        std::string normalizedRelPath = MeshLoader::ConvertBackslashesToForward(relPath);
                         std::cout << "filePath: " << normalizedRelPath << std::endl;
 
                         if (!normalizedRelPath.empty())
                         {
                             // Load all meshes (with textures) using the updated importer.
-                            std::vector<ImportedMesh> importedMeshes = loadImportedMeshes(normalizedRelPath);
+                            std::vector<MeshLoader::ImportedMesh> importedMeshes = MeshLoader::loadImportedMeshes(normalizedRelPath);
                             std::string fileName = fs::path(normalizedRelPath).stem().string();
 
                             // Compute overall group center by averaging each mesh's global translation.
@@ -2668,7 +2190,7 @@ int main(void)
                             {
                                 bgfx::VertexBufferHandle vbh_imported;
                                 bgfx::IndexBufferHandle ibh_imported;
-                                createMeshBuffers(importedMeshes[i].meshData, vbh_imported, ibh_imported);
+                                MeshLoader::createMeshBuffers(importedMeshes[i].meshData, vbh_imported, ibh_imported);
 
                                 Instance* childInst = new Instance(instanceCounter++, fileName + "_" + std::to_string(i),
                                     fileName + "_" + std::to_string(i), 0.0f, 0.0f, 0.0f,
@@ -2707,10 +2229,10 @@ int main(void)
                         if (!texFilePath.empty())
                         {
                             // Optionally, convert backslashes to forward slashes.
-                            std::string normalizedPath = ConvertBackslashesToForward(texFilePath);
+                            std::string normalizedPath = MeshLoader::ConvertBackslashesToForward(texFilePath);
                             std::cout << "Importing texture from: " << normalizedPath << std::endl;
                             // Load the texture (currently only DDS files are supported).
-                            bgfx::TextureHandle newTexture = loadTextureFile(normalizedPath.c_str());
+                            bgfx::TextureHandle newTexture = MeshLoader::loadTextureFile(normalizedPath.c_str());
                             if (newTexture.idx != bgfx::kInvalidHandle)
                             {
                                 // Create a TextureOption entry for the new texture.
@@ -2880,13 +2402,13 @@ int main(void)
 
                         std::string absPath = OpenFileDialog(glfwGetWin32Window(window), modelFilter);
                         std::string relPath = GetRelativePath(absPath);
-                        std::string normalizedRelPath = ConvertBackslashesToForward(relPath);
+                        std::string normalizedRelPath = MeshLoader::ConvertBackslashesToForward(relPath);
                         std::cout << "filePath: " << normalizedRelPath << std::endl;
 
                         if (!normalizedRelPath.empty())
                         {
                             // Load all meshes (with textures) using the updated importer.
-                            std::vector<ImportedMesh> importedMeshes = loadImportedMeshes(normalizedRelPath);
+                            std::vector<MeshLoader::ImportedMesh> importedMeshes = MeshLoader::loadImportedMeshes(normalizedRelPath);
                             std::string fileName = fs::path(normalizedRelPath).stem().string();
 
                             // Compute overall group center by averaging each mesh's global translation.
@@ -2913,7 +2435,7 @@ int main(void)
                             {
                                 bgfx::VertexBufferHandle vbh_imported;
                                 bgfx::IndexBufferHandle ibh_imported;
-                                createMeshBuffers(importedMeshes[i].meshData, vbh_imported, ibh_imported);
+                                MeshLoader::createMeshBuffers(importedMeshes[i].meshData, vbh_imported, ibh_imported);
 
                                 Instance* childInst = new Instance(instanceCounter++, fileName + "_" + std::to_string(i),
                                     fileName + "_" + std::to_string(i), 0.0f, 0.0f, 0.0f,
