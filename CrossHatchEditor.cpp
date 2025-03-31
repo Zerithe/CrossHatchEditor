@@ -12,6 +12,8 @@
 #include "PrimitiveObjects.h"
 #include "ObjLoader.h"
 #include "MeshLoader.h"
+#include "SceneIO.h"
+#include "Instance.h"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -31,7 +33,6 @@ namespace fs = std::filesystem;
 #include <bx/readerwriter.h>
 #include <bx/string.h>
 
-#include <algorithm>
 #include <string>
 
 //include embedded shaders
@@ -79,8 +80,6 @@ bgfx::UniformHandle u_viewPos;
 #define PICKING_DIM 128
 
 static bool useGlobalCrosshatchSettings = true;
-// (Define TAU in C++ too)
-const float TAU = 6.28318530718f;
 // Declare static variables to hold our crosshatch parameters:
 static float inkColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f }; // Typically black ink.
 static float epsilonValue = 0.02f;              // Outer Line Smoothness or Epsilon
@@ -121,130 +120,8 @@ static bgfx::UniformHandle u_id = BGFX_INVALID_HANDLE;
 // Program handle for the picking pass.
 static bgfx::ProgramHandle pickingProgram = BGFX_INVALID_HANDLE;
 
-struct TextureOption {
-    std::string name;
-    bgfx::TextureHandle handle;
-};
-
-std::vector<TextureOption> availableNoiseTextures;
 int currentNoiseIndex = 0; // which noise texture is selected by the user
 int globalCurrentNoiseIndex = 0; // which noise texture is selected by the user
-
-struct MaterialParams
-{
-    float tiling[2];     // (tilingU, tilingV)
-    float offset[2];     // (offsetU, offsetV)
-    float albedo[4];     // (r, g, b, a)
-};
-
-// Define a struct to hold animation parameters for a light.
-struct LightAnimation {
-    bool enabled = false;                       // Toggle animation on/off.
-    float amplitude[3] = { 6.0f, 0.0f, 0.0f };  // Amplitude for x, y, z motion.
-    float frequency[3] = { 1.0f, 1.0f, 1.0f };  // Frequency (Hz) for each axis.
-    float phase[3]     = { 0.0f, 0.0f, 0.0f };  // Phase offset for each axis.
-};
-
-struct Instance
-{
-    int id;
-    std::string name;
-    std::string type;
-    float position[3];
-    float rotation[3]; // Euler angles in radians (for X, Y, Z)
-    float scale[3];    // Non-uniform scale for each axis
-    bgfx::VertexBufferHandle vertexBuffer;
-    bgfx::IndexBufferHandle indexBuffer;
-    bool selected = false;
-
-    // Add an override object color (RGBA)
-    float objectColor[4];
-    // NEW: optional diffuse texture for the object.
-    bgfx::TextureHandle diffuseTexture = BGFX_INVALID_HANDLE;
-
-    // NEW: noise texture
-    bgfx::TextureHandle noiseTexture = BGFX_INVALID_HANDLE;
-
-    MaterialParams material;
-
-    // --- New for lights ---
-    bool isLight = false;
-    LightProperties lightProps; // Valid if isLight == true.
-
-    // NEW: Store the base (original) position for animation.
-    float basePosition[3];
-
-    // NEW: Animation parameters for lights.
-    LightAnimation lightAnim;
-
-    // NEW: For light objects only – determines if the debug visual (the sphere)
-    // is drawn. (Default true.)
-    bool showDebugVisual = true;
-
-    std::vector<Instance*> children; // Hierarchy: child instances
-    Instance* parent = nullptr;      // pointer to parent
-
-    float inkColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-    // Declare variables to hold our crosshatch parameters:
-    float epsilonValue = 0.02f;             // Outer Line Smoothness or Epsilon
-    float strokeMultiplier = 1.0f;          // Outer Hatch Density or Stroke Multiplier
-    float lineAngle1 = TAU / 8.0f;          // Outer Hatch Angle or Line Angle 1
-    float lineAngle2 = TAU / 16.0f;         // Line Angle 2
-
-    // These variables will hold the extra parameter values.
-    float patternScale = 3.0f;              // Outer Hatch Scale or Pattern Scale
-    float lineThickness = 0.3f;             // Outer Hatch Weight or Line Thickness
-
-    // You can leave the remaining components as 0 (or later repurpose them)
-    float transparencyValue = 1.0f;         // Hatch Opacity or Transparency
-    int crosshatchMode = 2;                 // 0 = hatch ver 1.0, 1 = hatch ver 1.1, 2 = hatch ver 1.2, 3 = basic shader
-
-    // These variables will hold the values for u_paramsLayer
-    float layerPatternScale = 1.0f;         // Inner Hatch Scale or Layer Pattern Scale
-    float layerStrokeMult = 0.250f;         // Inner Hatch Density or Layer Stroke Multiplier
-    float layerAngle = 2.983f;              // Inner Hatch Angle or Layer Angle
-    float layerLineThickness = 10.0f;       // Inner Hatch Weight or Layer Line Thickness
-
-    //variables for rotating spot light
-    float centerX = 0.0f;
-    float centerZ = 0.0f;
-    float radius = 5.0f;
-    float rotationSpeed = 0.5f;
-    float instanceAngle = 0.0f;
-
-    Instance(int instanceId, const std::string& instanceName, const std::string& instanceType, float x, float y, float z, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh)
-        : id(instanceId), name(instanceName), type(instanceType), vertexBuffer(vbh), indexBuffer(ibh)
-    {
-        position[0] = x;
-        position[1] = y;
-        position[2] = z;
-        // Initialize with no rotation and uniform scale of 1
-        rotation[0] = rotation[1] = rotation[2] = 0.0f;
-        scale[0] = scale[1] = scale[2] = 1.0f;
-        // Initialize the object color to white (no override)
-        objectColor[0] = 1.0f; objectColor[1] = 1.0f; objectColor[2] = 1.0f; objectColor[3] = 1.0f;
-        // For light objects, default to drawing the debug visual.
-        showDebugVisual = true;
-
-        material.tiling[0] = 1.0f;
-        material.tiling[1] = 1.0f;
-        material.offset[0] = 0.0f;
-        material.offset[1] = 0.0f;
-        material.albedo[0] = 1.0f; // r
-        material.albedo[1] = 1.0f; // g
-        material.albedo[2] = 1.0f; // b
-        material.albedo[3] = 1.0f; // a
-
-        noiseTexture = availableNoiseTextures[0].handle;
-        // Store base position for animation.
-        basePosition[0] = x; basePosition[1] = y; basePosition[2] = z;
-    }
-    void addChild(Instance* child) {
-        children.push_back(child);
-        child->parent = this;
-    }
-};
-static Instance* selectedInstance = nullptr;
 
 void BuildWorldMatrix(const Instance* inst, float* outMatrix) {
     float local[16];
@@ -426,32 +303,6 @@ void DrawGizmoForSelected(Instance* selectedInstance, const float* view, const f
     }
 }
 
-std::string openFileDialog(bool save) {
-#ifdef _WIN32
-    char filePath[MAX_PATH] = { 0 };
-
-    OPENFILENAMEA ofn; // Windows File Picker Struct
-    ZeroMemory(&ofn, sizeof(ofn));
-    ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = NULL;
-    ofn.lpstrFilter = "Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0";
-    ofn.lpstrFile = filePath;
-    ofn.nMaxFile = MAX_PATH;
-    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
-
-    if (save) {
-        ofn.Flags |= OFN_OVERWRITEPROMPT;
-        if (GetSaveFileNameA(&ofn))
-            return std::string(filePath);
-    }
-    else {
-        if (GetOpenFileNameA(&ofn))
-            return std::string(filePath);
-    }
-#endif
-    return "";
-}
-
 static void glfw_keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if (key == GLFW_KEY_F1 && action == GLFW_RELEASE)
@@ -487,8 +338,6 @@ bgfx::ShaderHandle loadShader(const char* shaderPath)
     //std::cout << "Shader loaded: " << shaderPath << std::endl;
     return bgfx::createShader(mem);
 }
-
-static int instanceCounter = 0;
 
 static void spawnInstance(Camera camera, const std::string& instanceName, const std::string& instanceType, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh, std::vector<Instance*>& instances)
 {
@@ -710,15 +559,7 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, 
         drawInstance(child, defaultProgram, lightDebugProgram, u_noiseTex, u_diffuseTex, u_objectColor, u_tint, u_inkColor, u_e, u_params, u_extraParams, u_paramsLayer, defaultWhiteTexture, inheritedNoiseTex, newInheritedTexture, childParentColor, world);
     }
 }
-// Recursive deletion for hierarchy.
-void deleteInstance(Instance* instance)
-{
-    for (Instance* child : instance->children)
-    {
-        deleteInstance(child);
-    }
-    delete instance;
-}
+
 // Recursive function to show the instance hierarchy in a tree view.
 void ShowInstanceTree(Instance* instance, Instance*& selectedInstance, std::vector<Instance*>& instances)
 {
@@ -827,326 +668,6 @@ void ShowInstanceTree(Instance* instance, Instance*& selectedInstance, std::vect
         ImGui::TreePop();
     }
 }
-
-
-void saveInstance(std::ofstream& file, const Instance* instance,
-    const std::vector<TextureOption>& availableTextures, int parentID = -1)
-{
-    std::string textureName = "none";
-    for (const auto& tex : availableTextures)
-    {
-        if (instance->diffuseTexture.idx == tex.handle.idx)
-        {
-            textureName = tex.name;
-            break;
-        }
-    }
-
-    std::string noiseTextureName = "none";
-    for (const auto& tex : availableNoiseTextures)
-    {
-        if (instance->noiseTexture.idx == tex.handle.idx)
-        {
-            noiseTextureName = tex.name;
-            break;
-        }
-    }
-
-    file << instance->id << " " << instance->type << " " << instance->name << " "
-        << instance->position[0] << " " << instance->position[1] << " " << instance->position[2] << " "
-        << instance->rotation[0] << " " << instance->rotation[1] << " " << instance->rotation[2] << " "
-        << instance->scale[0] << " " << instance->scale[1] << " " << instance->scale[2] << " "
-        << instance->objectColor[0] << " " << instance->objectColor[1] << " " << instance->objectColor[2] << " " << instance->objectColor[3] << " "
-        << textureName << " " << noiseTextureName << " " << parentID << " " << static_cast<int>(instance->lightProps.type) << " " << instance->lightProps.direction[0] << " "
-        << instance->lightProps.direction[1] << " " << instance->lightProps.direction[2] << " " << instance->lightProps.intensity << " "
-        << instance->lightProps.range << " " << instance->lightProps.coneAngle << " " << instance->lightProps.color[0] << " "
-        << instance->lightProps.color[1] << " " << instance->lightProps.color[2] << " " << instance->lightProps.color[3] << " "
-        << instance->inkColor[0] << " " << instance->inkColor[1] << " " << instance->inkColor[2] << " " << instance->inkColor[3] << " "
-        << instance->epsilonValue << " " << instance->strokeMultiplier << " " << instance->lineAngle1 << " " << instance->lineAngle2 << " "
-        << instance->patternScale << " " << instance->lineThickness << " " << instance->transparencyValue << " " << instance->crosshatchMode << " "
-        << instance->layerPatternScale << " " << instance->layerStrokeMult << " " << instance->layerAngle << " " << instance->layerLineThickness << " "
-        << instance->centerX << " " << instance->centerZ << " " << instance->radius << " " << instance->rotationSpeed << " " << instance->instanceAngle << " "
-        << instance->basePosition[0] << " " << instance->basePosition[1] << " " << instance->basePosition[2] << " " 
-        << instance->lightAnim.amplitude[0] << " " << instance->lightAnim.amplitude[1] << " " << instance->lightAnim.amplitude[2] << " " 
-        << instance->lightAnim.frequency[0] << " " << instance->lightAnim.frequency[1] << " " << instance->lightAnim.frequency[2] << " "
-        << instance->lightAnim.phase[0] << " " << instance->lightAnim.phase[1] << " " << instance->lightAnim.phase[2] << " "
-        << static_cast<int>(instance->lightAnim.enabled) << "\n"; // Save `type` and parentID
-
-    // Recursively save children
-    for (const Instance* child : instance->children)
-    {
-        saveInstance(file, child, availableTextures, instance->id);
-    }
-}
-void SaveImportedObjMap(const std::unordered_map<std::string, std::string>& map, const std::string& filePath)
-{
-    std::ofstream ofs(filePath);
-    if (!ofs)
-    {
-        std::cerr << "Failed to open file for writing: " << filePath << std::endl;
-        return;
-    }
-    // Write each mapping as: key [whitespace] value
-    for (const auto& entry : map)
-    {
-        ofs << entry.first << " " << entry.second << "\n";
-    }
-    ofs.close();
-}
-std::unordered_map<std::string, std::string> LoadImportedObjMap(const std::string& filePath)
-{
-    std::unordered_map<std::string, std::string> map;
-    std::ifstream ifs(filePath);
-    if (!ifs)
-    {
-        std::cerr << "Failed to open file for reading: " << filePath << std::endl;
-        return map;
-    }
-    std::string key, path;
-    while (ifs >> key >> path)
-    {
-        map[key] = path;
-    }
-    ifs.close();
-    return map;
-}
-
-void saveSceneToFile(std::vector<Instance*>& instances, const std::vector<TextureOption>& availableTextures, const std::unordered_map<std::string, std::string>& importedObjMap)
-{
-    std::string saveFilePath = openFileDialog(true); // Open save dialog
-    if (saveFilePath.empty()) return; // Exit if no file was chosen
-
-    std::ofstream file(saveFilePath);
-    if (!file.is_open())
-    {
-        std::cerr << "Failed to save scene!" << std::endl;
-        return;
-    }
-
-    for (const Instance* instance : instances)
-    {
-        // Ensure top-level instances are saved first (with no parent)
-        saveInstance(file, instance, availableTextures, -1);
-    }
-
-    file.close();
-    std::cout << "Scene saved to " << saveFilePath << std::endl;
-
-    std::string importedObjMapPath = fs::path(saveFilePath).stem().string() + "_imp_obj_map.txt";
-    SaveImportedObjMap(importedObjMap, importedObjMapPath);
-    std::cout << "Imported obj paths saved to " << importedObjMapPath << std::endl;
-}
-
-// Find the highest instance ID in the hierarchy
-void findMaxInstanceId(const Instance* instance, int& maxId) {
-    // Check this instance's ID
-    maxId = std::max(maxId, instance->id);
-
-    // Recursively check all children
-    for (const Instance* child : instance->children) {
-        findMaxInstanceId(child, maxId);
-    }
-}
-
-std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Instance*>& instances,
-    const std::vector<TextureOption>& availableTextures,
-    const std::unordered_map<std::string, std::pair<bgfx::VertexBufferHandle, bgfx::IndexBufferHandle>>& bufferMap)
-{
-    selectedInstance = nullptr;
-    std::string loadFilePath = openFileDialog(false);
-    std::string importedObjMapPath = fs::path(loadFilePath).stem().string() + "_imp_obj_map.txt";
-    std::unordered_map<std::string, std::string> importedObjMap = LoadImportedObjMap(importedObjMapPath);
-    if (loadFilePath.empty()) return importedObjMap;
-
-    std::ifstream file(loadFilePath);
-    if (!file.is_open())
-    {
-        std::cerr << "Failed to load scene!" << std::endl;
-        return importedObjMap;
-    }
-
-    // Clear existing instances
-    for (Instance* inst : instances)
-    {
-        deleteInstance(inst);
-    }
-    instances.clear();
-
-    std::unordered_map<int, Instance*> instanceMap; // Stores instances by their IDs
-    std::vector<std::pair<int, int>> parentAssignments; // Stores parent-child assignments
-
-    std::vector<MeshLoader::ImportedMesh> importedMeshes;
-    std::string importedMeshesName = "";
-
-    std::string line;
-    while (std::getline(file, line))
-    {
-        std::istringstream iss(line);
-        bgfx::TextureHandle diffuseTexture = BGFX_INVALID_HANDLE;
-        int id, parentID, lightType, crosshatchMode, animationEnabled;
-        std::string type, name, textureName, noiseTextureName;
-        float pos[3], rot[3], scale[3], color[4], lightDirection[3], intensity, range, coneAngle, lightColor[4], inkColor[4], epsilonValue, strokeMultiplier, lineAngle1, lineAngle2, patternScale, lineThickness, transparencyValue, layerPatternScale, layerStrokeMult, layerAngle, layerLineThickness, centerX, centerZ, radius, rotationSpeed, instanceAngle, basePosition[3], amplitude[3], frequency[3], phase[3];
-
-        iss >> id >> type >> name
-            >> pos[0] >> pos[1] >> pos[2]
-            >> rot[0] >> rot[1] >> rot[2]
-            >> scale[0] >> scale[1] >> scale[2]
-            >> color[0] >> color[1] >> color[2] >> color[3]
-            >> textureName >> noiseTextureName >> parentID >> lightType
-            >> lightDirection[0] >> lightDirection[1] >> lightDirection[2]
-            >> intensity >> range >> coneAngle
-            >> lightColor[0] >> lightColor[1] >> lightColor[2] >> lightColor[3]
-            >> inkColor[0] >> inkColor[1] >> inkColor[2] >> inkColor[3]
-            >> epsilonValue >> strokeMultiplier >> lineAngle1 >> lineAngle2
-            >> patternScale >> lineThickness >> transparencyValue >> crosshatchMode
-            >> layerPatternScale >> layerStrokeMult >> layerAngle >> layerLineThickness
-            >> centerX >> centerZ >> radius >> rotationSpeed >> instanceAngle
-            >> basePosition[0] >> basePosition[1] >> basePosition[2]
-            >> amplitude[0] >> amplitude[1] >> amplitude[2]
-			>> frequency[0] >> frequency[1] >> frequency[2]
-            >> phase[0] >> phase[1] >> phase[2]
-            >> animationEnabled;
-
-        // Fetch correct buffers using `type`
-        bgfx::VertexBufferHandle vbh = BGFX_INVALID_HANDLE;
-        bgfx::IndexBufferHandle ibh = BGFX_INVALID_HANDLE;
-
-        auto it = bufferMap.find(type);
-        if (it != bufferMap.end())
-        {
-            vbh = it->second.first;
-            ibh = it->second.second;
-        }
-        else {
-            size_t pos = type.find('_');
-            std::string meshType = type.substr(0, pos);
-            int meshNumber = std::stoi(type.substr(pos + 1));
-            auto i = importedObjMap.find(meshType);
-            if (i != importedObjMap.end())
-            {
-				if (importedMeshesName != meshType)
-				{
-					importedMeshes.clear();
-					importedMeshes = MeshLoader::loadImportedMeshes(i->second);
-					importedMeshesName = meshType;
-				}
-                MeshLoader::createMeshBuffers(importedMeshes[meshNumber].meshData, vbh, ibh);
-                diffuseTexture = importedMeshes[meshNumber].diffuseTexture;
-            }
-        }
-
-        // Create instance
-        Instance* instance = new Instance(id, name, type, pos[0], pos[1], pos[2], vbh, ibh);
-        instance->rotation[0] = rot[0]; instance->rotation[1] = rot[1]; instance->rotation[2] = rot[2];
-        instance->scale[0] = scale[0]; instance->scale[1] = scale[1]; instance->scale[2] = scale[2];
-        instance->objectColor[0] = color[0]; instance->objectColor[1] = color[1];
-        instance->objectColor[2] = color[2]; instance->objectColor[3] = color[3];
-        instance->lightProps.type = static_cast<LightType>(lightType);
-        instance->lightProps.direction[0] = lightDirection[0]; instance->lightProps.direction[1] = lightDirection[1]; instance->lightProps.direction[2] = lightDirection[2];
-        instance->lightProps.intensity = intensity;
-        instance->lightProps.range = range;
-        instance->lightProps.coneAngle = coneAngle;
-        instance->lightProps.color[0] = lightColor[0]; instance->lightProps.color[1] = lightColor[1]; instance->lightProps.color[2] = lightColor[2]; instance->lightProps.color[3] = lightColor[3];
-        if (instance->type == "light") {
-            instance->isLight = true;
-            if (instance->lightProps.type == LightType::Spot || instance->lightProps.type == LightType::Directional) {
-                auto it = bufferMap.find("cone");
-                if (it != bufferMap.end())
-                {
-                    instance->vertexBuffer = it->second.first;
-                    instance->indexBuffer = it->second.second;
-                }
-            }
-        }
-        instance->inkColor[0] = inkColor[0]; instance->inkColor[1] = inkColor[1]; instance->inkColor[2] = inkColor[2]; instance->inkColor[3] = inkColor[3];
-        instance->epsilonValue = epsilonValue;
-        instance->strokeMultiplier = strokeMultiplier;
-        instance->lineAngle1 = lineAngle1;
-        instance->lineAngle2 = lineAngle2;
-        instance->patternScale = patternScale;
-        instance->lineThickness = lineThickness;
-        instance->transparencyValue = transparencyValue;
-        instance->crosshatchMode = crosshatchMode;
-        instance->layerPatternScale = layerPatternScale;
-        instance->layerStrokeMult = layerStrokeMult;
-        instance->layerAngle = layerAngle;
-        instance->layerLineThickness = layerLineThickness;
-        instance->centerX = centerX;
-        instance->centerZ = centerZ;
-        instance->radius = radius;
-        instance->rotationSpeed = rotationSpeed;
-        instance->instanceAngle = instanceAngle;
-		instance->basePosition[0] = basePosition[0]; instance->basePosition[1] = basePosition[1]; instance->basePosition[2] = basePosition[2];
-		instance->lightAnim.amplitude[0] = amplitude[0]; instance->lightAnim.amplitude[1] = amplitude[1]; instance->lightAnim.amplitude[2] = amplitude[2];
-		instance->lightAnim.frequency[0] = frequency[0]; instance->lightAnim.frequency[1] = frequency[1]; instance->lightAnim.frequency[2] = frequency[2];
-		instance->lightAnim.phase[0] = phase[0]; instance->lightAnim.phase[1] = phase[1]; instance->lightAnim.phase[2] = phase[2];
-		instance->lightAnim.enabled = static_cast<bool>(animationEnabled);
-
-        // Assign texture
-        if (textureName != "none")
-        {
-            for (const auto& tex : availableTextures)
-            {
-                if (tex.name == textureName)
-                {
-                    instance->diffuseTexture = tex.handle;
-                    break;
-                }
-            }
-        }
-        else {
-			instance->diffuseTexture = diffuseTexture;
-        }
-
-		// Assign noise texture
-		if (noiseTextureName != "none")
-		{
-			for (const auto& tex : availableNoiseTextures)
-			{
-				if (tex.name == noiseTextureName)
-				{
-					instance->noiseTexture = tex.handle;
-					break;
-				}
-			}
-		}
-
-        instanceMap[id] = instance;
-
-        // If it has a parent, store the relationship
-        if (parentID != -1)
-        {
-            parentAssignments.push_back({ id, parentID });
-        }
-        else
-        {
-            // If it has no parent, it's a top-level instance
-            instances.push_back(instance);
-        }
-    }
-
-    // Restore parent-child relationships
-    for (const auto& [childID, parentID] : parentAssignments)
-    {
-        auto childIt = instanceMap.find(childID);
-        auto parentIt = instanceMap.find(parentID);
-        if (childIt != instanceMap.end() && parentIt != instanceMap.end())
-        {
-            parentIt->second->addChild(childIt->second);
-        }
-    }
-
-    file.close();
-    std::cout << "Scene loaded from " << loadFilePath << std::endl;
-    // Replace the existing code with this
-    int maxId = 0;
-    for (const Instance* inst : instances) {
-        findMaxInstanceId(inst, maxId);
-    }
-    instanceCounter = maxId + 1;
-    return importedObjMap;
-}
-
 
 void ShowTopLevelDropTarget(std::vector<Instance*>& instances)
 {
@@ -1788,7 +1309,6 @@ int main(void)
     noiseTexture = availableNoiseTextures[0].handle;
 
     // Texture
-    std::vector<TextureOption> availableTextures;
     {
         TextureOption tex;
 
@@ -2120,14 +1640,14 @@ int main(void)
                         //std::string loadFilePath = openFileDialog(false); // Open load dialog
                         //if (!loadFilePath.empty())
                         //    loadSceneText(loadFilePath, instances, availableTextures);
-                        importedObjMap = loadSceneFromFile(instances, availableTextures, bufferMap);
+                        importedObjMap = SceneIO::loadSceneFromFile(instances, availableTextures, bufferMap);
                     }
                     if (ImGui::MenuItem("Save", "Ctrl+S"))
                     {
                         //std::string saveFilePath = openFileDialog(true); // Open save dialog
                         //if (!saveFilePath.empty())
                         //    saveScene(saveFilePath, instances, availableTextures);
-                        saveSceneToFile(instances, availableTextures, importedObjMap);
+                        SceneIO::saveSceneToFile(instances, availableTextures, importedObjMap);
                     }
                     // ========================
                     // UPDATED IMPORT MENU CODE
@@ -2225,7 +1745,7 @@ int main(void)
                     if (ImGui::MenuItem("Import Texture"))
                     {
                         // Open a file dialog to select a texture file.
-                        std::string texFilePath = openFileDialog(false);
+                        std::string texFilePath = SceneIO::openFileDialog(false);
                         if (!texFilePath.empty())
                         {
                             // Optionally, convert backslashes to forward slashes.
@@ -2751,7 +2271,7 @@ int main(void)
                         }
 
                         // Delete the instance (which will recursively delete its children)
-                        deleteInstance(selectedInstance);
+                        SceneIO::deleteInstance(selectedInstance);
                         selectedInstance = nullptr;
                     }
                     bool highlighted = highlightVisible;
@@ -3468,7 +2988,7 @@ int main(void)
             bgfx::destroy(instance->vertexBuffer);
             bgfx::destroy(instance->indexBuffer);
         }
-        deleteInstance(instance);
+        SceneIO::deleteInstance(instance);
     }
 
     bgfx::destroy(vbh_plane);
