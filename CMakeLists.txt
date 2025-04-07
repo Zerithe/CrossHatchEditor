@@ -34,7 +34,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 "ObjLoader.cpp"
 "ObjLoader.h" 
 "PrimitiveObjects.h"
-"bgfx-imgui/imgui_impl_bgfx.cpp" "Logger.cpp" "Light.h")
+"bgfx-imgui/imgui_impl_bgfx.cpp" "Logger.cpp" "Light.h" "VideoPlayer.h")
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 
@@ -120,3 +120,27 @@ add_custom_command(TARGET CrossHatchEditor POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${ASSIMP_ROOT_DIR}/bin/assimp-vc143-mtd.dll"  # Replace with the actual path to assimp.dll
         $<TARGET_FILE_DIR:CrossHatchEditor>)
+
+# FFmpeg setup
+set(FFMPEG_DIR "${CMAKE_CURRENT_LIST_DIR}/ffmpeg")  # Adjust this path
+target_include_directories(CrossHatchEditor PRIVATE ${FFMPEG_DIR}/include)
+target_link_directories(CrossHatchEditor PRIVATE ${FFMPEG_DIR}/lib)
+
+target_link_libraries(CrossHatchEditor PRIVATE
+    avcodec
+    avformat
+    avutil
+    swscale
+    swresample
+)
+
+# Copy FFmpeg DLLs after build
+add_custom_command(TARGET CrossHatchEditor POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${FFMPEG_DIR}/bin/avcodec-61.dll"
+        "${FFMPEG_DIR}/bin/avformat-61.dll"
+        "${FFMPEG_DIR}/bin/avutil-59.dll"
+        "${FFMPEG_DIR}/bin/swscale-8.dll"
+        "${FFMPEG_DIR}/bin/swresample-5.dll"
+        $<TARGET_FILE_DIR:CrossHatchEditor>
+)

@@ -11,6 +11,7 @@
 #include "Camera.h"
 #include "PrimitiveObjects.h"
 #include "ObjLoader.h"
+#include "VideoPlayer.h"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -2549,8 +2550,89 @@ int main(void)
         glfwPollEvents();
 
         ImGuiViewport* viewport = ImGui::GetMainViewport();
+        static VideoPlayer videoPlayer;
+        static bool videoLoaded = false;
+        if (!videoLoaded)
+        {
+            videoLoaded = videoPlayer.load("videos\\AnitoCrossHatchTrailer.mp4");
+        }
+        static bool showMainMenu = true;
+        if (showMainMenu)
+        {
+            // Update the video frame each frame.
+            videoPlayer.update();
+            // Render the video background
+            {
+                ImGui_ImplGlfw_NewFrame();
+                ImGui_Implbgfx_NewFrame();
+                ImGui::NewFrame();
 
-        if (!takingScreenshot)
+                // Create a full-screen window for the video background.
+                // Use window flags to remove decorations and inputs.
+                ImGui::SetNextWindowPos(ImVec2(0, 0));
+                ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+                ImGui::Begin("Video Background", nullptr,
+                    ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
+                    ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBringToFrontOnFocus);
+                // Render the video texture to fill the background.
+                ImGui::Image((ImTextureID)(uintptr_t)(videoPlayer.texture.idx), ImGui::GetIO().DisplaySize);
+                ImGui::End();
+            }
+
+            // Render the main menu on top.
+            {
+                ImGuiID dockspace_id = viewport->ID;
+                ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
+
+                // Main menu window with opaque background.
+                ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0.5f));
+                ImGui::Begin("Main Menu", nullptr,
+                    ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+                ImGuiIO& io = ImGui::GetIO();
+                ImVec2 displaySize = io.DisplaySize;
+                ImGui::SetWindowPos(ImVec2(0, 0));
+                ImGui::SetWindowSize(displaySize);
+
+                // Center the title text
+                float windowWidth = displaySize.x;
+                float windowHeight = displaySize.y;
+                float titleWidth = ImGui::CalcTextSize("AnitoCrossHatch").x * 3;
+                float titleHeight = ImGui::CalcTextSize("AnitoCrossHatch").y * 3;
+                ImGui::SetCursorPosX((windowWidth - titleWidth) * 0.5f);
+                ImGui::SetCursorPosY((windowHeight - titleHeight) * 0.3f);
+                ImGui::SetWindowFontScale(3.0f);
+                ImGui::Text("AnitoCrossHatch");
+                ImGui::SetWindowFontScale(1.0f);
+
+                // Vertical spacing
+                ImGui::Dummy(ImVec2(0, 50));
+
+                // Render 4 horizontally aligned buttons
+                float totalButtonWidth = (200.0f * 4) + (10.0f * 3); // 4 buttons + gaps
+                ImGui::SetCursorPosX((windowWidth - totalButtonWidth) * 0.5f);
+                if (ImGui::Button("Start", ImVec2(200, 50))) {
+                    showMainMenu = false;
+                }
+                ImGui::SameLine(0.0f, 10.0f);
+                if (ImGui::Button("Gallery", ImVec2(200, 50))) {
+                    // Handle Gallery
+                }
+                ImGui::SameLine(0.0f, 10.0f);
+                if (ImGui::Button("Credits", ImVec2(200, 50))) {
+                    // Handle Credits
+                }
+                ImGui::SameLine(0.0f, 10.0f);
+                if (ImGui::Button("Exit", ImVec2(200, 50))) {
+                    glfwSetWindowShouldClose(window, true);
+                }
+                ImGui::End();
+                ImGui::PopStyleColor();
+
+                ImGui::Render();
+                ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
+            }
+        }
+        else if (!takingScreenshot)
         {
             //imgui loop
             ImGui_ImplGlfw_NewFrame();
@@ -2727,6 +2809,10 @@ int main(void)
                             }
                         }
                     }
+					if (ImGui::MenuItem("Back to Main Menu"))
+					{
+                        showMainMenu = true;
+					}
                     if (ImGui::MenuItem("Exit"))
                     {
                         glfwSetWindowShouldClose(window, true);
