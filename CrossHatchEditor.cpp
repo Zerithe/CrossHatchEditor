@@ -3570,7 +3570,52 @@ int main(void)
                 }
             }
             ImGui::End();
+            // Add a new window for camera settings
+            ImGui::Begin("Camera Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 
+            // Basic camera controls
+            ImGui::SliderFloat("Movement Speed", &camera.movementSpeed, 0.1f, 20.0f);
+            ImGui::SliderFloat("Mouse Sensitivity", &camera.mouseSensitivity, 0.01f, 1.0f);
+            ImGui::Checkbox("Constrain Pitch", &camera.constrainPitch);
+
+            // View settings
+            ImGui::Separator();
+            ImGui::SliderFloat("Field of View", &camera.fov, 30.0f, 120.0f);
+            ImGui::SliderFloat("Near Clip", &camera.nearClip, 0.01f, 10.0f);
+            ImGui::SliderFloat("Far Clip", &camera.farClip, 100.0f, 5000.0f);
+
+            // Position/orientation info
+            ImGui::Separator();
+            ImGui::Text("Position: %.2f, %.2f, %.2f", camera.position.x, camera.position.y, camera.position.z);
+            ImGui::Text("Rotation: Yaw %.2f°, Pitch %.2f°", camera.yaw, camera.pitch);
+
+            static int current_preset = 0;
+            const char* presets[] = { "Default", "Wide Angle", "Telephoto" };
+            if (ImGui::Combo("Preset", &current_preset, presets, IM_ARRAYSIZE(presets))) {
+                switch (current_preset) {
+                case 0: // Default
+                    camera.fov = 60.f;
+                    camera.nearClip = 0.1f;
+                    camera.farClip = 1000.f;
+                    break;
+                case 1: // Wide Angle
+                    camera.fov = 90.f;
+                    camera.nearClip = 0.5f;
+                    camera.farClip = 500.f;
+                    break;
+                case 2: // Telephoto
+                    camera.fov = 30.f;
+                    camera.nearClip = 1.0f;
+                    camera.farClip = 2000.f;
+                    break;
+                }
+            }
+            // Reset button
+            if (ImGui::Button("Reset Camera")) {
+                camera = Camera(); // Reset to defaults
+            }
+
+            ImGui::End();
             ImGui::Render();
             ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
         }
@@ -3693,7 +3738,7 @@ int main(void)
                 float view[16];
                 bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
                 float proj[16];
-                bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+                bx::mtxProj(proj, camera.fov, float(width) / float(height), camera.nearClip, camera.farClip, bgfx::getCaps()->homogeneousDepth);
                 bgfx::setViewTransform(PICKING_VIEW_ID, view, proj);
 
                 // Render each instance with the picking shader.
@@ -3728,7 +3773,7 @@ int main(void)
             float view[16];
             bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
             float proj[16];
-            bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+            bx::mtxProj(proj, camera.fov, float(width) / float(height), camera.nearClip, camera.farClip, bgfx::getCaps()->homogeneousDepth);
             bgfx::setViewTransform(PICKING_VIEW_ID, view, proj);
 
             // Render each instance with the picking shader.
@@ -3814,7 +3859,7 @@ int main(void)
         bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
 
         float proj[16];
-        bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 1000.0f, bgfx::getCaps()->homogeneousDepth);
+        bx::mtxProj(proj, camera.fov, float(width) / float(height), camera.nearClip, camera.farClip, bgfx::getCaps()->homogeneousDepth);
         bgfx::setViewTransform(0, view, proj);
 
         // Set model matrix
