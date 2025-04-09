@@ -3098,8 +3098,18 @@ int main(void)
                     if (ImGui::RadioButton("Scale", currentGizmoOperation == ImGuizmo::SCALE))
                         currentGizmoOperation = ImGuizmo::SCALE;
 
+                    float rotDeg[3] = {
+                    bx::toDeg(selectedInstance->rotation[0]),
+                    bx::toDeg(selectedInstance->rotation[1]),
+                    bx::toDeg(selectedInstance->rotation[2]),
+                    };
+
                     ImGui::DragFloat3("Translation", selectedInstance->position, 0.1f);
-                    ImGui::DragFloat3("Rotation (radians)", selectedInstance->rotation, 0.1f);
+                    if (ImGui::DragFloat3("Rotation (degrees)", rotDeg, 1.0f)) {
+                        selectedInstance->rotation[0] = bx::toRad(rotDeg[0]);
+                        selectedInstance->rotation[1] = bx::toRad(rotDeg[1]);
+                        selectedInstance->rotation[2] = bx::toRad(rotDeg[2]);
+                    }
                     ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
 
                     if (currentGizmoOperation != ImGuizmo::SCALE) {
