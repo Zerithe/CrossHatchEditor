@@ -120,3 +120,33 @@ add_custom_command(TARGET CrossHatchEditor POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${ASSIMP_ROOT_DIR}/bin/assimp-vc143-mtd.dll"  # Replace with the actual path to assimp.dll
         $<TARGET_FILE_DIR:CrossHatchEditor>)
+
+
+# Packaging Test
+
+# Set output directory for build binaries
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+# Install the executable
+install(TARGETS CrossHatchEditor
+        RUNTIME DESTINATION .)
+
+# Install shader files
+install(DIRECTORY ${SHADERS_DIR} DESTINATION .)
+install(DIRECTORY ${MESHES_DIR} DESTINATION .)
+install(DIRECTORY "${NOISE_TEX_DIR}" DESTINATION .)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/imgui.ini DESTINATION .)
+
+# Install required DLLs
+install(FILES
+    "${ASSIMP_ROOT_DIR}/bin/assimp-vc143-mtd.dll"
+    DESTINATION .
+)
+
+include(CPack)
+
+set(CPACK_GENERATOR "ZIP")
+set(CPACK_PACKAGE_NAME "CrossHatchEditor")
+set(CPACK_PACKAGE_VERSION "1.0.0")
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}")
+

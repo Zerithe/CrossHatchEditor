@@ -50,3 +50,21 @@ cmake --build .
 ```
 git clone https://github.com/CedricGuillemet/ImGuizmo
 ```
+
+### HOW TO PACKAGE AND BUILD
+
+1. open cmd in build folder
+
+2. run the following command:
+```
+cmake --build . --config Release
+cmake --install . --prefix ./package
+cpack
+```
+3. this will create files in the package folder and create an installer for the app.
+
+- if error occurs try using this command:
+```
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat" -arch=x64
+```
+
