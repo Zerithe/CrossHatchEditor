@@ -62,6 +62,8 @@ namespace fs = std::filesystem;
 //reference: https://github.com/bkaradzic/bgfx/issues/1179
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
 std::vector<Camera> cameras;
 int currentCameraIndex = 0;
@@ -1412,7 +1414,7 @@ std::vector<ImportedMesh> loadImportedMeshes(const std::string& filePath) {
         // Update the mesh's transform to account for the shift.
         aiMatrix4x4 translationMat;
         aiMatrix4x4::Translation(meshCenter, translationMat);
-        impMesh.transform = impMesh.transform * translationMat;
+        impMesh.transform = translationMat * impMesh.transform;
     }
 
     return importedMeshes;
@@ -1895,6 +1897,55 @@ void createNewCamera() {
     cameras.push_back(newCam);
 }
 
+void takeScreenshotAsPng(bgfx::FrameBufferHandle fb, const std::string& baseName) {
+    std::filesystem::create_directory("screenshots");
+
+    std::string normalPath = "screenshots/" + baseName;
+    std::string tgaPath = "screenshots/" + baseName + ".tga";
+    std::string pngPath = "screenshots/" + baseName + ".png";
+
+
+    // Tell BGFX to save the framebuffer contents to a file
+    bgfx::requestScreenShot(fb, normalPath.c_str());
+    std::cout << "[Screenshot] Requested .tga: " << tgaPath << std::endl;
+
+    std::thread([tgaPath, pngPath]() {
+        namespace fs = std::filesystem;
+
+        const int maxWaitMs = 10000;
+        const int pollIntervalMs = 100;
+        int waitedMs = 0;
+
+        while (!fs::exists(tgaPath) && waitedMs < maxWaitMs) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalMs));
+            waitedMs += pollIntervalMs;
+        }
+
+        if (!fs::exists(tgaPath)) {
+            std::cerr << "[Screenshot] TGA file not found after waiting." << std::endl;
+            return;
+        }
+
+        int width, height, channels;
+        unsigned char* data = stbi_load(tgaPath.c_str(), &width, &height, &channels, 4); // Force RGBA
+
+        if (!data) {
+            std::cerr << "[Screenshot] Failed to load .tga: " << tgaPath << std::endl;
+            return;
+        }
+
+        if (stbi_write_png(pngPath.c_str(), width, height, 4, data, width * 4)) {
+            std::cout << "[Screenshot] Converted to .png: " << pngPath << std::endl;
+            fs::remove(tgaPath); // Clean up
+        }
+        else {
+            std::cerr << "[Screenshot] Failed to save .png: " << pngPath << std::endl;
+        }
+
+        stbi_image_free(data);
+        }).detach(); // Detach the thread so it runs independently
+}
+
 int main(void)
 {
     // Initialize GLFW
@@ -2120,6 +2171,15 @@ int main(void)
         bgfx::makeRef(cornellBoxRightIndices, sizeof(cornellBoxRightIndices))
     );
 
+    //arrow primitive
+	bgfx::IndexBufferHandle ibh_arrow = bgfx::createIndexBuffer(
+		bgfx::makeRef(arrowIndices, sizeof(arrowIndices))
+	);
+	bgfx::VertexBufferHandle vbh_arrow = bgfx::createVertexBuffer(
+		bgfx::makeRef(arrowVertices, sizeof(arrowVertices)),
+		layout
+	);
+
     //mesh generation
     MeshData meshData = loadMesh("meshes/suzanne.obj");
     bgfx::VertexBufferHandle vbh_mesh;
@@ -2164,6 +2224,7 @@ int main(void)
     bufferMap["lucy"] = { vbh_lucy, ibh_lucy };
     bufferMap["light"] = { vbh_sphere, ibh_sphere };
 	bufferMap["cone"] = { vbh_cone, ibh_cone };
+	bufferMap["arrow"] = { vbh_arrow, ibh_arrow };
     bufferMap["empty"] = { BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE };
 
 
@@ -2550,7 +2611,24 @@ int main(void)
         ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoBackground;
 
+    uint16_t screenshotWidth = 1920;
+    uint16_t screenshotHeight = 1080;
+
+    // Create a readable render target texture
+    bgfx::TextureHandle screenshotColorTex = bgfx::createTexture2D(
+        screenshotWidth,
+        screenshotHeight,
+        false, 1,
+        bgfx::TextureFormat::BGRA8,
+        BGFX_TEXTURE_RT
+    );
+
+    // Create a framebuffer with that texture
+    bgfx::FrameBufferHandle screenshotFB = bgfx::createFrameBuffer(1, &screenshotColorTex, true);
+
     bool takingScreenshot = false;
+	static char screenshotName[256] = "screenshot";
+    static bool openScreenshotPopup = false;
 
     //MAIN LOOP
     while (!glfwWindowShouldClose(window))
@@ -2933,6 +3011,11 @@ int main(void)
                             spawnInstanceAtCenter("empty", "empty", BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE, instances);
                             std::cout << "Empty object spawned" << std::endl;
                         }
+                        if (ImGui::MenuItem("Arrow"))
+                        {
+							spawnInstanceAtCenter("arrow", "arrow", vbh_arrow, ibh_arrow, instances);
+							std::cout << "Arrow spawned" << std::endl;
+                        }
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu("Lights"))
@@ -3109,8 +3192,18 @@ int main(void)
                     if (ImGui::RadioButton("Scale", currentGizmoOperation == ImGuizmo::SCALE))
                         currentGizmoOperation = ImGuizmo::SCALE;
 
+                    float rotDeg[3] = {
+                    bx::toDeg(selectedInstance->rotation[0]),
+                    bx::toDeg(selectedInstance->rotation[1]),
+                    bx::toDeg(selectedInstance->rotation[2]),
+                    };
+
                     ImGui::DragFloat3("Translation", selectedInstance->position, 0.1f);
-                    ImGui::DragFloat3("Rotation (radians)", selectedInstance->rotation, 0.1f);
+                    if (ImGui::DragFloat3("Rotation (degrees)", rotDeg, 1.0f)) {
+                        selectedInstance->rotation[0] = bx::toRad(rotDeg[0]);
+                        selectedInstance->rotation[1] = bx::toRad(rotDeg[1]);
+                        selectedInstance->rotation[2] = bx::toRad(rotDeg[2]);
+                    }
                     ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
 
                     if (currentGizmoOperation != ImGuizmo::SCALE) {
@@ -3334,6 +3427,8 @@ int main(void)
                 }
             }
 
+            
+
             ImGui::End();
 
             Logger::GetInstance().DrawImGuiLogger();
@@ -3415,6 +3510,23 @@ int main(void)
             ImGui::Text("F1 - Toggle bgfx stats");
             ImGui::Text("F2 - Disable/Enable UI");
             ImGui::Text("F3 - Take Screenshot");
+            ImGui::End();
+
+			ImGui::Begin("Screenshot", p_open, window_flags);
+            ImGui::InputText("Filename", screenshotName, IM_ARRAYSIZE(screenshotName));
+            if (ImGui::Button("Save")) {
+                std::string fileNameStr = screenshotName;
+                if (!fileNameStr.empty()) {
+                    takeScreenshotAsPng(BGFX_INVALID_HANDLE, screenshotName);
+                }
+                ImGui::CloseCurrentPopup();
+                openScreenshotPopup = false;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel")) {
+                ImGui::CloseCurrentPopup();
+                openScreenshotPopup = false;
+            }
             ImGui::End();
 
 
@@ -3737,7 +3849,7 @@ int main(void)
 
         if (InputManager::isKeyToggled(GLFW_KEY_F3))
         {
-            bgfx::requestScreenShot(BGFX_INVALID_HANDLE, "screenshot");
+			takeScreenshotAsPng(BGFX_INVALID_HANDLE, screenshotName);
         }
 
 
