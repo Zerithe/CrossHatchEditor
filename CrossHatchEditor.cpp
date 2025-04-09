@@ -63,6 +63,8 @@ namespace fs = std::filesystem;
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+std::vector<Camera> cameras;
+int currentCameraIndex = 0;
 static bool highlightVisible = true;
 static float RadToDeg(float rad) { return rad * (180.0f / 3.14159265358979f); }
 static float DegToRad(float deg) { return deg * (3.14159265358979f / 180.0f); }
@@ -1887,6 +1889,12 @@ void updateRotatingLights(std::vector<Instance*>& instances, float deltaTime) {
     }
 }
 
+void createNewCamera() {
+    Camera newCam;
+    newCam = cameras[currentCameraIndex];
+    cameras.push_back(newCam);
+}
+
 int main(void)
 {
     // Initialize GLFW
@@ -2173,7 +2181,7 @@ int main(void)
     //declare camera instance
 
     Camera camera;
-
+    cameras.push_back(camera);
     std::vector<Instance*> instances;
     instances.reserve(100);
 
@@ -3658,56 +3666,69 @@ int main(void)
             ImGui::End();
             // Add a new window for camera settings
             ImGui::Begin("Camera Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-
+            Camera& activeCamera = cameras[currentCameraIndex];
             // Basic camera controls
-            ImGui::SliderFloat("Movement Speed", &camera.movementSpeed, 0.1f, 20.0f);
-            ImGui::SliderFloat("Mouse Sensitivity", &camera.mouseSensitivity, 0.01f, 1.0f);
-            ImGui::Checkbox("Constrain Pitch", &camera.constrainPitch);
+            ImGui::SliderFloat("Movement Speed", &activeCamera.movementSpeed, 0.1f, 20.0f);
+            ImGui::SliderFloat("Mouse Sensitivity", &activeCamera.mouseSensitivity, 0.01f, 1.0f);
+            ImGui::Checkbox("Constrain Pitch", &activeCamera.constrainPitch);
 
             // View settings
             ImGui::Separator();
-            ImGui::SliderFloat("Field of View", &camera.fov, 30.0f, 120.0f);
-            ImGui::SliderFloat("Near Clip", &camera.nearClip, 0.01f, 10.0f);
-            ImGui::SliderFloat("Far Clip", &camera.farClip, 100.0f, 5000.0f);
+            ImGui::SliderFloat("Field of View", &activeCamera.fov, 30.0f, 120.0f);
+            ImGui::SliderFloat("Near Clip", &activeCamera.nearClip, 0.01f, 10.0f);
+            ImGui::SliderFloat("Far Clip", &activeCamera.farClip, 100.0f, 5000.0f);
 
             // Position/orientation info
             ImGui::Separator();
-            ImGui::Text("Position: %.2f, %.2f, %.2f", camera.position.x, camera.position.y, camera.position.z);
-            ImGui::Text("Rotation: Yaw %.2f°, Pitch %.2f°", camera.yaw, camera.pitch);
+            ImGui::Text("Position: %.2f, %.2f, %.2f", activeCamera.position.x, activeCamera.position.y, activeCamera.position.z);
+            ImGui::Text("Rotation: Yaw %.2f°, Pitch %.2f°", activeCamera.yaw, activeCamera.pitch);
 
             static int current_preset = 0;
             const char* presets[] = { "Default", "Wide Angle", "Telephoto" };
             if (ImGui::Combo("Preset", &current_preset, presets, IM_ARRAYSIZE(presets))) {
                 switch (current_preset) {
                 case 0: // Default
-                    camera.fov = 60.f;
-                    camera.nearClip = 0.1f;
-                    camera.farClip = 1000.f;
+                    activeCamera.fov = 60.f;
+                    activeCamera.nearClip = 0.1f;
+                    activeCamera.farClip = 1000.f;
                     break;
                 case 1: // Wide Angle
-                    camera.fov = 90.f;
-                    camera.nearClip = 0.5f;
-                    camera.farClip = 500.f;
+                    activeCamera.fov = 90.f;
+                    activeCamera.nearClip = 0.5f;
+                    activeCamera.farClip = 500.f;
                     break;
                 case 2: // Telephoto
-                    camera.fov = 30.f;
-                    camera.nearClip = 1.0f;
-                    camera.farClip = 2000.f;
+                    activeCamera.fov = 30.f;
+                    activeCamera.nearClip = 1.0f;
+                    activeCamera.farClip = 2000.f;
                     break;
                 }
             }
             // Reset button
             if (ImGui::Button("Reset Camera")) {
-                camera = Camera(); // Reset to defaults
+                activeCamera = Camera(); // Reset to defaults
             }
 
+            ImGui::End();
+            ImGui::Begin("Cameras");
+            for (size_t i = 0; i < cameras.size(); i++) {
+                char label[64];
+                sprintf(label, "Camera %d", static_cast<int>(i));
+                if (ImGui::Selectable(label, (int)i == currentCameraIndex)) {
+                    currentCameraIndex = static_cast<int>(i);
+                }
+            }
+            if (ImGui::Button("Create New Camera")) {
+                createNewCamera();
+            }
             ImGui::End();
             ImGui::Render();
             ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
         }
 
         //handle inputs
-        InputManager::update(camera, 0.016f);
+        Camera& activeCamera = cameras[currentCameraIndex];
+        InputManager::update(activeCamera, 0.016f);
 
         if (InputManager::isKeyToggled(GLFW_KEY_F2))
         {
@@ -3821,10 +3842,11 @@ int main(void)
                 bgfx::setViewRect(PICKING_VIEW_ID, 0, 0, PICKING_DIM, PICKING_DIM);
 
                 // Use the same camera for the picking pass.
+                Camera& activeCamera = cameras[currentCameraIndex];
                 float view[16];
-                bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
+                bx::mtxLookAt(view, activeCamera.position, bx::add(activeCamera.position, activeCamera.front), activeCamera.up);
                 float proj[16];
-                bx::mtxProj(proj, camera.fov, float(width) / float(height), camera.nearClip, camera.farClip, bgfx::getCaps()->homogeneousDepth);
+                bx::mtxProj(proj, activeCamera.fov, float(width) / float(height), activeCamera.nearClip, activeCamera.farClip, bgfx::getCaps()->homogeneousDepth);
                 bgfx::setViewTransform(PICKING_VIEW_ID, view, proj);
 
                 // Render each instance with the picking shader.
@@ -3856,10 +3878,11 @@ int main(void)
             bgfx::setViewRect(PICKING_VIEW_ID, 0, 0, PICKING_DIM, PICKING_DIM);
 
             // Use the same camera for the picking pass.
+            Camera& activeCamera = cameras[currentCameraIndex];
             float view[16];
-            bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
+            bx::mtxLookAt(view, activeCamera.position, bx::add(activeCamera.position, activeCamera.front), activeCamera.up);
             float proj[16];
-            bx::mtxProj(proj, camera.fov, float(width) / float(height), camera.nearClip, camera.farClip, bgfx::getCaps()->homogeneousDepth);
+            bx::mtxProj(proj, activeCamera.fov, float(width) / float(height), activeCamera.nearClip, activeCamera.farClip, bgfx::getCaps()->homogeneousDepth);
             bgfx::setViewTransform(PICKING_VIEW_ID, view, proj);
 
             // Render each instance with the picking shader.
@@ -3942,10 +3965,10 @@ int main(void)
         bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
 
         float view[16];
-        bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
+        bx::mtxLookAt(view, activeCamera.position, bx::add(activeCamera.position, activeCamera.front), activeCamera.up);
 
         float proj[16];
-        bx::mtxProj(proj, camera.fov, float(width) / float(height), camera.nearClip, camera.farClip, bgfx::getCaps()->homogeneousDepth);
+        bx::mtxProj(proj, activeCamera.fov, float(width) / float(height), activeCamera.nearClip, activeCamera.farClip, bgfx::getCaps()->homogeneousDepth);
         bgfx::setViewTransform(0, view, proj);
 
         // Set model matrix
