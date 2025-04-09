@@ -11,6 +11,7 @@
 #include "Camera.h"
 #include "PrimitiveObjects.h"
 #include "ObjLoader.h"
+#include "VideoPlayer.h"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -64,6 +65,8 @@ namespace fs = std::filesystem;
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
+std::vector<Camera> cameras;
+int currentCameraIndex = 0;
 static bool highlightVisible = true;
 static float RadToDeg(float rad) { return rad * (180.0f / 3.14159265358979f); }
 static float DegToRad(float deg) { return deg * (3.14159265358979f / 180.0f); }
@@ -1888,6 +1891,12 @@ void updateRotatingLights(std::vector<Instance*>& instances, float deltaTime) {
     }
 }
 
+void createNewCamera() {
+    Camera newCam;
+    newCam = cameras[currentCameraIndex];
+    cameras.push_back(newCam);
+}
+
 void takeScreenshotAsPng(bgfx::FrameBufferHandle fb, const std::string& baseName) {
     std::filesystem::create_directory("screenshots");
 
@@ -2233,7 +2242,7 @@ int main(void)
     //declare camera instance
 
     Camera camera;
-
+    cameras.push_back(camera);
     std::vector<Instance*> instances;
     instances.reserve(100);
 
@@ -2627,8 +2636,89 @@ int main(void)
         glfwPollEvents();
 
         ImGuiViewport* viewport = ImGui::GetMainViewport();
+        static VideoPlayer videoPlayer;
+        static bool videoLoaded = false;
+        if (!videoLoaded)
+        {
+            videoLoaded = videoPlayer.load("videos\\AnitoCrossHatchTrailer.mp4");
+        }
+        static bool showMainMenu = true;
+        if (showMainMenu)
+        {
+            // Update the video frame each frame.
+            videoPlayer.update();
+            // Render the video background
+            {
+                ImGui_ImplGlfw_NewFrame();
+                ImGui_Implbgfx_NewFrame();
+                ImGui::NewFrame();
 
-        if (!takingScreenshot)
+                // Create a full-screen window for the video background.
+                // Use window flags to remove decorations and inputs.
+                ImGui::SetNextWindowPos(ImVec2(0, 0));
+                ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+                ImGui::Begin("Video Background", nullptr,
+                    ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
+                    ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBringToFrontOnFocus);
+                // Render the video texture to fill the background.
+                ImGui::Image((ImTextureID)(uintptr_t)(videoPlayer.texture.idx), ImGui::GetIO().DisplaySize);
+                ImGui::End();
+            }
+
+            // Render the main menu on top.
+            {
+                ImGuiID dockspace_id = viewport->ID;
+                ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
+
+                // Main menu window with opaque background.
+                ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0.5f));
+                ImGui::Begin("Main Menu", nullptr,
+                    ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+                ImGuiIO& io = ImGui::GetIO();
+                ImVec2 displaySize = io.DisplaySize;
+                ImGui::SetWindowPos(ImVec2(0, 0));
+                ImGui::SetWindowSize(displaySize);
+
+                // Center the title text
+                float windowWidth = displaySize.x;
+                float windowHeight = displaySize.y;
+                float titleWidth = ImGui::CalcTextSize("AnitoCrossHatch").x * 3;
+                float titleHeight = ImGui::CalcTextSize("AnitoCrossHatch").y * 3;
+                ImGui::SetCursorPosX((windowWidth - titleWidth) * 0.5f);
+                ImGui::SetCursorPosY((windowHeight - titleHeight) * 0.3f);
+                ImGui::SetWindowFontScale(3.0f);
+                ImGui::Text("AnitoCrossHatch");
+                ImGui::SetWindowFontScale(1.0f);
+
+                // Vertical spacing
+                ImGui::Dummy(ImVec2(0, 50));
+
+                // Render 4 horizontally aligned buttons
+                float totalButtonWidth = (200.0f * 4) + (10.0f * 3); // 4 buttons + gaps
+                ImGui::SetCursorPosX((windowWidth - totalButtonWidth) * 0.5f);
+                if (ImGui::Button("Start", ImVec2(200, 50))) {
+                    showMainMenu = false;
+                }
+                ImGui::SameLine(0.0f, 10.0f);
+                if (ImGui::Button("Gallery", ImVec2(200, 50))) {
+                    // Handle Gallery
+                }
+                ImGui::SameLine(0.0f, 10.0f);
+                if (ImGui::Button("Credits", ImVec2(200, 50))) {
+                    // Handle Credits
+                }
+                ImGui::SameLine(0.0f, 10.0f);
+                if (ImGui::Button("Exit", ImVec2(200, 50))) {
+                    glfwSetWindowShouldClose(window, true);
+                }
+                ImGui::End();
+                ImGui::PopStyleColor();
+
+                ImGui::Render();
+                ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
+            }
+        }
+        else if (!takingScreenshot)
         {
             //imgui loop
             ImGui_ImplGlfw_NewFrame();
@@ -2805,6 +2895,10 @@ int main(void)
                             }
                         }
                     }
+					if (ImGui::MenuItem("Back to Main Menu"))
+					{
+                        showMainMenu = true;
+					}
                     if (ImGui::MenuItem("Exit"))
                     {
                         glfwSetWindowShouldClose(window, true);
@@ -3682,13 +3776,71 @@ int main(void)
                 }
             }
             ImGui::End();
+            // Add a new window for camera settings
+            ImGui::Begin("Camera Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+            Camera& activeCamera = cameras[currentCameraIndex];
+            // Basic camera controls
+            ImGui::SliderFloat("Movement Speed", &activeCamera.movementSpeed, 0.1f, 20.0f);
+            ImGui::SliderFloat("Mouse Sensitivity", &activeCamera.mouseSensitivity, 0.01f, 1.0f);
+            ImGui::Checkbox("Constrain Pitch", &activeCamera.constrainPitch);
 
+            // View settings
+            ImGui::Separator();
+            ImGui::SliderFloat("Field of View", &activeCamera.fov, 30.0f, 120.0f);
+            ImGui::SliderFloat("Near Clip", &activeCamera.nearClip, 0.01f, 10.0f);
+            ImGui::SliderFloat("Far Clip", &activeCamera.farClip, 100.0f, 5000.0f);
+
+            // Position/orientation info
+            ImGui::Separator();
+            ImGui::Text("Position: %.2f, %.2f, %.2f", activeCamera.position.x, activeCamera.position.y, activeCamera.position.z);
+            ImGui::Text("Rotation: Yaw %.2f°, Pitch %.2f°", activeCamera.yaw, activeCamera.pitch);
+
+            static int current_preset = 0;
+            const char* presets[] = { "Default", "Wide Angle", "Telephoto" };
+            if (ImGui::Combo("Preset", &current_preset, presets, IM_ARRAYSIZE(presets))) {
+                switch (current_preset) {
+                case 0: // Default
+                    activeCamera.fov = 60.f;
+                    activeCamera.nearClip = 0.1f;
+                    activeCamera.farClip = 1000.f;
+                    break;
+                case 1: // Wide Angle
+                    activeCamera.fov = 90.f;
+                    activeCamera.nearClip = 0.5f;
+                    activeCamera.farClip = 500.f;
+                    break;
+                case 2: // Telephoto
+                    activeCamera.fov = 30.f;
+                    activeCamera.nearClip = 1.0f;
+                    activeCamera.farClip = 2000.f;
+                    break;
+                }
+            }
+            // Reset button
+            if (ImGui::Button("Reset Camera")) {
+                activeCamera = Camera(); // Reset to defaults
+            }
+
+            ImGui::End();
+            ImGui::Begin("Cameras");
+            for (size_t i = 0; i < cameras.size(); i++) {
+                char label[64];
+                sprintf(label, "Camera %d", static_cast<int>(i));
+                if (ImGui::Selectable(label, (int)i == currentCameraIndex)) {
+                    currentCameraIndex = static_cast<int>(i);
+                }
+            }
+            if (ImGui::Button("Create New Camera")) {
+                createNewCamera();
+            }
+            ImGui::End();
             ImGui::Render();
             ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
         }
 
         //handle inputs
-        InputManager::update(camera, 0.016f);
+        Camera& activeCamera = cameras[currentCameraIndex];
+        InputManager::update(activeCamera, 0.016f);
 
         if (InputManager::isKeyToggled(GLFW_KEY_F2))
         {
@@ -3802,10 +3954,11 @@ int main(void)
                 bgfx::setViewRect(PICKING_VIEW_ID, 0, 0, PICKING_DIM, PICKING_DIM);
 
                 // Use the same camera for the picking pass.
+                Camera& activeCamera = cameras[currentCameraIndex];
                 float view[16];
-                bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
+                bx::mtxLookAt(view, activeCamera.position, bx::add(activeCamera.position, activeCamera.front), activeCamera.up);
                 float proj[16];
-                bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+                bx::mtxProj(proj, activeCamera.fov, float(width) / float(height), activeCamera.nearClip, activeCamera.farClip, bgfx::getCaps()->homogeneousDepth);
                 bgfx::setViewTransform(PICKING_VIEW_ID, view, proj);
 
                 // Render each instance with the picking shader.
@@ -3837,10 +3990,11 @@ int main(void)
             bgfx::setViewRect(PICKING_VIEW_ID, 0, 0, PICKING_DIM, PICKING_DIM);
 
             // Use the same camera for the picking pass.
+            Camera& activeCamera = cameras[currentCameraIndex];
             float view[16];
-            bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
+            bx::mtxLookAt(view, activeCamera.position, bx::add(activeCamera.position, activeCamera.front), activeCamera.up);
             float proj[16];
-            bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+            bx::mtxProj(proj, activeCamera.fov, float(width) / float(height), activeCamera.nearClip, activeCamera.farClip, bgfx::getCaps()->homogeneousDepth);
             bgfx::setViewTransform(PICKING_VIEW_ID, view, proj);
 
             // Render each instance with the picking shader.
@@ -3923,10 +4077,10 @@ int main(void)
         bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
 
         float view[16];
-        bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
+        bx::mtxLookAt(view, activeCamera.position, bx::add(activeCamera.position, activeCamera.front), activeCamera.up);
 
         float proj[16];
-        bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 1000.0f, bgfx::getCaps()->homogeneousDepth);
+        bx::mtxProj(proj, activeCamera.fov, float(width) / float(height), activeCamera.nearClip, activeCamera.farClip, bgfx::getCaps()->homogeneousDepth);
         bgfx::setViewTransform(0, view, proj);
 
         // Set model matrix
