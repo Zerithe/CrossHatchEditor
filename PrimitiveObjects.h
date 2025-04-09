@@ -94,6 +94,44 @@ static const uint16_t cubeIndices[] = {
     20,21,22, 20,22,23
 };
 
+static PosColorVertex arrowVertices[] = {
+    // Shaft (rectangular prism)
+    {-0.5f, -0.05f,  0.05f, 0xff0000ff}, // Left bottom front (0)
+    {-0.5f, -0.05f, -0.05f, 0xff0000ff}, // Left bottom back (1)
+    {-0.5f,  0.05f, -0.05f, 0xff0000ff}, // Left top back (2)
+    {-0.5f,  0.05f,  0.05f, 0xff0000ff}, // Left top front (3)
+
+    { 0.3f, -0.05f,  0.05f, 0xff0000ff}, // Right bottom front (4)
+    { 0.3f, -0.05f, -0.05f, 0xff0000ff}, // Right bottom back (5)
+    { 0.3f,  0.05f, -0.05f, 0xff0000ff}, // Right top back (6)
+    { 0.3f,  0.05f,  0.05f, 0xff0000ff}, // Right top front (7)
+
+    // Arrowhead (pyramid)
+    { 0.3f, -0.1f,  0.1f, 0xff0000ff},   // Base bottom front (8)
+    { 0.3f, -0.1f, -0.1f, 0xff0000ff},   // Base bottom back (9)
+    { 0.3f,  0.1f, -0.1f, 0xff0000ff},   // Base top back (10)
+    { 0.3f,  0.1f,  0.1f, 0xff0000ff},   // Base top front (11)
+    { 0.5f,  0.0f,  0.0f, 0xff0000ff}    // Tip (12)
+};
+
+// Define the indices for triangles
+static const uint16_t arrowIndices[] = {
+    // Shaft quads (each quad is made of 2 triangles)
+    0, 1, 2, 2, 3, 0,  // Left face
+    4, 5, 6, 6, 7, 4,  // Right face
+    0, 1, 5, 5, 4, 0,  // Bottom face
+    3, 2, 6, 6, 7, 3,  // Top face
+    1, 2, 6, 6, 5, 1,  // Back face
+    0, 3, 7, 7, 4, 0,  // Front face
+
+    // Arrowhead triangles (pyramid faces)
+    8, 9, 12,          // Bottom face
+    9, 10, 12,         // Back face
+    10, 11, 12,        // Top face
+    11, 8, 12,         // Front face
+    8, 11, 10, 10, 9, 8 // Base face (made of 2 triangles)
+};
+
 void generateCapsule(float radius, float halfHeight, int stacks, int sectors,
     std::vector<PosColorVertex>& vertices,
     std::vector<uint16_t>& indices)
