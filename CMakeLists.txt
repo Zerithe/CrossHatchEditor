@@ -34,7 +34,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 "ObjLoader.cpp"
 "ObjLoader.h" 
 "PrimitiveObjects.h"
-"bgfx-imgui/imgui_impl_bgfx.cpp" "Logger.cpp" "Light.h")
+"bgfx-imgui/imgui_impl_bgfx.cpp" "Logger.cpp" "Light.h" "stb_image.h" "stb_image_write.h")
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 
