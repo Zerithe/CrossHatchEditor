@@ -50,3 +50,8 @@ cmake --build .
 ```
 git clone https://github.com/CedricGuillemet/ImGuizmo
 ```
+
+### FFmpeg
+
+- Download FFmpeg from https://github.com/GyanD/codexffmpeg/releases/download/7.1.1/ffmpeg-7.1.1-full_build.zip
+- Unzip the file and place it in the root directory of the project.

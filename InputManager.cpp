@@ -28,7 +28,7 @@ bool InputManager::isMiddleMousePressed()
 
 void InputManager::update(Camera& camera, float deltaTime)
 {
-	const float cameraSpeed = 10.0f * deltaTime;
+	const float cameraSpeed = camera.movementSpeed * deltaTime;
     double x, y;
 
     
@@ -59,13 +59,12 @@ void InputManager::update(Camera& camera, float deltaTime)
             camera.position = bx::mad(camera.up, bx::Vec3(-cameraSpeed, -cameraSpeed, -cameraSpeed), camera.position);
 
         getMouseMovement(&x, &y);
-		const float sensitivity = 0.03f;
-        camera.yaw -= x * sensitivity;
-        camera.pitch += y * sensitivity;
+		camera.yaw -= x * camera.mouseSensitivity;
+		camera.pitch += y * camera.mouseSensitivity;
 
-        if (camera.pitch > 89.0f)
+        if (camera.pitch > 89.0f && camera.constrainPitch)
             camera.pitch = 89.0f;
-        if (camera.pitch < -89.0f)
+        if (camera.pitch < -89.0f && camera.constrainPitch)
             camera.pitch = -89.0f;
 
         bx::Vec3 direction = bx::Vec3(cos(bx::toRad(camera.yaw)) * cos(bx::toRad(camera.pitch)), sin(bx::toRad(camera.pitch)), sin(bx::toRad(camera.yaw)) * cos(bx::toRad(camera.pitch)));
