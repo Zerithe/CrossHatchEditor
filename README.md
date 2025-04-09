@@ -51,6 +51,11 @@ cmake --build .
 git clone https://github.com/CedricGuillemet/ImGuizmo
 ```
 
+### FFmpeg
+
+- Download FFmpeg from https://github.com/GyanD/codexffmpeg/releases/download/7.1.1/ffmpeg-7.1.1-full_build.zip
+- Unzip the file and place it in the root directory of the project.
+
 ### HOW TO PACKAGE AND BUILD
 
 1. open cmd in build folder
@@ -67,10 +72,3 @@ cpack
 ```
 "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat" -arch=x64
 ```
-
-```
-
-### FFmpeg
-
-- Download FFmpeg from https://github.com/GyanD/codexffmpeg/releases/download/7.1.1/ffmpeg-7.1.1-full_build.zip
-- Unzip the file and place it in the root directory of the project.

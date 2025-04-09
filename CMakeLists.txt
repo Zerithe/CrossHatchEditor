@@ -121,8 +121,31 @@ add_custom_command(TARGET CrossHatchEditor POST_BUILD
         "${ASSIMP_ROOT_DIR}/bin/assimp-vc143-mtd.dll"  # Replace with the actual path to assimp.dll
         $<TARGET_FILE_DIR:CrossHatchEditor>)
 
+# FFmpeg setup
+set(FFMPEG_DIR "${CMAKE_CURRENT_LIST_DIR}/ffmpeg")  # Adjust this path
+target_include_directories(CrossHatchEditor PRIVATE ${FFMPEG_DIR}/include)
+target_link_directories(CrossHatchEditor PRIVATE ${FFMPEG_DIR}/lib)
 
-# Packaging Test
+target_link_libraries(CrossHatchEditor PRIVATE
+    avcodec
+    avformat
+    avutil
+    swscale
+    swresample
+)
+
+# Copy FFmpeg DLLs after build
+add_custom_command(TARGET CrossHatchEditor POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${FFMPEG_DIR}/bin/avcodec-61.dll"
+        "${FFMPEG_DIR}/bin/avformat-61.dll"
+        "${FFMPEG_DIR}/bin/avutil-59.dll"
+        "${FFMPEG_DIR}/bin/swscale-8.dll"
+        "${FFMPEG_DIR}/bin/swresample-5.dll"
+        $<TARGET_FILE_DIR:CrossHatchEditor>
+)
+
+# Packaging
 
 # Set output directory for build binaries
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -149,27 +172,3 @@ set(CPACK_GENERATOR "ZIP")
 set(CPACK_PACKAGE_NAME "CrossHatchEditor")
 set(CPACK_PACKAGE_VERSION "1.0.0")
 set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}")
-
-# FFmpeg setup
-set(FFMPEG_DIR "${CMAKE_CURRENT_LIST_DIR}/ffmpeg")  # Adjust this path
-target_include_directories(CrossHatchEditor PRIVATE ${FFMPEG_DIR}/include)
-target_link_directories(CrossHatchEditor PRIVATE ${FFMPEG_DIR}/lib)
-
-target_link_libraries(CrossHatchEditor PRIVATE
-    avcodec
-    avformat
-    avutil
-    swscale
-    swresample
-)
-
-# Copy FFmpeg DLLs after build
-add_custom_command(TARGET CrossHatchEditor POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${FFMPEG_DIR}/bin/avcodec-61.dll"
-        "${FFMPEG_DIR}/bin/avformat-61.dll"
-        "${FFMPEG_DIR}/bin/avutil-59.dll"
-        "${FFMPEG_DIR}/bin/swscale-8.dll"
-        "${FFMPEG_DIR}/bin/swresample-5.dll"
-        $<TARGET_FILE_DIR:CrossHatchEditor>
-)
