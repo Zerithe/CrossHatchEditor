@@ -14,6 +14,7 @@ project ("CrossHatchEditor")
 set(SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
 set(MESHES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/meshes")
 set(NOISE_TEX_DIR "${CMAKE_CURRENT_SOURCE_DIR}/noise textures")
+set(VIDEOS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/videos")
 
 # Generate Shaders
 
@@ -63,6 +64,9 @@ include_directories(${MESHES_DIR})
 
 file(COPY ${NOISE_TEX_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${NOISE_TEX_DIR})
+
+file(COPY ${VIDEOS_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${VIDEOS_DIR})
 
 set(IMGUI_PATH ${CMAKE_CURRENT_LIST_DIR}/imgui)
 file(GLOB IMGUI_GLOB
@@ -158,11 +162,17 @@ install(TARGETS CrossHatchEditor
 install(DIRECTORY ${SHADERS_DIR} DESTINATION .)
 install(DIRECTORY ${MESHES_DIR} DESTINATION .)
 install(DIRECTORY "${NOISE_TEX_DIR}" DESTINATION .)
+install(DIRECTORY "${VIDEOS_DIR}" DESTINATION .)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/imgui.ini DESTINATION .)
 
 # Install required DLLs
 install(FILES
     "${ASSIMP_ROOT_DIR}/bin/assimp-vc143-mtd.dll"
+    "${FFMPEG_DIR}/bin/avcodec-61.dll"
+    "${FFMPEG_DIR}/bin/avformat-61.dll"
+    "${FFMPEG_DIR}/bin/avutil-59.dll"
+    "${FFMPEG_DIR}/bin/swscale-8.dll"
+    "${FFMPEG_DIR}/bin/swresample-5.dll"
     DESTINATION .
 )
 
