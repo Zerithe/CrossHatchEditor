@@ -3171,7 +3171,7 @@ int main(void)
                 int width = static_cast<int>(viewport->Size.x);
                 int height = static_cast<int>(viewport->Size.y);
                 float view[16];
-                bx::mtxLookAt(view, camera.position, bx::add(camera.position, camera.front), camera.up);
+                bx::mtxLookAt(view, cameras[currentCameraIndex].position, bx::add(cameras[currentCameraIndex].position, cameras[currentCameraIndex].front), cameras[currentCameraIndex].up);
 
                 float proj[16];
                 bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
