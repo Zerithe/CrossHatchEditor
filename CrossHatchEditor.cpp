@@ -65,6 +65,8 @@ namespace fs = std::filesystem;
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
+#include "TextRenderer.h" // for text element
+
 std::vector<Camera> cameras;
 int currentCameraIndex = 0;
 static bool highlightVisible = true;
@@ -218,8 +220,11 @@ struct Instance
     float rotationSpeed = 0.5f;
     float instanceAngle = 0.0f;
 
+    // for comic bubble text
+    std::string textContent;
+
     Instance(int instanceId, const std::string& instanceName, const std::string& instanceType, float x, float y, float z, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh)
-        : id(instanceId), name(instanceName), type(instanceType), vertexBuffer(vbh), indexBuffer(ibh)
+        : id(instanceId), name(instanceName), type(instanceType), vertexBuffer(vbh), indexBuffer(ibh), textContent("")
     {
         position[0] = x;
         position[1] = y;
@@ -320,7 +325,7 @@ void DecomposeMatrixToInstance_ImGuizmo(const float* matrix, Instance* inst)
     inst->scale[2] = scl[2];
 }
 
-void DrawGizmoForSelected(Instance* selectedInstance, const float* view, const float* proj)
+void DrawGizmoForSelected(Instance* selectedInstance, float originX, float originY, const float* view, const float* proj)
 {
     if (!selectedInstance)
         return;
@@ -331,7 +336,7 @@ void DrawGizmoForSelected(Instance* selectedInstance, const float* view, const f
 
     // 2) Setup ImGuizmo
     ImGuiIO& io = ImGui::GetIO();
-    ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+    ImGuizmo::SetRect(originX, originY, io.DisplaySize.x, io.DisplaySize.y);
 
     // 3) Store the original object's local transform before manipulation
     float localMatrix[16];
@@ -821,9 +826,9 @@ static void spawnInstanceAtCenter(const std::string& instanceName, const std::st
 static void spawnLight(const Camera& camera, bgfx::VertexBufferHandle vbh_sphere, bgfx::IndexBufferHandle ibh_sphere, bgfx::VertexBufferHandle vbh_cone, bgfx::IndexBufferHandle ibh_cone, std::vector<Instance*>& instances)
 {
     float spawnDistance = 5.0f;
-    float x = camera.position.x + camera.front.x * spawnDistance;
-    float y = camera.position.y + camera.front.y * spawnDistance;
-    float z = camera.position.z + camera.front.z * spawnDistance;
+    float x = cameras[currentCameraIndex].position.x + cameras[currentCameraIndex].front.x * spawnDistance;
+    float y = cameras[currentCameraIndex].position.y + cameras[currentCameraIndex].front.y * spawnDistance;
+    float z = cameras[currentCameraIndex].position.z + cameras[currentCameraIndex].front.z * spawnDistance;
     std::string lightName = "light" + std::to_string(instanceCounter);
     Instance* lightInst = new Instance(instanceCounter++, lightName, "light", x, y, z, vbh_sphere, ibh_sphere);
     lightInst->isLight = true;
@@ -870,7 +875,7 @@ bool IsWhite(const float color[4], float epsilon = 0.001f)
         std::fabs(color[3] - 1.0f) < epsilon;
 }
 // Recursive draw function for hierarchy.
-void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, bgfx::ProgramHandle lightDebugProgram, bgfx::UniformHandle u_noiseTex, bgfx::UniformHandle u_diffuseTex, bgfx::UniformHandle u_objectColor, bgfx::UniformHandle u_tint, bgfx::UniformHandle u_inkColor, bgfx::UniformHandle u_e, bgfx::UniformHandle u_params, bgfx::UniformHandle u_extraParams, bgfx::UniformHandle u_paramsLayer,
+void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, bgfx::ProgramHandle lightDebugProgram, bgfx::ProgramHandle textProgram, bgfx::ProgramHandle comicProgram, bgfx::UniformHandle u_comicColor, bgfx::UniformHandle u_noiseTex, bgfx::UniformHandle u_diffuseTex, bgfx::UniformHandle u_objectColor, bgfx::UniformHandle u_tint, bgfx::UniformHandle u_inkColor, bgfx::UniformHandle u_e, bgfx::UniformHandle u_params, bgfx::UniformHandle u_extraParams, bgfx::UniformHandle u_paramsLayer,
     bgfx::TextureHandle defaultWhiteTexture, bgfx::TextureHandle inheritedNoiseTex, bgfx::TextureHandle inheritedTexture, const float* parentColor = nullptr, const float* parentTransform = nullptr)
 {
     float local[16];
@@ -885,17 +890,26 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, 
     else
         std::memcpy(world, local, sizeof(world));
 
+    // Compute comic object color.
+    float comicColor[4];
+
     // Compute effective object color.
     float effectiveColor[4];
     if (parentColor && !IsWhite(parentColor))
     {
         // If parent's color is not white, inherit it.
         std::memcpy(effectiveColor, parentColor, sizeof(effectiveColor));
+
+        // Compute comic object color.
+        std::memcpy(comicColor, parentColor, sizeof(comicColor));
     }
     else
     {
         // Otherwise, use this instance's objectColor.
         std::memcpy(effectiveColor, instance->objectColor, sizeof(effectiveColor));
+
+        // Compute comic object color.
+        std::memcpy(comicColor, instance->objectColor, sizeof(comicColor));
     }
 
     // Set the object override color uniform.
@@ -980,12 +994,35 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, 
         // skip drawing the sphere representation.
         if (instance->type == "light" && !instance->showDebugVisual)
         {
-            // Do nothing (or you might draw an alternative marker).
+            // Do nothing (or optionally draw a minimal indicator)
         }
         else
         {
-            // If this instance is a light, use the debug shader; otherwise, use default.
-            bgfx::submit(0, (instance->type == "light") ? lightDebugProgram : defaultProgram);
+            // Choose appropriate shader based on instance type
+            if (instance->type == "text")
+            {
+                // Set the comic color uniform (see below for how it's updated via ImGui).
+                bgfx::setUniform(u_comicColor, comicColor);
+
+                // Enable alpha blending for text rendering
+                bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
+                    BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA));
+                bgfx::submit(0, textProgram);
+            }
+            else if (instance->type == "comicborder" || instance->type == "comicbubble") {
+                bgfx::setState(BGFX_STATE_DEFAULT);
+
+                // Set the comic color uniform (see below for how it's updated via ImGui).
+                bgfx::setUniform(u_comicColor, comicColor);
+                bgfx::submit(0, comicProgram);
+            }
+            else
+            {
+                // Use default or debug shader
+                bgfx::setState(BGFX_STATE_DEFAULT);
+
+                bgfx::submit(0, (instance->type == "light") ? lightDebugProgram : defaultProgram);
+            }
         }
     }
     // Determine what color to pass to children.
@@ -1010,7 +1047,7 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, 
     // Recursively draw children.
     for (const Instance* child : instance->children)
     {
-        drawInstance(child, defaultProgram, lightDebugProgram, u_noiseTex, u_diffuseTex, u_objectColor, u_tint, u_inkColor, u_e, u_params, u_extraParams, u_paramsLayer, defaultWhiteTexture, inheritedNoiseTex, newInheritedTexture, childParentColor, world);
+        drawInstance(child, defaultProgram, lightDebugProgram, textProgram, comicProgram, u_comicColor, u_noiseTex, u_diffuseTex, u_objectColor, u_tint, u_inkColor, u_e, u_params, u_extraParams, u_paramsLayer, defaultWhiteTexture, inheritedNoiseTex, newInheritedTexture, childParentColor, world);
     }
 }
 // Recursive deletion for hierarchy.
@@ -1946,6 +1983,18 @@ void takeScreenshotAsPng(bgfx::FrameBufferHandle fb, const std::string& baseName
         }).detach(); // Detach the thread so it runs independently
 }
 
+// for comic bubble text
+void updateTextTexture(Instance* textInst) {
+    bgfx::TextureHandle newTex = createTextTexture(textInst->textContent);
+    if (bgfx::isValid(newTex)) {
+        // If an old texture exists, destroy it.
+        if (bgfx::isValid(textInst->diffuseTexture)) {
+            bgfx::destroy(textInst->diffuseTexture);
+        }
+        textInst->diffuseTexture = newTex;
+    }
+}
+
 int main(void)
 {
     // Initialize GLFW
@@ -2204,6 +2253,69 @@ int main(void)
     bgfx::IndexBufferHandle ibh_lucy;
     createMeshBuffers(lucyData, vbh_lucy, ibh_lucy);
 
+    //comic border generation
+    MeshData comicborder = loadMesh("comic elements/comicborder.obj");
+    bgfx::VertexBufferHandle vbh_comicborder;
+    bgfx::IndexBufferHandle ibh_comicborder;
+    createMeshBuffers(comicborder, vbh_comicborder, ibh_comicborder);
+
+    //comic bubble object 1
+    MeshData comicbubble1 = loadMesh("comic elements/comicbubble1_right.obj");
+    bgfx::VertexBufferHandle vbh_comicbubble1;
+    bgfx::IndexBufferHandle ibh_comicbubble1;
+    createMeshBuffers(comicbubble1, vbh_comicbubble1, ibh_comicbubble1);
+
+    //comic bubble object 2
+    MeshData comicbubble2 = loadMesh("comic elements/comicbubble2_right.obj");
+    bgfx::VertexBufferHandle vbh_comicbubble2;
+    bgfx::IndexBufferHandle ibh_comicbubble2;
+    createMeshBuffers(comicbubble2, vbh_comicbubble2, ibh_comicbubble2);
+
+    //comic bubble object 3
+    MeshData comicbubble3 = loadMesh("comic elements/comicbubble3_right.obj");
+    bgfx::VertexBufferHandle vbh_comicbubble3;
+    bgfx::IndexBufferHandle ibh_comicbubble3;
+    createMeshBuffers(comicbubble3, vbh_comicbubble3, ibh_comicbubble3);
+
+    //comic bubble object 4
+    MeshData comicbubble4 = loadMesh("comic elements/comicbubble4_left.obj");
+    bgfx::VertexBufferHandle vbh_comicbubble4;
+    bgfx::IndexBufferHandle ibh_comicbubble4;
+    createMeshBuffers(comicbubble4, vbh_comicbubble4, ibh_comicbubble4);
+
+    //comic bubble object 5
+    MeshData comicbubble5 = loadMesh("comic elements/comicbubble5_left.obj");
+    bgfx::VertexBufferHandle vbh_comicbubble5;
+    bgfx::IndexBufferHandle ibh_comicbubble5;
+    createMeshBuffers(comicbubble5, vbh_comicbubble5, ibh_comicbubble5);
+
+    //comic bubble object 6
+    MeshData comicbubble6 = loadMesh("comic elements/comicbubble6_left.obj");
+    bgfx::VertexBufferHandle vbh_comicbubble6;
+    bgfx::IndexBufferHandle ibh_comicbubble6;
+    createMeshBuffers(comicbubble6, vbh_comicbubble6, ibh_comicbubble6);
+
+    //comic bubble object 7
+    MeshData comicbubble7 = loadMesh("comic elements/comicbubble7_middle.obj");
+    bgfx::VertexBufferHandle vbh_comicbubble7;
+    bgfx::IndexBufferHandle ibh_comicbubble7;
+    createMeshBuffers(comicbubble7, vbh_comicbubble7, ibh_comicbubble7);
+
+    //comic bubble object 8
+    MeshData comicbubble8 = loadMesh("comic elements/comicbubble8_middle.obj");
+    bgfx::VertexBufferHandle vbh_comicbubble8;
+    bgfx::IndexBufferHandle ibh_comicbubble8;
+    createMeshBuffers(comicbubble8, vbh_comicbubble8, ibh_comicbubble8);
+
+    // simple quad for text rendering
+    bgfx::VertexBufferHandle vbh_textQuad = bgfx::createVertexBuffer(
+        bgfx::copy(textQuadVertices, sizeof(textQuadVertices)),
+        layout  // reuse your existing vertex layout (make sure it includes TexCoord0)
+    );
+    bgfx::IndexBufferHandle ibh_textQuad = bgfx::createIndexBuffer(
+        bgfx::copy(textQuadIndices, sizeof(textQuadIndices))
+    );
+
     std::unordered_map<std::string, std::pair<bgfx::VertexBufferHandle, bgfx::IndexBufferHandle>> bufferMap;
 
     bufferMap["cube"] = { vbh_cube, ibh_cube };
@@ -2226,7 +2338,16 @@ int main(void)
 	bufferMap["cone"] = { vbh_cone, ibh_cone };
 	bufferMap["arrow"] = { vbh_arrow, ibh_arrow };
     bufferMap["empty"] = { BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE };
-
+    bufferMap["comictext"] = { vbh_textQuad, ibh_textQuad };
+    bufferMap["comicborder"] = { vbh_comicborder, ibh_comicborder };
+    bufferMap["comicbubble1"] = { vbh_comicbubble1, ibh_comicbubble1 };
+    bufferMap["comicbubble2"] = { vbh_comicbubble2, ibh_comicbubble2 };
+    bufferMap["comicbubble3"] = { vbh_comicbubble3, ibh_comicbubble3 };
+    bufferMap["comicbubble4"] = { vbh_comicbubble4, ibh_comicbubble4 };
+    bufferMap["comicbubble5"] = { vbh_comicbubble5, ibh_comicbubble5 };
+    bufferMap["comicbubble6"] = { vbh_comicbubble6, ibh_comicbubble6 };
+    bufferMap["comicbubble7"] = { vbh_comicbubble7, ibh_comicbubble7 };
+    bufferMap["comicbubble8"] = { vbh_comicbubble8, ibh_comicbubble8 };
 
     std::unordered_map<std::string, std::string> importedObjMap;
 
@@ -2282,6 +2403,14 @@ int main(void)
     u_uvTransform = bgfx::createUniform("u_uvTransform", bgfx::UniformType::Vec4);
     u_albedoFactor = bgfx::createUniform("u_albedoFactor", bgfx::UniformType::Vec4);
 
+    // For comic border and bubble change of colors
+    bgfx::UniformHandle u_comicColor = bgfx::createUniform("u_comicColor", bgfx::UniformType::Vec4);
+
+    static bgfx::TextureHandle logoTexture = BGFX_INVALID_HANDLE;
+    if (!bgfx::isValid(logoTexture)) {
+        logoTexture = loadTextureFile("assets/gamelab_logo.png");  // adjust path
+    }
+    ImTextureID logoID = (ImTextureID)(uintptr_t)logoTexture.idx;
 
     // SHADER NOISE TEXTURE
     //bgfx::TextureHandle noiseTexture = loadTextureDDS("shaders\\noise1.dds");
@@ -2521,6 +2650,16 @@ int main(void)
         defaultWhiteTexture = bgfx::createTexture2D(1, 1, false, 1, bgfx::TextureFormat::BGRA8, 0, mem);
     }
 
+    // Load the comic element shaders.
+    bgfx::ShaderHandle vsh_comic = loadShader("shaders\\v_comic.bin");
+    bgfx::ShaderHandle fsh_comic = loadShader("shaders\\f_comic.bin");
+    bgfx::ProgramHandle comicProgram = bgfx::createProgram(vsh_comic, fsh_comic, true);
+
+    // Load dedicated text shader.
+    bgfx::ShaderHandle vsh_text = loadShader("shaders\\v_text.bin");
+    bgfx::ShaderHandle fsh_text = loadShader("shaders\\f_text.bin");
+    bgfx::ProgramHandle textProgram = bgfx::createProgram(vsh_text, fsh_text, true);
+
     // Load shaders and create program once
     bgfx::ShaderHandle vsh = loadShader("shaders\\v_out21.bin");
     bgfx::ShaderHandle fsh = loadShader("shaders\\f_out27.bin");
@@ -2643,15 +2782,20 @@ int main(void)
             videoLoaded = videoPlayer.load("videos\\AnitoCrossHatchTrailer.mp4");
         }
         static bool showMainMenu = true;
+        static bool showCreditsPage = false;
+
+        ImGui_ImplGlfw_NewFrame();
+        ImGui_Implbgfx_NewFrame();
+        ImGui::NewFrame();
         if (showMainMenu)
         {
             // Update the video frame each frame.
             videoPlayer.update();
             // Render the video background
             {
-                ImGui_ImplGlfw_NewFrame();
-                ImGui_Implbgfx_NewFrame();
-                ImGui::NewFrame();
+                //ImGui_ImplGlfw_NewFrame();
+                //ImGui_Implbgfx_NewFrame();
+                //ImGui::NewFrame();
 
                 // Create a full-screen window for the video background.
                 // Use window flags to remove decorations and inputs.
@@ -2682,6 +2826,17 @@ int main(void)
                 // Center the title text
                 float windowWidth = displaySize.x;
                 float windowHeight = displaySize.y;
+
+                // Logo size
+                ImVec2 logoSize = ImVec2(150, 150); // adjust as needed
+
+                // Center the logo above the title
+                float logoX = (windowWidth - logoSize.x) * 0.5f;
+                float logoY = (windowHeight * 0.3f) - (logoSize.y + 20); // 20px spacing
+
+                ImGui::SetCursorPos(ImVec2(logoX, logoY));
+                ImGui::Image(logoID, logoSize);
+
                 float titleWidth = ImGui::CalcTextSize("AnitoCrossHatch").x * 3;
                 float titleHeight = ImGui::CalcTextSize("AnitoCrossHatch").y * 3;
                 ImGui::SetCursorPosX((windowWidth - titleWidth) * 0.5f);
@@ -2698,14 +2853,20 @@ int main(void)
                 ImGui::SetCursorPosX((windowWidth - totalButtonWidth) * 0.5f);
                 if (ImGui::Button("Start", ImVec2(200, 50))) {
                     showMainMenu = false;
+                    showCreditsPage = false;
                 }
                 ImGui::SameLine(0.0f, 10.0f);
                 if (ImGui::Button("Gallery", ImVec2(200, 50))) {
                     // Handle Gallery
+                    // Open the specified GDrive link (replace with your actual URL).
+                    system("start https://drive.google.com/drive/folders/1_sF1BD_5K6OAVqnR3yfMiIUNMpkeBsL7?usp=sharing");
                 }
                 ImGui::SameLine(0.0f, 10.0f);
                 if (ImGui::Button("Credits", ImVec2(200, 50))) {
                     // Handle Credits
+                    // Show credits window.
+                    showCreditsPage = true;
+                    showMainMenu = false; // hide main menu
                 }
                 ImGui::SameLine(0.0f, 10.0f);
                 if (ImGui::Button("Exit", ImVec2(200, 50))) {
@@ -2714,16 +2875,79 @@ int main(void)
                 ImGui::End();
                 ImGui::PopStyleColor();
 
-                ImGui::Render();
-                ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
+                //ImGui::Render();
+                //ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
             }
+        }
+        // Render the Credits page if active
+        else if (showCreditsPage)
+        {
+            ImGui::SetNextWindowPos(ImVec2(0, 0));
+            ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+
+            // Opaque black background (no transparency)
+            ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.05f, 0.05f, 0.05f, 1.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20, 20));
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(15, 10));
+
+            ImGui::Begin("Credits Page", nullptr,
+                ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus |
+                ImGuiWindowFlags_NoScrollbar);
+
+            ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+
+            // Center child window that contains the actual credits content
+            ImVec2 creditsWindowSize = ImVec2(500, 400);
+            ImVec2 centerPos = ImVec2((displaySize.x - creditsWindowSize.x) * 0.5f,
+                (displaySize.y - creditsWindowSize.y) * 0.5f);
+            ImGui::SetCursorPos(centerPos);
+
+            // Begin the visual container
+            ImGui::BeginChild("CreditsBox", creditsWindowSize, true, ImGuiWindowFlags_NoScrollbar);
+
+            // Title
+            ImGui::SetCursorPosY(20);
+            ImGui::SetWindowFontScale(2.2f);
+            ImVec2 titleSize = ImGui::CalcTextSize("CREDITS");
+            ImGui::SetCursorPosX((creditsWindowSize.x - titleSize.x) * 0.5f);
+            ImGui::Text("CREDITS");
+            ImGui::SetWindowFontScale(1.0f);
+
+            ImGui::Dummy(ImVec2(0, 20));
+
+            // Names and roles
+            ImGui::Text("Developed by:");
+            ImGui::Separator();
+            ImGui::BulletText("DE VERA, Jonathan L. - Developer");
+            ImGui::BulletText("DONATO, Adriel Joseph Y. - Developer");
+            ImGui::BulletText("MANIPOL, Marion Jose S. -Developer");
+            ImGui::BulletText("REYES, Kenwin Hans D. - Developer");
+
+            ImGui::Dummy(ImVec2(0, 30));
+
+            // Centered Back button
+            ImVec2 btnSize = ImVec2(120, 40);
+            ImVec2 btnPos = ImVec2((creditsWindowSize.x - btnSize.x) * 0.5f,
+                ImGui::GetCursorPosY());
+            ImGui::SetCursorPos(btnPos);
+            if (ImGui::Button("Back", btnSize)) {
+                showCreditsPage = false;
+                showMainMenu = true;
+            }
+
+            ImGui::EndChild();
+            ImGui::End();
+
+            ImGui::PopStyleVar(2);
+            ImGui::PopStyleColor();
         }
         else if (!takingScreenshot)
         {
             //imgui loop
-            ImGui_ImplGlfw_NewFrame();
-            ImGui_Implbgfx_NewFrame();
-            ImGui::NewFrame();
+            //ImGui_ImplGlfw_NewFrame();
+            //ImGui_Implbgfx_NewFrame();
+            //ImGui::NewFrame();
 
             //transformation gizmo
             ImGuizmo::BeginFrame();
@@ -3041,6 +3265,68 @@ int main(void)
                         }
                         ImGui::EndMenu();
                     }
+                    if (ImGui::BeginMenu("Comic Elements"))
+                    {
+                        if (ImGui::MenuItem("Comic Border"))
+                        {
+                            spawnInstanceAtCenter("comicborder", "comicborder", vbh_comicborder, ibh_comicborder, instances);
+                            std::cout << "Comic Border object spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Comic Bubble Text"))
+                        {
+                            // Spawn a new instance with type "text" using the text quad buffers.
+                            spawnInstanceAtCenter("comicBubble", "text", vbh_textQuad, ibh_textQuad, instances);
+                            Instance* textInst = instances.back();
+                            // Set a default text string.
+                            textInst->textContent = "New Comic Bubble";
+
+                            // Immediately generate its text texture.
+                            updateTextTexture(textInst);
+                            std::cout << "Comic bubble Text spawned" << std::endl;
+                        }
+                        ImGui::Separator();
+                        if (ImGui::MenuItem("Comic Bubble Object 1 - Right"))
+                        {
+                            spawnInstanceAtCenter("comicbubbleobject1", "comicbubble", vbh_comicbubble1, ibh_comicbubble1, instances);
+                            std::cout << "Comic Bubble Object 1 - Right spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Comic Bubble Object 2 - Right"))
+                        {
+                            spawnInstanceAtCenter("comicbubbleobject2", "comicbubble", vbh_comicbubble2, ibh_comicbubble2, instances);
+                            std::cout << "Comic Bubble Object 2 - Right spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Comic Bubble Object 3 - Right"))
+                        {
+                            spawnInstanceAtCenter("comicbubbleobject3", "comicbubble", vbh_comicbubble3, ibh_comicbubble3, instances);
+                            std::cout << "Comic Bubble Object 3 - Right spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Comic Bubble Object 4 - Left"))
+                        {
+                            spawnInstanceAtCenter("comicbubbleobject4", "comicbubble", vbh_comicbubble4, ibh_comicbubble4, instances);
+                            std::cout << "Comic Bubble Object 4 - Left spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Comic Bubble Object 5 - Left"))
+                        {
+                            spawnInstanceAtCenter("comicbubbleobject5", "comicbubble", vbh_comicbubble5, ibh_comicbubble5, instances);
+                            std::cout << "Comic Bubble Object 5 - Left spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Comic Bubble Object 6 - Left"))
+                        {
+                            spawnInstanceAtCenter("comicbubbleobject6", "comicbubble", vbh_comicbubble6, ibh_comicbubble6, instances);
+                            std::cout << "Comic Bubble Object 6 - Left spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Comic Bubble Object 7 - Middle"))
+                        {
+                            spawnInstanceAtCenter("comicbubbleobject7", "comicbubble", vbh_comicbubble7, ibh_comicbubble7, instances);
+                            std::cout << "Comic Bubble Object 7 - Middle spawned" << std::endl;
+                        }
+                        if (ImGui::MenuItem("Comic Bubble Object 8 - Middle"))
+                        {
+                            spawnInstanceAtCenter("comicbubbleobject8", "comicbubble", vbh_comicbubble8, ibh_comicbubble8, instances);
+                            std::cout << "Comic Bubble Object 8 - Middle spawned" << std::endl;
+                        }
+                        ImGui::EndMenu();
+                    }
 
                     if (ImGui::MenuItem("Import OBJ"))
                     {
@@ -3176,7 +3462,8 @@ int main(void)
                 float proj[16];
                 bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
 
-                DrawGizmoForSelected(selectedInstance, view, proj);
+                //default gizmo draw
+                DrawGizmoForSelected(selectedInstance, 0.0f, 0.0f, view, proj);
 
                 ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
                 if (ImGui::CollapsingHeader("Transform Controls/Gizmo"))
@@ -3390,6 +3677,33 @@ int main(void)
                         }
 
                     }
+                    if (selectedInstance->type == "text")
+                    {
+                        ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
+                        ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
+                        // Place these static variables (they persist between frames).
+                        static int s_lastSelectedInstanceId = -1;
+                        static char s_textBuffer[31] = "";
+                        if (ImGui::CollapsingHeader("Comic Bubble Settings")) {
+                            ImGui::Text("Text Character Limit is: 30 Chars");
+                            // If the selected instance has changed, reinitialize the persistent buffer.
+                            if (selectedInstance->id != s_lastSelectedInstanceId)
+                            {
+                                strncpy(s_textBuffer, selectedInstance->textContent.c_str(), sizeof(s_textBuffer) - 1);
+                                s_textBuffer[sizeof(s_textBuffer) - 1] = '\0';
+                                s_lastSelectedInstanceId = selectedInstance->id;
+                            }
+
+                            ImGui::InputText("Text Content", s_textBuffer, sizeof(s_textBuffer));
+                            if (ImGui::Button("Update Text"))
+                            {
+                                // Update the instance's text content and re-generate its texture.
+                                selectedInstance->textContent = std::string(s_textBuffer);
+                                updateTextTexture(selectedInstance);
+                            }
+                        }
+                    }
+
                     //ImGui::Separator();
                     // You can add a button to remove the selected instance from the hierarchy.
                     ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
@@ -3453,30 +3767,7 @@ int main(void)
             }
             ImGui::End();
 
-            /*
-            ImGui::Begin("Cross Hatch Settings", p_open, window_flags);
-            ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
-            if (ImGui::CollapsingHeader("Crosshatch Settings"))
-            {
-                // ColorEdit4 allows you to edit a vec4 (RGBA)
-                ImGui::ColorEdit4("Ink Color", inkColor);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Epsilon", &epsilonValue, 0.001f, 0.0f, 0.1f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Stroke Multiplier", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Line Angle 1", &lineAngle1, 0.1f, 0.0f, TAU);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Line Angle 2", &lineAngle2, 0.1f, 0.0f, TAU);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Pattern Scale", &patternScale, 0.1f, 0.1f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Line Thickness", &lineThickness, 0.1f, 0.1f, 10.0f);
-                ImGui::SetNextItemWidth(100);
-                ImGui::DragFloat("Line Transparency", &transparencyValue, 0.01f, 0.0f, 1.0f);
-            }
-            ImGui::End();
-            */
+            /*-------------------------------------------------------------------------------------*/
 
             ImGui::Begin("Info", p_open, window_flags);
             ImGui::Text("Crosshatch Editor Demo Build");
@@ -3490,7 +3781,7 @@ int main(void)
             ImGui::Text("Selected Instance Parent: %s", selectedInstance && selectedInstance->parent ? selectedInstance->parent->name.c_str() : "None");
             ImGui::Text("Selected Instance Children: %d", selectedInstance ? selectedInstance->children.size() : 0);
             ImGui::Separator();
-            ImGui::Text("Camera Position: %.2f, %.2f, %.2f", camera.position.x, camera.position.y, camera.position.z);
+            ImGui::Text("Camera Position: %.2f, %.2f, %.2f", cameras[currentCameraIndex].position.x, cameras[currentCameraIndex].position.y, cameras[currentCameraIndex].position.z);
             //ImGui::Text("Frame: % 7.3f[ms]", 1000.0f / bgfx::getStats()->cpuTimeFrame);
             ImGui::Text("");
             ImGui::End();
@@ -3834,105 +4125,32 @@ int main(void)
                 createNewCamera();
             }
             ImGui::End();
-            ImGui::Render();
-            ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
+            //ImGui::Render();
+            //ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
         }
+
+        // Always call these last — after all ImGui windows
+        ImGui::Render();
+        ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
 
         //handle inputs
         Camera& activeCamera = cameras[currentCameraIndex];
-        InputManager::update(activeCamera, 0.016f);
 
-        if (InputManager::isKeyToggled(GLFW_KEY_F2))
+        //Don’t process movement input unless user is in the actual 3D editor
+        if (!showMainMenu && !showCreditsPage)
         {
-            takingScreenshot = !takingScreenshot;
-        }
+            InputManager::update(activeCamera, 0.016f);
 
-        if (InputManager::isKeyToggled(GLFW_KEY_F3))
-        {
-			takeScreenshotAsPng(BGFX_INVALID_HANDLE, screenshotName);
-        }
+            if (InputManager::isKeyToggled(GLFW_KEY_F2))
+            {
+                takingScreenshot = !takingScreenshot;
+            }
 
-
-        /*
-        //call spawnInstance when key is pressed based on spawnPrimitive value
-        if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && InputManager::getCursorDisabled())
-        {
-            if (spawnPrimitive == 0)
+            if (InputManager::isKeyToggled(GLFW_KEY_F3))
             {
-                spawnInstance(camera, "cube", "cube", vbh_cube, ibh_cube, instances);
-                std::cout << "Cube spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 1)
-            {
-                spawnInstance(camera, "capsule", "capsule", vbh_capsule, ibh_capsule, instances);
-                std::cout << "Capsule spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 2)
-            {
-                spawnInstance(camera, "cylinder", "cylinder", vbh_cylinder, ibh_cylinder, instances);
-                std::cout << "Cylinder spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 3)
-            {
-                spawnInstance(camera, "sphere", "sphere", vbh_sphere, ibh_sphere, instances);
-                std::cout << "Sphere spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 4)
-            {
-                spawnInstance(camera, "plane", "plane", vbh_plane, ibh_plane, instances);
-                std::cout << "Plane spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 5)
-            {
-                spawnInstance(camera, "mesh", "mesh", vbh_mesh, ibh_mesh, instances);
-                std::cout << "Test Import spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 6)
-            {
-                // --- Spawn Cornell Box with Hierarchy ---
-                Instance* cornellBox = new Instance(instanceCounter++, "cornell_box", "empty", 8.0f, 0.0f, -5.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
-                // Create a walls node (dummy instance without geometry)
-                Instance* wallsNode = new Instance(instanceCounter++, "walls", "empty", 0.0f, 0.0f, 0.0f, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE);
-
-                Instance* floorPlane = new Instance(instanceCounter++, "floor", "floor", 0.0f, 0.0f, 0.0f, vbh_floor, ibh_floor);
-                wallsNode->addChild(floorPlane);
-                Instance* ceilingPlane = new Instance(instanceCounter++, "ceiling", "ceiling", 0.0f, 0.0f, 0.0f, vbh_ceiling, ibh_ceiling);
-                wallsNode->addChild(ceilingPlane);
-                Instance* backPlane = new Instance(instanceCounter++, "back", "back", 0.0f, 0.0f, 0.0f, vbh_back, ibh_back);
-                wallsNode->addChild(backPlane);
-                Instance* leftPlane = new Instance(instanceCounter++, "left_wall", "left", 0.0f, 0.0f, 0.0f, vbh_left, ibh_left);
-                wallsNode->addChild(leftPlane);
-                Instance* rightPlane = new Instance(instanceCounter++, "right_wall", "right", 0.0f, 0.0f, 0.0f, vbh_right, ibh_right);
-                wallsNode->addChild(rightPlane);
-
-                Instance* innerCube = new Instance(instanceCounter++, "inner_cube", "innerCube", 0.3f, 0.0f, 0.0f, vbh_innerCube, ibh_innerCube);
-                Instance* innerRectBox = new Instance(instanceCounter++, "inner_rectbox", "innerCube", 1.1f, 1.0f, -0.9f, vbh_innerCube, ibh_innerCube);
-                innerRectBox->scale[0] = 0.8f;
-                innerRectBox->scale[1] = 2.0f;
-                innerRectBox->scale[2] = 0.8f;
-                cornellBox->addChild(wallsNode);
-                cornellBox->addChild(innerCube);
-                cornellBox->addChild(innerRectBox);
-                instances.push_back(cornellBox);
-                std::cout << "Cornell Box spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 7)
-            {
-                spawnInstance(camera, "teapot", "teapot", vbh_teapot, ibh_teapot, instances);
-                std::cout << "Teapot spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 8)
-            {
-                spawnInstance(camera, "bunny", "bunny", vbh_bunny, ibh_bunny, instances);
-                std::cout << "Bunny spawned" << std::endl;
-            }
-            else if (spawnPrimitive == 9)
-            {
-                spawnInstance(camera, "lucy", "lucy", vbh_lucy, ibh_lucy, instances);
-                std::cout << "Lucy spawned" << std::endl;
+                takeScreenshotAsPng(BGFX_INVALID_HANDLE, screenshotName);
             }
         }
-        */
 
 
         int width = static_cast<int>(viewport->Size.x);
@@ -3945,9 +4163,48 @@ int main(void)
 
         // --- Object Picking Pass ---
         // Only execute picking when the left mouse button is clicked and ImGui is not capturing the mouse.
-        if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && !ImGui::GetIO().WantCaptureMouse)
+        // Don’t process input unless user is in the actual 3D editor
+        if (!showMainMenu && !showCreditsPage)
         {
-            if (InputManager::getSkipPickingPass) {
+            if (InputManager::isMouseClicked(GLFW_MOUSE_BUTTON_LEFT) && !ImGui::GetIO().WantCaptureMouse)
+            {
+                if (InputManager::getSkipPickingPass) {
+                    // Use a dedicated view ID for picking (choose one not used by your normal rendering)
+                    const uint32_t PICKING_VIEW_ID = 0;
+                    bgfx::setViewFrameBuffer(PICKING_VIEW_ID, s_pickingFB);
+                    bgfx::setViewRect(PICKING_VIEW_ID, 0, 0, PICKING_DIM, PICKING_DIM);
+
+                    // Use the same camera for the picking pass.
+                    Camera& activeCamera = cameras[currentCameraIndex];
+                    float view[16];
+                    bx::mtxLookAt(view, activeCamera.position, bx::add(activeCamera.position, activeCamera.front), activeCamera.up);
+                    float proj[16];
+                    bx::mtxProj(proj, activeCamera.fov, float(width) / float(height), activeCamera.nearClip, activeCamera.farClip, bgfx::getCaps()->homogeneousDepth);
+                    bgfx::setViewTransform(PICKING_VIEW_ID, view, proj);
+
+                    // Render each instance with the picking shader.
+                    for (const Instance* instance : instances)
+                    {
+                        renderInstancePickingRecursive(instance, nullptr, PICKING_VIEW_ID);
+                    }
+
+                    // Blit the picking render target to the CPU-readable texture.
+                    const uint32_t PICKING_BLIT_VIEW = 2;
+                    bgfx::blit(PICKING_BLIT_VIEW, s_pickingReadTex, 0, 0, s_pickingRT);
+                    // Submit a frame to ensure the blit is complete.
+                    bgfx::frame();
+
+                    // Read back the texture data into s_pickingBlitData.
+                    bgfx::readTexture(s_pickingReadTex, s_pickingBlitData);
+
+                    // Detach the picking framebuffer by setting it to BGFX_INVALID_HANDLE.
+                    bgfx::setViewFrameBuffer(0, BGFX_INVALID_HANDLE);
+                    // Reset the viewport to cover the full window.
+                    bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
+                    // Reset the view transforms for your normal scene.
+                    bgfx::setViewTransform(0, view, proj);
+                    InputManager::toggleSkipPickingPass();
+                }
                 // Use a dedicated view ID for picking (choose one not used by your normal rendering)
                 const uint32_t PICKING_VIEW_ID = 0;
                 bgfx::setViewFrameBuffer(PICKING_VIEW_ID, s_pickingFB);
@@ -3976,82 +4233,47 @@ int main(void)
                 // Read back the texture data into s_pickingBlitData.
                 bgfx::readTexture(s_pickingReadTex, s_pickingBlitData);
 
+                // Convert the current mouse position to coordinates in the picking RT.
+                int mouseX = static_cast<int>(InputManager::getMouseX());
+                int mouseY = static_cast<int>(InputManager::getMouseY());
+
+                // Flip Y coordinate if needed:
+                mouseY = height - mouseY;
+                int pickX = (mouseX * PICKING_DIM) / width;
+                int pickY = (mouseY * PICKING_DIM) / height;
+
+                // Clamp the coordinates.
+                pickX = std::max(0, std::min(pickX, PICKING_DIM - 1));
+                pickY = std::max(0, std::min(pickY, PICKING_DIM - 1));
+
+                // Read the pixel (RGBA8: 4 bytes per pixel)
+                int pixelIndex = (pickY * PICKING_DIM + pickX) * 4;
+                uint8_t r = s_pickingBlitData[pixelIndex + 0];
+
+                // Decode the ID from the red channel.
+                int pickedID = r;
+
+                // Search through instances to find the one with this ID.
+                Instance* pickedInstance = findInstanceById(instances, pickedID);
+                if (pickedInstance)
+                {
+                    if (selectedInstance == pickedInstance) {
+                        selectedInstance = nullptr;
+                    }
+                    else {
+                        selectedInstance = pickedInstance;
+                        std::cout << "Picked object: " << selectedInstance->name << std::endl;
+                    }
+                }
                 // Detach the picking framebuffer by setting it to BGFX_INVALID_HANDLE.
                 bgfx::setViewFrameBuffer(0, BGFX_INVALID_HANDLE);
                 // Reset the viewport to cover the full window.
                 bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
                 // Reset the view transforms for your normal scene.
                 bgfx::setViewTransform(0, view, proj);
-                InputManager::toggleSkipPickingPass();
             }
-            // Use a dedicated view ID for picking (choose one not used by your normal rendering)
-            const uint32_t PICKING_VIEW_ID = 0;
-            bgfx::setViewFrameBuffer(PICKING_VIEW_ID, s_pickingFB);
-            bgfx::setViewRect(PICKING_VIEW_ID, 0, 0, PICKING_DIM, PICKING_DIM);
-
-            // Use the same camera for the picking pass.
-            Camera& activeCamera = cameras[currentCameraIndex];
-            float view[16];
-            bx::mtxLookAt(view, activeCamera.position, bx::add(activeCamera.position, activeCamera.front), activeCamera.up);
-            float proj[16];
-            bx::mtxProj(proj, activeCamera.fov, float(width) / float(height), activeCamera.nearClip, activeCamera.farClip, bgfx::getCaps()->homogeneousDepth);
-            bgfx::setViewTransform(PICKING_VIEW_ID, view, proj);
-
-            // Render each instance with the picking shader.
-            for (const Instance* instance : instances)
-            {
-                renderInstancePickingRecursive(instance, nullptr, PICKING_VIEW_ID);
-            }
-
-            // Blit the picking render target to the CPU-readable texture.
-            const uint32_t PICKING_BLIT_VIEW = 2;
-            bgfx::blit(PICKING_BLIT_VIEW, s_pickingReadTex, 0, 0, s_pickingRT);
-            // Submit a frame to ensure the blit is complete.
-            bgfx::frame();
-
-            // Read back the texture data into s_pickingBlitData.
-            bgfx::readTexture(s_pickingReadTex, s_pickingBlitData);
-
-            // Convert the current mouse position to coordinates in the picking RT.
-            int mouseX = static_cast<int>(InputManager::getMouseX());
-            int mouseY = static_cast<int>(InputManager::getMouseY());
-
-            // Flip Y coordinate if needed:
-            mouseY = height - mouseY;
-            int pickX = (mouseX * PICKING_DIM) / width;
-            int pickY = (mouseY * PICKING_DIM) / height;
-
-            // Clamp the coordinates.
-            pickX = std::max(0, std::min(pickX, PICKING_DIM - 1));
-            pickY = std::max(0, std::min(pickY, PICKING_DIM - 1));
-
-            // Read the pixel (RGBA8: 4 bytes per pixel)
-            int pixelIndex = (pickY * PICKING_DIM + pickX) * 4;
-            uint8_t r = s_pickingBlitData[pixelIndex + 0];
-
-            // Decode the ID from the red channel.
-            int pickedID = r;
-
-            // Search through instances to find the one with this ID.
-            Instance* pickedInstance = findInstanceById(instances, pickedID);
-            if (pickedInstance)
-            {
-                if (selectedInstance == pickedInstance) {
-                    selectedInstance = nullptr;
-                }
-                else {
-                    selectedInstance = pickedInstance;
-                    std::cout << "Picked object: " << selectedInstance->name << std::endl;
-                }
-            }
-            // Detach the picking framebuffer by setting it to BGFX_INVALID_HANDLE.
-            bgfx::setViewFrameBuffer(0, BGFX_INVALID_HANDLE);
-            // Reset the viewport to cover the full window.
-            bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
-            // Reset the view transforms for your normal scene.
-            bgfx::setViewTransform(0, view, proj);
         }
-
+        
         //if (InputManager::isKeyToggled(GLFW_KEY_BACKSPACE) && !instances.empty())
         //{
         //    Instance* inst = instances.back();
@@ -4100,7 +4322,7 @@ int main(void)
 
         bgfx::setUniform(u_viewPos, viewPos);
 
-        float cameraPos[4] = { camera.position.x, camera.position.y, camera.position.z, 1.0f };
+        float cameraPos[4] = { cameras[currentCameraIndex].position.x, cameras[currentCameraIndex].position.y, cameras[currentCameraIndex].position.z, 1.0f };
         float epsilon[4] = { 0.02f, 0.0f, 0.0f, 0.0f }; // Pack the epsilon value into the first element; the other three can be 0.
 
         bgfx::setUniform(u_inkColor, inkColor);
@@ -4179,7 +4401,7 @@ int main(void)
                 }
             }
 
-            drawInstance(instance, defaultProgram, lightDebugProgram, u_noiseTex, u_diffuseTex, u_objectColor, u_tint, u_inkColor, u_e, u_params, u_extraParams, u_paramsLayer, defaultWhiteTexture, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
+            drawInstance(instance, defaultProgram, lightDebugProgram, textProgram, comicProgram, u_comicColor, u_noiseTex, u_diffuseTex, u_objectColor, u_tint, u_inkColor, u_e, u_params, u_extraParams, u_paramsLayer, defaultWhiteTexture, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
         }
 
         // Update your vertex layout to include normals

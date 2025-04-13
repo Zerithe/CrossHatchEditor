@@ -15,6 +15,20 @@ struct PosColorVertex {
     float u, v;  // texture coordinates
 };
 
+// Rectangle quad for text rendering (e.g., 4 units wide x 1 unit tall)
+static float halfWidth = 2.0f;   // 4 total width
+static float halfHeight = 0.5f;  // 1 total height
+
+// Define a simple quad for text rendering (horizontal FLIP)
+static PosColorVertex textQuadVertices[] = {
+    // Positions                // Colors        // TexCoords (flipped horizontally)
+    { -halfWidth,  halfHeight, 0.0f,  0,0,0, 0xffffffff,  1.0f, 0.0f }, // top-left | originally: 0.0f, 0.0f
+    {  halfWidth,  halfHeight, 0.0f,  0,0,0, 0xffffffff,  0.0f, 0.0f }, // top-right | originally: 1.0f, 0.0f
+    { -halfWidth, -halfHeight, 0.0f,  0,0,0, 0xffffffff,  1.0f, 1.0f }, // bottom-left | originally: 0.0f, 1.0f
+    {  halfWidth, -halfHeight, 0.0f,  0,0,0, 0xffffffff,  0.0f, 1.0f }  // bottom-right | originally: 1.0f, 1.0f
+};
+static uint16_t textQuadIndices[] = { 0, 1, 2, 1, 3, 2 };
+
 // Double–sided plane: 8 vertices (first 4 for front, next 4 for back)
 static PosColorVertex planeVertices[] = {
     // Front face (normal pointing up, as before)

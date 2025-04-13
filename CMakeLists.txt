@@ -15,6 +15,9 @@ set(SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
 set(MESHES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/meshes")
 set(NOISE_TEX_DIR "${CMAKE_CURRENT_SOURCE_DIR}/noise textures")
 set(VIDEOS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/videos")
+set(FONTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/fonts")
+set(COMIC_ELEMENTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/comic elements")
+set(ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets")
 
 # Generate Shaders
 
@@ -35,7 +38,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 "ObjLoader.cpp"
 "ObjLoader.h" 
 "PrimitiveObjects.h"
-"bgfx-imgui/imgui_impl_bgfx.cpp" "Logger.cpp" "Light.h" "stb_image.h" "stb_image_write.h" "VideoPlayer.h")
+"bgfx-imgui/imgui_impl_bgfx.cpp" "Logger.cpp" "Light.h" "stb_image.h" "stb_image_write.h" "VideoPlayer.h" "TextRenderer.h" "TextRenderer.cpp")
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 
@@ -67,6 +70,15 @@ include_directories(${NOISE_TEX_DIR})
 
 file(COPY ${VIDEOS_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${VIDEOS_DIR})
+
+file(COPY ${FONTS_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${FONTS_DIR})
+
+file(COPY ${COMIC_ELEMENTS_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${COMIC_ELEMENTS_DIR})
+
+file(COPY ${ASSETS_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${ASSETS_DIR})
 
 set(IMGUI_PATH ${CMAKE_CURRENT_LIST_DIR}/imgui)
 file(GLOB IMGUI_GLOB
@@ -163,6 +175,9 @@ install(DIRECTORY ${SHADERS_DIR} DESTINATION .)
 install(DIRECTORY ${MESHES_DIR} DESTINATION .)
 install(DIRECTORY "${NOISE_TEX_DIR}" DESTINATION .)
 install(DIRECTORY "${VIDEOS_DIR}" DESTINATION .)
+install(DIRECTORY "${FONTS_DIR}" DESTINATION .)
+install(DIRECTORY "${COMIC_ELEMENTS_DIR}" DESTINATION .)
+install(DIRECTORY "${ASSETS_DIR}" DESTINATION .)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/imgui.ini DESTINATION .)
 
 # Install required DLLs
