@@ -1326,7 +1326,7 @@ void processNode(const aiScene* scene, aiNode* node, const aiMatrix4x4& parentTr
             vertex.y = mesh->mVertices[j].y;
             vertex.z = mesh->mVertices[j].z;
             if (mesh->HasNormals()) {
-                vertex.nx = mesh->mNormals[j].x;
+                vertex.nx = -mesh->mNormals[j].x;
                 vertex.ny = mesh->mNormals[j].y;
                 vertex.nz = mesh->mNormals[j].z;
             }
@@ -2490,169 +2490,175 @@ int main(void)
 
         // Asphalt 1
         tex.name = "Asphalt1";
-        tex.handle = loadTextureDDS("shaders\\Asphalt 1.dds");
+        tex.handle = loadTextureDDS("textures\\Asphalt 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Bark 1
         tex.name = "Bark1";
-        tex.handle = loadTextureDDS("shaders\\Bark 1.dds");
+        tex.handle = loadTextureDDS("textures\\Bark 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Brick 1
         tex.name = "Brick1";
-        tex.handle = loadTextureDDS("shaders\\Brick 1.dds");
+        tex.handle = loadTextureDDS("textures\\Brick 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Carpet 1
         tex.name = "Carpet1";
-        tex.handle = loadTextureDDS("shaders\\Carpet 1.dds");
+        tex.handle = loadTextureDDS("textures\\Carpet 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Cobblestone 1
         tex.name = "Cobblestone1";
-        tex.handle = loadTextureDDS("shaders\\Cobblestone 1.dds");
+        tex.handle = loadTextureDDS("textures\\Cobblestone 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Concrete 1
         tex.name = "Concrete1";
-        tex.handle = loadTextureDDS("shaders\\Concrete 1.dds");
+        tex.handle = loadTextureDDS("textures\\Concrete 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Dirt 1
         tex.name = "Dirt1";
-        tex.handle = loadTextureDDS("shaders\\Dirt 1.dds");
+        tex.handle = loadTextureDDS("textures\\Dirt 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Fabric 1
         tex.name = "Fabric1";
-        tex.handle = loadTextureDDS("shaders\\Fabric 1.dds");
+        tex.handle = loadTextureDDS("textures\\Fabric 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Food 1
         tex.name = "Food1";
-        tex.handle = loadTextureDDS("shaders\\Food 1.dds");
+        tex.handle = loadTextureDDS("textures\\Food 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Glass 1
         tex.name = "Glass1";
-        tex.handle = loadTextureDDS("shaders\\Glass 1.dds");
+        tex.handle = loadTextureDDS("textures\\Glass 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Glass 2
         tex.name = "Glass2";
-        tex.handle = loadTextureDDS("shaders\\Glass 2.dds");
+        tex.handle = loadTextureDDS("textures\\Glass 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Grass 1
         tex.name = "Grass1";
-        tex.handle = loadTextureDDS("shaders\\Grass 1.dds");
+        tex.handle = loadTextureDDS("textures\\Grass 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Grass 2
         tex.name = "Grass2";
-        tex.handle = loadTextureDDS("shaders\\Grass 2.dds");
+        tex.handle = loadTextureDDS("textures\\Grass 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Leaves 1
         tex.name = "Leaves1";
-        tex.handle = loadTextureDDS("shaders\\Leaves 1.dds");
+        tex.handle = loadTextureDDS("textures\\Leaves 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Metal 1
         tex.name = "Metal10";
-        tex.handle = loadTextureDDS("shaders\\Metal 10.dds");
+        tex.handle = loadTextureDDS("textures\\Metal 10.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Paint 1
         tex.name = "Paint1";
-        tex.handle = loadTextureDDS("shaders\\Paint 1.dds");
+        tex.handle = loadTextureDDS("textures\\Paint 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Rock 1
         tex.name = "Rock1";
-        tex.handle = loadTextureDDS("shaders\\Rocks 1.dds");
+        tex.handle = loadTextureDDS("textures\\Rocks 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Shingles 1
         tex.name = "Shingles1";
-        tex.handle = loadTextureDDS("shaders\\Shingles 1.dds");
+        tex.handle = loadTextureDDS("textures\\Shingles 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Snow 1
         tex.name = "Snow1";
-        tex.handle = loadTextureDDS("shaders\\Snow 1.dds");
+        tex.handle = loadTextureDDS("textures\\Snow 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Stone 1
         tex.name = "Stone1";
-        tex.handle = loadTextureDDS("shaders\\Stone 1.dds");
+        tex.handle = loadTextureDDS("textures\\Stone 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Stone 2
         tex.name = "Stone2";
-        tex.handle = loadTextureDDS("shaders\\Stone 2.dds");
+        tex.handle = loadTextureDDS("textures\\Stone 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Tile 1
         tex.name = "Tile1";
-        tex.handle = loadTextureDDS("shaders\\Tile 1.dds");
+        tex.handle = loadTextureDDS("textures\\Tile 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Tile 2
         tex.name = "Tile2";
-        tex.handle = loadTextureDDS("shaders\\Tile 2.dds");
+        tex.handle = loadTextureDDS("textures\\Tile 2.dds");
+        std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
+        availableTextures.push_back(tex);
+
+        // Tile 3
+        tex.name = "Tile3";
+        tex.handle = loadTextureDDS("textures\\Tile 3.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Wood 1
         tex.name = "Wood1";
-        tex.handle = loadTextureDDS("shaders\\Wood 1.dds");
+        tex.handle = loadTextureDDS("textures\\Wood 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Wood 2
         tex.name = "Wood2";
-        tex.handle = loadTextureDDS("shaders\\Wood 2.dds");
+        tex.handle = loadTextureDDS("textures\\Wood 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Wood 3
         tex.name = "Wood3";
-        tex.handle = loadTextureDDS("shaders\\Wood 3.dds");
+        tex.handle = loadTextureDDS("textures\\Wood 3.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Wooden Boards 1
         tex.name = "Wooden Boards1";
-        tex.handle = loadTextureDDS("shaders\\Wooden Boards 1.dds");
+        tex.handle = loadTextureDDS("textures\\Wooden Boards 1.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
 
         // Wooden Boards 2
         tex.name = "Wooden Boards2";
-        tex.handle = loadTextureDDS("shaders\\Wooden Boards 2.dds");
+        tex.handle = loadTextureDDS("textures\\Wooden Boards 2.dds");
         std::cout << "Loaded texture '" << tex.name << "' with handle: " << tex.handle.idx << std::endl;
         availableTextures.push_back(tex);
     }
