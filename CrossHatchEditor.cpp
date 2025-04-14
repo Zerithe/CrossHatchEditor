@@ -558,7 +558,7 @@ MeshData loadMesh(const std::string& filePath) {
 
         for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
             PosColorVertex vertex;
-            vertex.x = mesh->mVertices[i].x;
+            vertex.x = -mesh->mVertices[i].x; //original: mesh->mVertices[i].x | flipped: -mesh->mVertices[i].x 
             vertex.y = mesh->mVertices[i].y;
             vertex.z = mesh->mVertices[i].z;
 
@@ -607,10 +607,20 @@ MeshData loadMesh(const std::string& filePath) {
         }
 
 
+        /*
+        // Reversed winding order
         for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
             aiFace face = mesh->mFaces[i];
             // Reverse the winding order
             for (int j = face.mNumIndices - 1; j >= 0; j--) {
+                indices.push_back(static_cast<uint32_t>(baseIndex + face.mIndices[j]));
+            }
+        }
+        */
+        // Natural winding order
+        for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
+            aiFace face = mesh->mFaces[i];
+            for (int j = 0; j < face.mNumIndices; j++) {
                 indices.push_back(static_cast<uint32_t>(baseIndex + face.mIndices[j]));
             }
         }
@@ -1312,7 +1322,7 @@ void processNode(const aiScene* scene, aiNode* node, const aiMatrix4x4& parentTr
         // Process vertices.
         for (unsigned int j = 0; j < mesh->mNumVertices; j++) {
             PosColorVertex vertex;
-            vertex.x = mesh->mVertices[j].x;
+            vertex.x = -mesh->mVertices[j].x; //original: mesh->mVertices[j].x | flipped: -mesh->mVertices[j].x 
             vertex.y = mesh->mVertices[j].y;
             vertex.z = mesh->mVertices[j].z;
             if (mesh->HasNormals()) {
@@ -1343,9 +1353,18 @@ void processNode(const aiScene* scene, aiNode* node, const aiMatrix4x4& parentTr
         }
 
         // Process indices (reversed winding order).
+        /*
         for (unsigned int j = 0; j < mesh->mNumFaces; j++) {
             aiFace face = mesh->mFaces[j];
             for (int k = face.mNumIndices - 1; k >= 0; k--) {
+                meshData.indices.push_back(static_cast<uint32_t>(baseIndex + face.mIndices[k]));
+            }
+        }
+        */
+        // Process indices in natural order (preserving winding order)
+        for (unsigned int j = 0; j < mesh->mNumFaces; j++) {
+            aiFace face = mesh->mFaces[j];
+            for (int k = 0; k < face.mNumIndices; k++) {
                 meshData.indices.push_back(static_cast<uint32_t>(baseIndex + face.mIndices[k]));
             }
         }
