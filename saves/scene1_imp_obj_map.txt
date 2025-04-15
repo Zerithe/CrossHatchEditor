@@ -1,0 +1,1 @@
+gameready-city-building ../meshes/city/gameready-city-building.gltf

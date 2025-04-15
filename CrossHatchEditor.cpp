@@ -1239,7 +1239,7 @@ void SaveImportedObjMap(const std::unordered_map<std::string, std::string>& map,
     // Write each mapping as: key [whitespace] value
     for (const auto& entry : map)
     {
-        ofs << entry.first << " " << entry.second << "\n";
+        ofs << entry.first << " " << "../" << entry.second << "\n";
     }
     ofs.close();
 }
@@ -1282,9 +1282,15 @@ void saveSceneToFile(std::vector<Instance*>& instances, const std::vector<Textur
     file.close();
     std::cout << "Scene saved to " << saveFilePath << std::endl;
 
-    std::string importedObjMapPath = fs::path(saveFilePath).stem().string() + "_imp_obj_map.txt";
-    SaveImportedObjMap(importedObjMap, importedObjMapPath);
+    std::filesystem::path scenePath = saveFilePath;
+    std::filesystem::path sceneDirectory = scenePath.parent_path();
+    std::filesystem::path importedObjMapPath = sceneDirectory / (scenePath.stem().string() + "_imp_obj_map.txt");
+
+    SaveImportedObjMap(importedObjMap, importedObjMapPath.string());
     std::cout << "Imported obj paths saved to " << importedObjMapPath << std::endl;
+    //std::string importedObjMapPath = fs::path(saveFilePath).stem().string() + "_imp_obj_map.txt";
+    //SaveImportedObjMap(importedObjMap, importedObjMapPath);
+    //std::cout << "Imported obj paths saved to " << importedObjMapPath << std::endl;
 }
 
 std::string ConvertBackslashesToForward(const std::string& path)
@@ -2427,7 +2433,7 @@ int main(void)
 
     static bgfx::TextureHandle logoTexture = BGFX_INVALID_HANDLE;
     if (!bgfx::isValid(logoTexture)) {
-        logoTexture = loadTextureFile("assets/gamelab_logo.png");  // adjust path
+        logoTexture = loadTextureFile("assets/anitocrosshatch.png");  // adjust path
     }
     ImTextureID logoID = (ImTextureID)(uintptr_t)logoTexture.idx;
 

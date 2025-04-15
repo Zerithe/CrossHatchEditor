@@ -1,0 +1,11 @@
+Model Information:
+* title:	Public Phone Booth
+* source:	https://sketchfab.com/3d-models/public-phone-booth-d86b8632da384514965b9d920815334e
+* author:	tribhuvantechnoart (https://sketchfab.com/tribhuvantechnoart)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Public Phone Booth" (https://sketchfab.com/3d-models/public-phone-booth-d86b8632da384514965b9d920815334e) by tribhuvantechnoart (https://sketchfab.com/tribhuvantechnoart) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

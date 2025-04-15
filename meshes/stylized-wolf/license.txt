@@ -1,0 +1,11 @@
+Model Information:
+* title:	Stylized Wolf
+* source:	https://sketchfab.com/3d-models/stylized-wolf-2b369cacbd3a4d19b39353f6cf60b8a9
+* author:	ESO (https://sketchfab.com/ESOOOO)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Stylized Wolf" (https://sketchfab.com/3d-models/stylized-wolf-2b369cacbd3a4d19b39353f6cf60b8a9) by ESO (https://sketchfab.com/ESOOOO) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

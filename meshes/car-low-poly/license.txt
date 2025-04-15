@@ -1,0 +1,11 @@
+Model Information:
+* title:	Car low poly
+* source:	https://sketchfab.com/3d-models/car-low-poly-c483152ca7e6431c99def3cc7cb9ba1c
+* author:	daniel.2U (https://sketchfab.com/daniel.2U)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Car low poly" (https://sketchfab.com/3d-models/car-low-poly-c483152ca7e6431c99def3cc7cb9ba1c) by daniel.2U (https://sketchfab.com/daniel.2U) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

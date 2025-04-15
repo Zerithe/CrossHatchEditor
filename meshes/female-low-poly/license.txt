@@ -1,0 +1,11 @@
+Model Information:
+* title:	Stylized Lowpoly Female
+* source:	https://sketchfab.com/3d-models/stylized-lowpoly-female-c43faccd52f042bd855bb0d0c65c4234
+* author:	Yulius Krisna (https://sketchfab.com/yuliuskrisna)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Stylized Lowpoly Female" (https://sketchfab.com/3d-models/stylized-lowpoly-female-c43faccd52f042bd855bb0d0c65c4234) by Yulius Krisna (https://sketchfab.com/yuliuskrisna) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

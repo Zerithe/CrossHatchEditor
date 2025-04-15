@@ -7,6 +7,20 @@
 #include <cstring>
 #include <iostream>
 #include <vector>
+#include <windows.h> 
+#include <filesystem> 
+#include <string>
+
+std::string getExecutableDir()
+{
+#ifdef _WIN32
+    char path[MAX_PATH];
+    GetModuleFileNameA(NULL, path, MAX_PATH);
+    return std::filesystem::path(path).parent_path().string();
+#else
+    return std::filesystem::current_path().string();
+#endif
+}
 
 // Helper: load entire file into memory.
 static unsigned char* loadFile(const char* fileName, int* size)
@@ -41,8 +55,9 @@ bgfx::TextureHandle createTextTexture(const std::string& text)
 
     // Load the TTF font.
     int fontBufferSize = 0;
-    const char* fontFile = "fonts\\SF_Arch_Rival.ttf"; // Adjust the font path as needed.
-    unsigned char* fontBuffer = loadFile(fontFile, &fontBufferSize);
+    //const char* fontFile = "fonts\\SF_Arch_Rival.ttf"; // Adjust the font path as needed.
+    std::string fontPath = getExecutableDir() + "/fonts/SF_Arch_Rival.ttf";
+    unsigned char* fontBuffer = loadFile(fontPath.c_str(), &fontBufferSize);
     if (!fontBuffer) {
         std::cerr << "Could not load font file." << std::endl;
         return BGFX_INVALID_HANDLE;

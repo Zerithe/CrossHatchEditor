@@ -1,0 +1,11 @@
+Model Information:
+* title:	Sci-fi lab
+* source:	https://sketchfab.com/3d-models/sci-fi-lab-a676e149e343403bb5e57686f3d31da5
+* author:	Agata Wilczek (https://sketchfab.com/a_wilczek)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Sci-fi lab" (https://sketchfab.com/3d-models/sci-fi-lab-a676e149e343403bb5e57686f3d31da5) by Agata Wilczek (https://sketchfab.com/a_wilczek) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

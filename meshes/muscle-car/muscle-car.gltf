@@ -1,0 +1,2789 @@
+{
+  "accessors": [
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 2648,
+      "max": [
+        -27.868907928466797,
+        1219.665771484375,
+        491.07598876953125
+      ],
+      "min": [
+        -720.37158203125,
+        -605.27685546875,
+        81.56463623046875
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 31776,
+      "componentType": 5126,
+      "count": 2648,
+      "max": [
+        0.9998087286949158,
+        0.9999140501022339,
+        0.9999814629554749
+      ],
+      "min": [
+        -0.999808669090271,
+        -0.9923508167266846,
+        -0.9915733933448792
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 2648,
+      "max": [
+        0.9935860633850098,
+        0.9642630219459534
+      ],
+      "min": [
+        0.008775819092988968,
+        0.4202200770378113
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "componentType": 5125,
+      "count": 10344,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 63552,
+      "componentType": 5126,
+      "count": 4379,
+      "max": [
+        -25.55487060546875,
+        1227.2144775390625,
+        469.8851318359375
+      ],
+      "min": [
+        -722.6856689453125,
+        -617.01708984375,
+        68.49331665039063
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 116100,
+      "componentType": 5126,
+      "count": 4379,
+      "max": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5126,
+      "count": 4379,
+      "max": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 21184,
+      "componentType": 5126,
+      "count": 4379,
+      "max": [
+        0.9973072409629822,
+        0.9366694092750549
+      ],
+      "min": [
+        0.004317365121096373,
+        0.004650434013456106
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 41376,
+      "componentType": 5125,
+      "count": 14055,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 168648,
+      "componentType": 5126,
+      "count": 153,
+      "max": [
+        2027.6636962890625,
+        742.1043701171875,
+        390.7685546875
+      ],
+      "min": [
+        -1740.00634765625,
+        -742.10400390625,
+        155.5849609375
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 170484,
+      "componentType": 5126,
+      "count": 153,
+      "max": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 70064,
+      "componentType": 5126,
+      "count": 153,
+      "max": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "min": [
+        -0.9999808669090271,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 56216,
+      "componentType": 5126,
+      "count": 153,
+      "max": [
+        0.3060656189918518,
+        0.946556031703949
+      ],
+      "min": [
+        0.07644736766815186,
+        0.565468430519104
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 97596,
+      "componentType": 5125,
+      "count": 456,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 172320,
+      "componentType": 5126,
+      "count": 3302,
+      "max": [
+        1497.515869140625,
+        854.19189453125,
+        979.5950927734375
+      ],
+      "min": [
+        -1143.1663818359375,
+        -874.94921875,
+        -94.10406494140625
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 211944,
+      "componentType": 5126,
+      "count": 3302,
+      "max": [
+        0.9999987483024597,
+        1.0,
+        1.0
+      ],
+      "min": [
+        -0.9997124671936035,
+        -1.0,
+        -0.9998781085014343
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 72512,
+      "componentType": 5126,
+      "count": 3302,
+      "max": [
+        1.0,
+        1.0,
+        0.9999919533729553,
+        1.0
+      ],
+      "min": [
+        -0.99983149766922,
+        -1.0,
+        -0.9994621872901917,
+        -1.0
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 57440,
+      "componentType": 5126,
+      "count": 3302,
+      "max": [
+        0.999945878982544,
+        0.9986944198608398
+      ],
+      "min": [
+        0.0,
+        8.25755375188919e-09
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 99420,
+      "componentType": 5125,
+      "count": 12060,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 251568,
+      "componentType": 5126,
+      "count": 40,
+      "max": [
+        31.752164840698242,
+        72.95763397216797,
+        143.69163513183594
+      ],
+      "min": [
+        -16.124319076538086,
+        -62.17387390136719,
+        -143.6914825439453
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 252048,
+      "componentType": 5126,
+      "count": 40,
+      "max": [
+        0.9568608403205872,
+        0.9470994472503662,
+        0.9228070378303528
+      ],
+      "min": [
+        -0.9568606019020081,
+        -0.9471001029014587,
+        -0.9228053689002991
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 83856,
+      "componentType": 5126,
+      "count": 40,
+      "max": [
+        0.19913876056671143,
+        0.30022406578063965
+      ],
+      "min": [
+        0.0014848371502012014,
+        0.20026127994060516
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 147660,
+      "componentType": 5125,
+      "count": 108,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 252528,
+      "componentType": 5126,
+      "count": 78,
+      "max": [
+        -98.12141418457031,
+        639.9965209960938,
+        450.2365417480469
+      ],
+      "min": [
+        -650.1190795898438,
+        69.90966796875,
+        337.1980285644531
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 253464,
+      "componentType": 5126,
+      "count": 78,
+      "max": [
+        0.9773266315460205,
+        0.008587189950048923,
+        0.4080321788787842
+      ],
+      "min": [
+        -0.9773265719413757,
+        -0.05662724748253822,
+        0.2102779746055603
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 84176,
+      "componentType": 5126,
+      "count": 78,
+      "max": [
+        0.959517240524292,
+        0.29175493121147156
+      ],
+      "min": [
+        0.0449947714805603,
+        0.07507471740245819
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 148092,
+      "componentType": 5125,
+      "count": 240,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 254400,
+      "componentType": 5126,
+      "count": 34,
+      "max": [
+        -104.68536376953125,
+        1187.37646484375,
+        274.5142517089844
+      ],
+      "min": [
+        -643.5551147460938,
+        1184.6876220703125,
+        259.6216125488281
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 254808,
+      "componentType": 5126,
+      "count": 34,
+      "max": [
+        0.015966659411787987,
+        0.9998733401298523,
+        3.2956890208879486e-05
+      ],
+      "min": [
+        -0.015964051708579063,
+        0.9998725652694702,
+        -4.336314304964617e-05
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 125344,
+      "componentType": 5126,
+      "count": 34,
+      "max": [
+        0.9998728632926941,
+        0.015963461250066757,
+        6.826743174315197e-06,
+        1.0
+      ],
+      "min": [
+        -0.9998733401298523,
+        -0.015966661274433136,
+        -4.743722001876449e-06,
+        -1.0
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 84800,
+      "componentType": 5126,
+      "count": 34,
+      "max": [
+        0.9918878674507141,
+        0.17316609621047974
+      ],
+      "min": [
+        0.6609140634536743,
+        0.009252123534679413
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 149052,
+      "componentType": 5125,
+      "count": 78,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 255216,
+      "componentType": 5126,
+      "count": 213,
+      "max": [
+        -128.89297485351563,
+        1229.4521484375,
+        350.94732666015625
+      ],
+      "min": [
+        -619.3477783203125,
+        947.6845703125,
+        301.9540100097656
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 257772,
+      "componentType": 5126,
+      "count": 213,
+      "max": [
+        0.94605553150177,
+        0.9960266947746277,
+        0.9999462366104126
+      ],
+      "min": [
+        -0.9460550546646118,
+        -0.9761273860931396,
+        -0.9992945194244385
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 85072,
+      "componentType": 5126,
+      "count": 213,
+      "max": [
+        0.9182855486869812,
+        0.8077067732810974
+      ],
+      "min": [
+        0.6293798089027405,
+        0.03925255686044693
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 149364,
+      "componentType": 5125,
+      "count": 570,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 260328,
+      "componentType": 5126,
+      "count": 376,
+      "max": [
+        -138.69200134277344,
+        -93.36279296875,
+        339.09765625
+      ],
+      "min": [
+        -609.5487060546875,
+        -616.3926391601563,
+        267.3144226074219
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 264840,
+      "componentType": 5126,
+      "count": 376,
+      "max": [
+        0.9305845499038696,
+        0.8665830492973328,
+        0.9994540214538574
+      ],
+      "min": [
+        -0.9305850863456726,
+        -0.9928816556930542,
+        -0.994545578956604
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 86776,
+      "componentType": 5126,
+      "count": 376,
+      "max": [
+        0.6703959703445435,
+        0.802527904510498
+      ],
+      "min": [
+        0.08098568022251129,
+        0.12388591468334198
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 151644,
+      "componentType": 5125,
+      "count": 1350,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 269352,
+      "componentType": 5126,
+      "count": 33,
+      "max": [
+        -108.48954772949219,
+        152.4755859375,
+        465.3345031738281
+      ],
+      "min": [
+        -639.7509155273438,
+        -37.993072509765625,
+        341.843017578125
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 269748,
+      "componentType": 5126,
+      "count": 33,
+      "max": [
+        0.4965935945510864,
+        -0.45784634351730347,
+        0.7885018587112427
+      ],
+      "min": [
+        -0.4965936541557312,
+        -0.6215435862541199,
+        0.7374086380004883
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 89784,
+      "componentType": 5126,
+      "count": 33,
+      "max": [
+        0.63314288854599,
+        0.9427757263183594
+      ],
+      "min": [
+        0.055324018001556396,
+        0.7026007175445557
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 157044,
+      "componentType": 5125,
+      "count": 120,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 270144,
+      "componentType": 5126,
+      "count": 33,
+      "max": [
+        -184.9897003173828,
+        823.8567504882813,
+        459.5042724609375
+      ],
+      "min": [
+        -563.2507934570313,
+        683.4622802734375,
+        364.387451171875
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 270540,
+      "componentType": 5126,
+      "count": 33,
+      "max": [
+        0.064553402364254,
+        0.5622304677963257,
+        0.8357418775558472
+      ],
+      "min": [
+        -0.0645536556839943,
+        0.5453150868415833,
+        0.8269806504249573
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 90048,
+      "componentType": 5126,
+      "count": 33,
+      "max": [
+        0.64373379945755,
+        0.6248899698257446
+      ],
+      "min": [
+        0.05837102234363556,
+        0.3790622651576996
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 157524,
+      "componentType": 5125,
+      "count": 114,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 270936,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        383.8625793457031,
+        383.927490234375,
+        -0.7445461750030518
+      ],
+      "min": [
+        -383.8623352050781,
+        -383.7974548339844,
+        -385.1080017089844
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 283224,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 125888,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        1.0,
+        1.0,
+        0.9934374690055847,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -1.0,
+        -0.9932644963264465,
+        -1.0
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 90312,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        0.992383599281311,
+        0.9804564118385315
+      ],
+      "min": [
+        0.006161375902593136,
+        0.005897914990782738
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 98504,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        0.992383599281311,
+        0.9804564118385315
+      ],
+      "min": [
+        0.006161375902593136,
+        0.005897914990782738
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 157980,
+      "componentType": 5125,
+      "count": 3120,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 295512,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        383.8625793457031,
+        383.927490234375,
+        -0.7445461750030518
+      ],
+      "min": [
+        -383.8623352050781,
+        -383.7974548339844,
+        -385.1080017089844
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 307800,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 142272,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        1.0,
+        1.0,
+        0.9934374690055847,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -1.0,
+        -0.9932644963264465,
+        -1.0
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 106696,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        0.992383599281311,
+        0.9804564118385315
+      ],
+      "min": [
+        0.006161375902593136,
+        0.005897914990782738
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 114888,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        0.992383599281311,
+        0.9804564118385315
+      ],
+      "min": [
+        0.006161375902593136,
+        0.005897914990782738
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 170460,
+      "componentType": 5125,
+      "count": 3120,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 320088,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        383.8625793457031,
+        383.927490234375,
+        -0.7445461750030518
+      ],
+      "min": [
+        -383.8623352050781,
+        -383.7974548339844,
+        -385.1080017089844
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 332376,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 158656,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        1.0,
+        1.0,
+        0.9934374690055847,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -1.0,
+        -0.9932644963264465,
+        -1.0
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 123080,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        0.992383599281311,
+        0.9804564118385315
+      ],
+      "min": [
+        0.006161375902593136,
+        0.005897914990782738
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 131272,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        0.992383599281311,
+        0.9804564118385315
+      ],
+      "min": [
+        0.006161375902593136,
+        0.005897914990782738
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 182940,
+      "componentType": 5125,
+      "count": 3120,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 344664,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        383.8625793457031,
+        383.927490234375,
+        -0.7445461750030518
+      ],
+      "min": [
+        -383.8623352050781,
+        -383.7974548339844,
+        -385.1080017089844
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 356952,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 175040,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        1.0,
+        1.0,
+        0.9934374690055847,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -1.0,
+        -0.9932644963264465,
+        -1.0
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 139464,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        0.992383599281311,
+        0.9804564118385315
+      ],
+      "min": [
+        0.006161375902593136,
+        0.005897914990782738
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 147656,
+      "componentType": 5126,
+      "count": 1024,
+      "max": [
+        0.992383599281311,
+        0.9804564118385315
+      ],
+      "min": [
+        0.006161375902593136,
+        0.005897914990782738
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 195420,
+      "componentType": 5125,
+      "count": 3120,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 369240,
+      "componentType": 5126,
+      "count": 305,
+      "max": [
+        1022.9174194335938,
+        -1110.31640625,
+        316.4532470703125
+      ],
+      "min": [
+        -473.95867919921875,
+        -1280.093994140625,
+        145.9169158935547
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 372900,
+      "componentType": 5126,
+      "count": 305,
+      "max": [
+        0.9967672228813171,
+        0.9998777508735657,
+        0.987421989440918
+      ],
+      "min": [
+        -0.9967672228813171,
+        -0.9909951686859131,
+        -0.9929796457290649
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 191424,
+      "componentType": 5126,
+      "count": 305,
+      "max": [
+        0.40200817584991455,
+        0.9999766945838928,
+        0.9999994039535522,
+        1.0
+      ],
+      "min": [
+        -0.4020959734916687,
+        -0.9934839606285095,
+        -0.13313794136047363,
+        -1.0
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 155848,
+      "componentType": 5126,
+      "count": 305,
+      "max": [
+        0.180751234292984,
+        0.24644121527671814
+      ],
+      "min": [
+        0.12322953343391418,
+        0.02651119977235794
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 207900,
+      "componentType": 5125,
+      "count": 1410,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 376560,
+      "componentType": 5126,
+      "count": 333,
+      "max": [
+        1021.008544921875,
+        3098.508544921875,
+        423.11944580078125
+      ],
+      "min": [
+        -472.0498046875,
+        2994.380859375,
+        206.2740478515625
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 380556,
+      "componentType": 5126,
+      "count": 333,
+      "max": [
+        0.9998332858085632,
+        0.9988237023353577,
+        0.9952875375747681
+      ],
+      "min": [
+        -0.999833345413208,
+        -0.9997698664665222,
+        -0.9897858500480652
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 196304,
+      "componentType": 5126,
+      "count": 333,
+      "max": [
+        0.5316033959388733,
+        0.9999719858169556,
+        0.9999595880508423,
+        1.0
+      ],
+      "min": [
+        -0.6790655255317688,
+        -0.996729850769043,
+        -0.10283879935741425,
+        -1.0
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 158288,
+      "componentType": 5126,
+      "count": 333,
+      "max": [
+        0.1869806945323944,
+        0.24353985488414764
+      ],
+      "min": [
+        0.05498996376991272,
+        0.02417062222957611
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 213540,
+      "componentType": 5125,
+      "count": 1314,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 384552,
+      "componentType": 5126,
+      "count": 12,
+      "max": [
+        -272.9963684082031,
+        1188.205322265625,
+        274.677978515625
+      ],
+      "min": [
+        -475.2441101074219,
+        1187.374755859375,
+        262.6347351074219
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 384696,
+      "componentType": 5126,
+      "count": 12,
+      "max": [
+        0.015971634536981583,
+        0.9998726844787598,
+        1.6141153764692717e-06
+      ],
+      "min": [
+        -0.015971632674336433,
+        0.9998724460601807,
+        -1.5959663869580254e-05
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 201632,
+      "componentType": 5126,
+      "count": 12,
+      "max": [
+        0.9998726844787598,
+        0.015971634536981583,
+        4.549924142338568e-06,
+        1.0
+      ],
+      "min": [
+        -0.999872624874115,
+        0.01596044935286045,
+        -6.117076623013418e-07,
+        -1.0
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 160952,
+      "componentType": 5126,
+      "count": 12,
+      "max": [
+        0.9046990275382996,
+        0.10894383490085602
+      ],
+      "min": [
+        0.6936330795288086,
+        0.060715459287166595
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 218796,
+      "componentType": 5125,
+      "count": 24,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 384840,
+      "componentType": 5126,
+      "count": 76,
+      "max": [
+        -114.00265502929688,
+        -565.791015625,
+        247.751953125
+      ],
+      "min": [
+        -634.238037109375,
+        -574.4026489257813,
+        209.05096435546875
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 385752,
+      "componentType": 5126,
+      "count": 76,
+      "max": [
+        0.42519158124923706,
+        -0.9048994779586792,
+        0.4251909852027893
+      ],
+      "min": [
+        -0.42519256472587585,
+        -1.0,
+        -0.4251914620399475
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 201824,
+      "componentType": 5126,
+      "count": 76,
+      "max": [
+        1.0,
+        0.4252741038799286,
+        0.01337351929396391,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -0.4252733290195465,
+        -0.010804598219692707,
+        -1.0
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 161048,
+      "componentType": 5126,
+      "count": 76,
+      "max": [
+        0.5916580557823181,
+        0.7039237022399902
+      ],
+      "min": [
+        0.35275739431381226,
+        0.46744710206985474
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 218892,
+      "componentType": 5125,
+      "count": 288,
+      "type": "SCALAR"
+    }
+  ],
+  "asset": {
+    "extras": {
+      "author": "Daniel Zhabotinsky (https://sketchfab.com/DanielZhabotinsky)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/american-muscle-69-low-poly-model-46fed79f600c4fc69e060991f9e3e4f9",
+      "title": "American Muscle '69 - Low Poly Model"
+    },
+    "generator": "Sketchfab-16.63.0",
+    "version": "2.0"
+  },
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteLength": 220044,
+      "name": "floatBufferViews",
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteLength": 161656,
+      "byteOffset": 220044,
+      "byteStride": 8,
+      "name": "floatBufferViews",
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 386664,
+      "byteOffset": 381700,
+      "byteStride": 12,
+      "name": "floatBufferViews",
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 203040,
+      "byteOffset": 768364,
+      "byteStride": 16,
+      "name": "floatBufferViews",
+      "target": 34962
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 971404,
+      "uri": "scene.bin"
+    }
+  ],
+  "extensionsUsed": [
+    "KHR_materials_clearcoat",
+    "KHR_materials_specular"
+  ],
+  "images": [
+    {
+      "uri": "textures/Duke_69_Body_specularf0.png"
+    },
+    {
+      "uri": "textures/UCB_BOTTOM_LT_baseColor.png"
+    },
+    {
+      "uri": "textures/UCB_BOTTOM_LT_metallicRoughness.png"
+    },
+    {
+      "uri": "textures/UCB_BOTTOM_LT_normal.png"
+    },
+    {
+      "uri": "textures/UCB_BOTTOM_LT_specularf0.png"
+    },
+    {
+      "uri": "textures/GEN4DR_INTERIOR_baseColor.jpeg"
+    },
+    {
+      "uri": "textures/GEN4DR_INTERIOR_metallicRoughness.png"
+    },
+    {
+      "uri": "textures/GEN4DR_INTERIOR_normal.png"
+    },
+    {
+      "uri": "textures/Numberplates_Generic_USA_baseColor.jpeg"
+    },
+    {
+      "uri": "textures/UCB_GLASS_CLEAN_baseColor.png"
+    },
+    {
+      "uri": "textures/Riverside88_lights_baseColor.jpeg"
+    },
+    {
+      "uri": "textures/Riverside88_lights_normal.png"
+    },
+    {
+      "uri": "textures/RB1c_Tire_baseColor.jpeg"
+    },
+    {
+      "uri": "textures/RB1c_Tire_metallicRoughness.png"
+    },
+    {
+      "uri": "textures/RB1c_Tire_normal.png"
+    }
+  ],
+  "materials": [
+    {
+      "doubleSided": true,
+      "extensions": {
+        "KHR_materials_clearcoat": {
+          "clearcoatFactor": 1.0,
+          "clearcoatRoughnessFactor": 0.04
+        },
+        "KHR_materials_specular": {
+          "specularColorFactor": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "specularFactor": 1.0,
+          "specularTexture": {
+            "index": 0
+          }
+        }
+      },
+      "name": "Duke_69_Body",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.14995978981060856,
+          0.02624122189484989,
+          0.018500220128379683,
+          1.0
+        ],
+        "metallicFactor": 0.08471846710094062,
+        "roughnessFactor": 0.06042642820938637
+      }
+    },
+    {
+      "doubleSided": true,
+      "extensions": {
+        "KHR_materials_specular": {
+          "specularColorFactor": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "specularFactor": 1.0,
+          "specularTexture": {
+            "index": 4
+          }
+        }
+      },
+      "name": "UCB_BOTTOM_LT",
+      "normalTexture": {
+        "index": 3
+      },
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 1
+        },
+        "metallicRoughnessTexture": {
+          "index": 2
+        }
+      }
+    },
+    {
+      "doubleSided": true,
+      "name": "GEN4DR_INTERIOR",
+      "normalTexture": {
+        "index": 7
+      },
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 5
+        },
+        "metallicRoughnessTexture": {
+          "index": 6
+        }
+      }
+    },
+    {
+      "doubleSided": true,
+      "name": "Numberplates_Generic_USA",
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 8
+        },
+        "metallicFactor": 0.10901050599249489,
+        "roughnessFactor": 0.10702864035024488
+      }
+    },
+    {
+      "alphaMode": "BLEND",
+      "doubleSided": true,
+      "name": "UCB_GLASS_CLEAN",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.15759458377560343,
+          0.15759458377560343,
+          0.15759458377560343,
+          0.8256256532933457
+        ],
+        "baseColorTexture": {
+          "index": 9
+        },
+        "metallicFactor": 0.0907914768238292,
+        "roughnessFactor": 0.0361343893178321
+      }
+    },
+    {
+      "doubleSided": true,
+      "name": "Riverside88_lights",
+      "normalTexture": {
+        "index": 11
+      },
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 10
+        },
+        "metallicFactor": 0.0,
+        "roughnessFactor": 0.10702864035024488
+      }
+    },
+    {
+      "doubleSided": true,
+      "name": "RB1c_Tire",
+      "normalTexture": {
+        "index": 14
+      },
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 12
+        },
+        "metallicRoughnessTexture": {
+          "index": 13
+        }
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "name": "Duke_69_Body_Duke_69_Body_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 1,
+            "POSITION": 0,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Bottom_UCB_BOTTOM_LT_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 5,
+            "POSITION": 4,
+            "TANGENT": 6,
+            "TEXCOORD_0": 7
+          },
+          "indices": 8,
+          "material": 1,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Suspension_UCB_BOTTOM_LT_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 10,
+            "POSITION": 9,
+            "TANGENT": 11,
+            "TEXCOORD_0": 12
+          },
+          "indices": 13,
+          "material": 1,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Interior_GEN4DR_INTERIOR_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 15,
+            "POSITION": 14,
+            "TANGENT": 16,
+            "TEXCOORD_0": 17
+          },
+          "indices": 18,
+          "material": 2,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Numberplate_rear_Numberplates_Generic_USA_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 20,
+            "POSITION": 19,
+            "TEXCOORD_0": 21
+          },
+          "indices": 22,
+          "material": 3,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Bodyglass_UCB_GLASS_CLEAN_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 24,
+            "POSITION": 23,
+            "TEXCOORD_0": 25
+          },
+          "indices": 26,
+          "material": 4,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Brakelights_Riverside88_lights_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 28,
+            "POSITION": 27,
+            "TANGENT": 29,
+            "TEXCOORD_0": 30
+          },
+          "indices": 31,
+          "material": 5,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Trunkdoor_Duke_69_Body_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 33,
+            "POSITION": 32,
+            "TEXCOORD_0": 34
+          },
+          "indices": 35,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Hood_Duke_69_Body_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 37,
+            "POSITION": 36,
+            "TEXCOORD_0": 38
+          },
+          "indices": 39,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Windshield_UCB_GLASS_CLEAN_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 41,
+            "POSITION": 40,
+            "TEXCOORD_0": 42
+          },
+          "indices": 43,
+          "material": 4,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Rear_Glass_UCB_GLASS_CLEAN_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 45,
+            "POSITION": 44,
+            "TEXCOORD_0": 46
+          },
+          "indices": 47,
+          "material": 4,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Wheel_FL_RB1c_Tire_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 49,
+            "POSITION": 48,
+            "TANGENT": 50,
+            "TEXCOORD_0": 51,
+            "TEXCOORD_1": 52
+          },
+          "indices": 53,
+          "material": 6,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Wheel_RL_RB1c_Tire_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 55,
+            "POSITION": 54,
+            "TANGENT": 56,
+            "TEXCOORD_0": 57,
+            "TEXCOORD_1": 58
+          },
+          "indices": 59,
+          "material": 6,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Wheel_FR_RB1c_Tire_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 61,
+            "POSITION": 60,
+            "TANGENT": 62,
+            "TEXCOORD_0": 63,
+            "TEXCOORD_1": 64
+          },
+          "indices": 65,
+          "material": 6,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Wheel_RR_RB1c_Tire_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 67,
+            "POSITION": 66,
+            "TANGENT": 68,
+            "TEXCOORD_0": 69,
+            "TEXCOORD_1": 70
+          },
+          "indices": 71,
+          "material": 6,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Bumper_Front_UCB_BOTTOM_LT_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 73,
+            "POSITION": 72,
+            "TANGENT": 74,
+            "TEXCOORD_0": 75
+          },
+          "indices": 76,
+          "material": 1,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Bumper_Rear_UCB_BOTTOM_LT_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 78,
+            "POSITION": 77,
+            "TANGENT": 79,
+            "TEXCOORD_0": 80
+          },
+          "indices": 81,
+          "material": 1,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Reverse_Riverside88_lights_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 83,
+            "POSITION": 82,
+            "TANGENT": 84,
+            "TEXCOORD_0": 85
+          },
+          "indices": 86,
+          "material": 5,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Duke_69_Headlights_Riverside88_lights_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 88,
+            "POSITION": 87,
+            "TANGENT": 89,
+            "TEXCOORD_0": 90
+          },
+          "indices": 91,
+          "material": 5,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "children": [
+        1
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        2.220446049250313e-16,
+        -1.0,
+        0.0,
+        0.0,
+        1.0,
+        2.220446049250313e-16,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "name": "Sketchfab_model"
+    },
+    {
+      "children": [
+        2
+      ],
+      "matrix": [
+        0.0010000000474974513,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0010000000474974513,
+        0.0,
+        0.0,
+        -0.0010000000474974513,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "name": "6fc0b7b8127d4d739c7fe1d2f23a553b.fbx"
+    },
+    {
+      "children": [
+        3,
+        5,
+        7,
+        10,
+        13,
+        16,
+        18,
+        20,
+        22,
+        24,
+        26,
+        28,
+        31,
+        34,
+        37,
+        40,
+        43,
+        46,
+        48
+      ],
+      "name": "RootNode"
+    },
+    {
+      "children": [
+        4
+      ],
+      "matrix": [
+        2.8171439170837402,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        6.255316080858143e-16,
+        -2.8171439170837402,
+        0.0,
+        0.0,
+        2.8171439170837402,
+        6.255316080858143e-16,
+        0.0,
+        1053.95068359375,
+        -15.49761962890625,
+        864.7149658203125,
+        1.0
+      ],
+      "name": "Duke_69_Body"
+    },
+    {
+      "mesh": 0,
+      "name": "Duke_69_Body_Duke_69_Body_0"
+    },
+    {
+      "children": [
+        6
+      ],
+      "matrix": [
+        2.8171439170837402,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        6.255316080858143e-16,
+        -2.8171439170837402,
+        0.0,
+        0.0,
+        2.8171439170837402,
+        6.255316080858143e-16,
+        0.0,
+        1053.95068359375,
+        -15.49761962890625,
+        864.7149658203125,
+        1.0
+      ],
+      "name": "Duke_69_Bottom"
+    },
+    {
+      "mesh": 1,
+      "name": "Duke_69_Bottom_UCB_BOTTOM_LT_0"
+    },
+    {
+      "children": [
+        8
+      ],
+      "matrix": [
+        1.1924880749525357e-08,
+        -5.551115123125783e-17,
+        -1.0,
+        0.0,
+        -1.0,
+        1.1102230246251565e-16,
+        -1.1924880694014206e-08,
+        0.0,
+        5.551115123125783e-17,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        301.6321105957031,
+        44.3809814453125,
+        1.0
+      ],
+      "name": "Duke_69_Suspension"
+    },
+    {
+      "children": [
+        9
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        -0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        -22.743896484375,
+        -0.00018310545419808477,
+        -291.9287109375,
+        1.0
+      ],
+      "name": "Object_8"
+    },
+    {
+      "mesh": 2,
+      "name": "Duke_69_Suspension_UCB_BOTTOM_LT_0"
+    },
+    {
+      "children": [
+        11
+      ],
+      "matrix": [
+        4.27459872156088e-07,
+        5.10392837996206e-17,
+        -0.9194419980048139,
+        0.0,
+        -0.9194419980048139,
+        2.041571351984824e-16,
+        -4.27459872156088e-07,
+        0.0,
+        1.531178513988618e-16,
+        0.9194419980049133,
+        0.0,
+        0.0,
+        -0.00048828125,
+        841.010009765625,
+        -172.8754425048828,
+        1.0
+      ],
+      "name": "Duke_69_Interior"
+    },
+    {
+      "children": [
+        12
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        -0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        -101.74271392822266,
+        10.378662109375,
+        -442.7698059082031,
+        1.0
+      ],
+      "name": "Object_11"
+    },
+    {
+      "mesh": 3,
+      "name": "Duke_69_Interior_GEN4DR_INTERIOR_0"
+    },
+    {
+      "children": [
+        14
+      ],
+      "matrix": [
+        -1.1218248592292923e-06,
+        -0.49540587345062403,
+        -0.8686616260370696,
+        0.0,
+        -2.3844797272798424e-07,
+        0.868661626037724,
+        -0.4954058734506893,
+        0.0,
+        0.9999999999993423,
+        -3.486280205355907e-07,
+        -1.092614732689512e-06,
+        0.0,
+        0.0,
+        536.634765625,
+        -2551.21484375,
+        1.0
+      ],
+      "name": "Duke_69_Numberplate_rear"
+    },
+    {
+      "children": [
+        15
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        -0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        -7.813869476318359,
+        -5.39185905456543,
+        -7.629390893271193e-05,
+        1.0
+      ],
+      "name": "Object_14"
+    },
+    {
+      "mesh": 4,
+      "name": "Duke_69_Numberplate_rear_Numberplates_Generic_USA_0"
+    },
+    {
+      "children": [
+        17
+      ],
+      "matrix": [
+        2.8171439170837402,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        6.255316080858143e-16,
+        -2.8171439170837402,
+        0.0,
+        0.0,
+        2.8171439170837402,
+        6.255316080858143e-16,
+        0.0,
+        1053.95068359375,
+        -15.49761962890625,
+        864.7149658203125,
+        1.0
+      ],
+      "name": "Duke_69_Bodyglass"
+    },
+    {
+      "mesh": 5,
+      "name": "Duke_69_Bodyglass_UCB_GLASS_CLEAN_0"
+    },
+    {
+      "children": [
+        19
+      ],
+      "matrix": [
+        2.8171439170837402,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        6.255316080858143e-16,
+        -2.8171439170837402,
+        0.0,
+        0.0,
+        2.8171439170837402,
+        6.255316080858143e-16,
+        0.0,
+        1053.95068359375,
+        -15.49761962890625,
+        864.7149658203125,
+        1.0
+      ],
+      "name": "Duke_69_Brakelights"
+    },
+    {
+      "mesh": 6,
+      "name": "Duke_69_Brakelights_Riverside88_lights_0"
+    },
+    {
+      "children": [
+        21
+      ],
+      "matrix": [
+        2.8171439170837402,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        6.255316080858143e-16,
+        -2.8171439170837402,
+        0.0,
+        0.0,
+        2.8171439170837402,
+        6.255316080858143e-16,
+        0.0,
+        1053.95068359375,
+        -15.49761962890625,
+        864.7149658203125,
+        1.0
+      ],
+      "name": "Duke_69_Trunkdoor"
+    },
+    {
+      "mesh": 7,
+      "name": "Duke_69_Trunkdoor_Duke_69_Body_0"
+    },
+    {
+      "children": [
+        23
+      ],
+      "matrix": [
+        2.8171439170837402,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        6.255316080858143e-16,
+        -2.8171439170837402,
+        0.0,
+        0.0,
+        2.8171439170837402,
+        6.255316080858143e-16,
+        0.0,
+        1053.95068359375,
+        -15.49761962890625,
+        864.7149658203125,
+        1.0
+      ],
+      "name": "Duke_69_Hood"
+    },
+    {
+      "mesh": 8,
+      "name": "Duke_69_Hood_Duke_69_Body_0"
+    },
+    {
+      "children": [
+        25
+      ],
+      "matrix": [
+        2.8171439170837402,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        6.255316080858143e-16,
+        -2.8171439170837402,
+        0.0,
+        0.0,
+        2.8171439170837402,
+        6.255316080858143e-16,
+        0.0,
+        1053.95068359375,
+        -15.49761962890625,
+        864.7149658203125,
+        1.0
+      ],
+      "name": "Duke_69_Windshield"
+    },
+    {
+      "mesh": 9,
+      "name": "Duke_69_Windshield_UCB_GLASS_CLEAN_0"
+    },
+    {
+      "children": [
+        27
+      ],
+      "matrix": [
+        2.8171439170837402,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        6.255316080858143e-16,
+        -2.8171439170837402,
+        0.0,
+        0.0,
+        2.8171439170837402,
+        6.255316080858143e-16,
+        0.0,
+        1053.95068359375,
+        -15.49761962890625,
+        864.7149658203125,
+        1.0
+      ],
+      "name": "Duke_69_Rear_Glass"
+    },
+    {
+      "mesh": 10,
+      "name": "Duke_69_Rear_Glass_UCB_GLASS_CLEAN_0"
+    },
+    {
+      "children": [
+        29
+      ],
+      "matrix": [
+        2.4827433559890787e-07,
+        6.542113712963886e-25,
+        0.7908930182456582,
+        0.0,
+        9.431304937261355e-09,
+        -0.790893018245697,
+        -2.9606418490056692e-15,
+        0.0,
+        0.6857889890670439,
+        8.177951921809507e-09,
+        -2.152804511029524e-07,
+        0.0,
+        786.7597045898438,
+        303.59405517578125,
+        1644.5201416015625,
+        1.0
+      ],
+      "name": "Duke_69_Wheel_FL"
+    },
+    {
+      "children": [
+        30
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        -0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        -0.00011920928955078125,
+        -0.06501375883817673,
+        192.92628479003906,
+        1.0
+      ],
+      "name": "Object_29"
+    },
+    {
+      "mesh": 11,
+      "name": "Duke_69_Wheel_FL_RB1c_Tire_0"
+    },
+    {
+      "children": [
+        32
+      ],
+      "matrix": [
+        2.4827433559890787e-07,
+        6.542113712963886e-25,
+        0.7908930182456582,
+        0.0,
+        9.431304937261355e-09,
+        -0.790893018245697,
+        -2.9606418490056692e-15,
+        0.0,
+        0.6857889890670439,
+        8.177951921809507e-09,
+        -2.152804511029524e-07,
+        0.0,
+        786.7587280273438,
+        303.59405517578125,
+        -1321.9007568359375,
+        1.0
+      ],
+      "name": "Duke_69_Wheel_RL"
+    },
+    {
+      "children": [
+        33
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        -0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        -0.00011920928955078125,
+        -0.06501375883817673,
+        192.92628479003906,
+        1.0
+      ],
+      "name": "Object_32"
+    },
+    {
+      "mesh": 12,
+      "name": "Duke_69_Wheel_RL_RB1c_Tire_0"
+    },
+    {
+      "children": [
+        35
+      ],
+      "matrix": [
+        2.655733467029671e-07,
+        -4.186952776296887e-23,
+        0.7908930182456525,
+        0.0,
+        -4.1169820681358353e-07,
+        0.7908930182455899,
+        1.3824381827008965e-13,
+        0.0,
+        -0.6857889890669462,
+        -3.569864577609934e-07,
+        2.302805471245279e-07,
+        0.0,
+        -786.7591552734375,
+        303.59405517578125,
+        1644.5205078125,
+        1.0
+      ],
+      "name": "Duke_69_Wheel_FR"
+    },
+    {
+      "children": [
+        36
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        -0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        -0.00011920928955078125,
+        -0.06501375883817673,
+        192.92628479003906,
+        1.0
+      ],
+      "name": "Object_35"
+    },
+    {
+      "mesh": 13,
+      "name": "Duke_69_Wheel_FR_RB1c_Tire_0"
+    },
+    {
+      "children": [
+        38
+      ],
+      "matrix": [
+        2.655733467029671e-07,
+        -4.186952776296887e-23,
+        0.7908930182456525,
+        0.0,
+        -4.1169820681358353e-07,
+        0.7908930182455899,
+        1.3824381827008965e-13,
+        0.0,
+        -0.6857889890669462,
+        -3.569864577609934e-07,
+        2.302805471245279e-07,
+        0.0,
+        -786.7581176757813,
+        303.59405517578125,
+        -1321.900390625,
+        1.0
+      ],
+      "name": "Duke_69_Wheel_RR"
+    },
+    {
+      "children": [
+        39
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        -0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        -0.00011920928955078125,
+        -0.06501375883817673,
+        192.92628479003906,
+        1.0
+      ],
+      "name": "Object_38"
+    },
+    {
+      "mesh": 14,
+      "name": "Duke_69_Wheel_RR_RB1c_Tire_0"
+    },
+    {
+      "children": [
+        41
+      ],
+      "matrix": [
+        1.1956859827041626,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        2.654956216439436e-16,
+        -1.1956859827041626,
+        0.0,
+        0.0,
+        1.1956859827041626,
+        2.654956216439436e-16,
+        0.0,
+        907.1920776367188,
+        939.6297607421875,
+        462.8895568847656,
+        1.0
+      ],
+      "name": "Duke_69_Bumper_Front"
+    },
+    {
+      "children": [
+        42
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        -0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        -1033.200439453125,
+        -521.624755859375,
+        -656.8841552734375,
+        1.0
+      ],
+      "name": "Object_41"
+    },
+    {
+      "mesh": 15,
+      "name": "Duke_69_Bumper_Front_UCB_BOTTOM_LT_0"
+    },
+    {
+      "children": [
+        44
+      ],
+      "matrix": [
+        1.1956859827041626,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        2.654956216439436e-16,
+        -1.1956859827041626,
+        0.0,
+        0.0,
+        1.1956859827041626,
+        2.654956216439436e-16,
+        0.0,
+        907.1920776367188,
+        939.6297607421875,
+        462.8895568847656,
+        1.0
+      ],
+      "name": "Duke_69_Bumper_Rear"
+    },
+    {
+      "children": [
+        45
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        -0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        -1033.200439453125,
+        -521.624755859375,
+        -656.8841552734375,
+        1.0
+      ],
+      "name": "Object_44"
+    },
+    {
+      "mesh": 16,
+      "name": "Duke_69_Bumper_Rear_UCB_BOTTOM_LT_0"
+    },
+    {
+      "children": [
+        47
+      ],
+      "matrix": [
+        2.8171439170837402,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        6.255316080858143e-16,
+        -2.8171439170837402,
+        0.0,
+        0.0,
+        2.8171439170837402,
+        6.255316080858143e-16,
+        0.0,
+        1053.95068359375,
+        -15.49761962890625,
+        864.7149658203125,
+        1.0
+      ],
+      "name": "Duke_69_Reverse"
+    },
+    {
+      "mesh": 17,
+      "name": "Duke_69_Reverse_Riverside88_lights_0"
+    },
+    {
+      "children": [
+        49
+      ],
+      "matrix": [
+        2.8171439170837402,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        6.255316080858143e-16,
+        -2.8171439170837402,
+        0.0,
+        0.0,
+        2.8171439170837402,
+        6.255316080858143e-16,
+        0.0,
+        1053.95068359375,
+        -15.49761962890625,
+        864.7149658203125,
+        1.0
+      ],
+      "name": "Duke_69_Headlights"
+    },
+    {
+      "mesh": 18,
+      "name": "Duke_69_Headlights_Riverside88_lights_0"
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987,
+      "wrapS": 10497,
+      "wrapT": 10497
+    }
+  ],
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Sketchfab_Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    },
+    {
+      "sampler": 0,
+      "source": 1
+    },
+    {
+      "sampler": 0,
+      "source": 2
+    },
+    {
+      "sampler": 0,
+      "source": 3
+    },
+    {
+      "sampler": 0,
+      "source": 4
+    },
+    {
+      "sampler": 0,
+      "source": 5
+    },
+    {
+      "sampler": 0,
+      "source": 6
+    },
+    {
+      "sampler": 0,
+      "source": 7
+    },
+    {
+      "sampler": 0,
+      "source": 8
+    },
+    {
+      "sampler": 0,
+      "source": 9
+    },
+    {
+      "sampler": 0,
+      "source": 10
+    },
+    {
+      "sampler": 0,
+      "source": 11
+    },
+    {
+      "sampler": 0,
+      "source": 12
+    },
+    {
+      "sampler": 0,
+      "source": 13
+    },
+    {
+      "sampler": 0,
+      "source": 14
+    }
+  ]
+}

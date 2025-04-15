@@ -1,0 +1,11 @@
+Model Information:
+* title:	TV Retro White
+* source:	https://sketchfab.com/3d-models/tv-retro-white-056d9b939742424db19aea4adda94e6e
+* author:	Lukas Bobor (https://sketchfab.com/LukasBobor)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "TV Retro White" (https://sketchfab.com/3d-models/tv-retro-white-056d9b939742424db19aea4adda94e6e) by Lukas Bobor (https://sketchfab.com/LukasBobor) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

@@ -1,0 +1,8 @@
+Model Information:
+* title:	Low Poly Lamp Post
+* source:	https://sketchfab.com/3d-models/low-poly-lamp-post-8d906c39d5e540f69a2a471c81abb043
+* author:	Lenna00 (https://sketchfab.com/Lenna00)
+
+Model License:
+* license type:	SKETCHFAB Standard (https://sketchfab.com/licenses)
+* requirements:	Under basic restrictions, use worldwide, on all types of media, commercially or not, and in all types of derivative works

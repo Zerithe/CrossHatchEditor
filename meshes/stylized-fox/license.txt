@@ -1,0 +1,11 @@
+Model Information:
+* title:	Stylized Fox
+* source:	https://sketchfab.com/3d-models/stylized-fox-92c2a35e54664974b8564c674cc712da
+* author:	Ida Faber (https://sketchfab.com/Ida..Faber)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Stylized Fox" (https://sketchfab.com/3d-models/stylized-fox-92c2a35e54664974b8564c674cc712da) by Ida Faber (https://sketchfab.com/Ida..Faber) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

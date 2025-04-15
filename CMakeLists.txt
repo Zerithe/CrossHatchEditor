@@ -19,6 +19,7 @@ set(FONTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/fonts")
 set(COMIC_ELEMENTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/comic elements")
 set(ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets")
 set(TEXTURES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/textures")
+set(SAVES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/saves")
 
 # Generate Shaders
 
@@ -84,6 +85,9 @@ include_directories(${ASSETS_DIR})
 file(COPY ${TEXTURES_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${TEXTURES_DIR})
 
+file(COPY ${SAVES_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${SAVES_DIR})
+
 set(IMGUI_PATH ${CMAKE_CURRENT_LIST_DIR}/imgui)
 file(GLOB IMGUI_GLOB
     ${IMGUI_PATH}/imgui.h
@@ -117,7 +121,7 @@ set(ASSIMP_ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/assimp)
 target_include_directories(CrossHatchEditor PRIVATE ${ASSIMP_ROOT_DIR}/include)
 
 # Link Assimp library
-target_link_directories(CrossHatchEditor PRIVATE ${ASSIMP_ROOT_DIR}/lib)
+target_link_directories(CrossHatchEditor PRIVATE ${ASSIMP_ROOT_DIR}/lib/Debug)
 target_link_libraries(CrossHatchEditor PRIVATE assimp-vc143-mtd)
 
 set(IMGUIZMO_PATH "${CMAKE_CURRENT_SOURCE_DIR}/ImGuizmo")
@@ -138,7 +142,7 @@ target_link_libraries(CrossHatchEditor PRIVATE ImGuizmo)
 
 add_custom_command(TARGET CrossHatchEditor POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${ASSIMP_ROOT_DIR}/bin/assimp-vc143-mtd.dll"  # Replace with the actual path to assimp.dll
+        "${ASSIMP_ROOT_DIR}/bin/Debug/assimp-vc143-mtd.dll"  # Replace with the actual path to assimp.dll
         $<TARGET_FILE_DIR:CrossHatchEditor>)
 
 # FFmpeg setup
@@ -183,6 +187,7 @@ install(DIRECTORY "${FONTS_DIR}" DESTINATION .)
 install(DIRECTORY "${COMIC_ELEMENTS_DIR}" DESTINATION .)
 install(DIRECTORY "${ASSETS_DIR}" DESTINATION .)
 install(DIRECTORY "${TEXTURES_DIR}" DESTINATION .)
+install(DIRECTORY "${SAVES_DIR}" DESTINATION .)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/imgui.ini DESTINATION .)
 
 # Install required DLLs

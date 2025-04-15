@@ -1,0 +1,11 @@
+Model Information:
+* title:	American Muscle '69 - Low Poly Model
+* source:	https://sketchfab.com/3d-models/american-muscle-69-low-poly-model-46fed79f600c4fc69e060991f9e3e4f9
+* author:	Daniel Zhabotinsky (https://sketchfab.com/DanielZhabotinsky)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "American Muscle '69 - Low Poly Model" (https://sketchfab.com/3d-models/american-muscle-69-low-poly-model-46fed79f600c4fc69e060991f9e3e4f9) by Daniel Zhabotinsky (https://sketchfab.com/DanielZhabotinsky) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
