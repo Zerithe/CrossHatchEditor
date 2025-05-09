@@ -158,6 +158,7 @@ struct Instance
     int id;
     std::string name;
     std::string type;
+	int meshNumber = 0; // For multi-mesh objects
     float position[3];
     float rotation[3]; // Euler angles in radians (for X, Y, Z)
     float scale[3];    // Non-uniform scale for each axis
@@ -517,7 +518,7 @@ std::string openFileDialog(bool save) {
     ofn.lpstrFilter = "Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0";
     ofn.lpstrFile = filePath;
     ofn.nMaxFile = MAX_PATH;
-    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
 
     if (save) {
         ofn.Flags |= OFN_OVERWRITEPROMPT;
@@ -1202,7 +1203,7 @@ void saveInstance(std::ofstream& file, const Instance* instance,
         }
     }
 
-    file << instance->id << " " << instance->type << " " << instance->name << " "
+    file << instance->id << " " << instance->type << " " << instance->name << " " << instance->meshNumber << " "
         << instance->position[0] << " " << instance->position[1] << " " << instance->position[2] << " "
         << instance->rotation[0] << " " << instance->rotation[1] << " " << instance->rotation[2] << " "
         << instance->scale[0] << " " << instance->scale[1] << " " << instance->scale[2] << " "
@@ -1239,7 +1240,7 @@ void SaveImportedObjMap(const std::unordered_map<std::string, std::string>& map,
     // Write each mapping as: key [whitespace] value
     for (const auto& entry : map)
     {
-        ofs << entry.first << " " << "../" << entry.second << "\n";
+        ofs << entry.first << " " << entry.second << "\n";
     }
     ofs.close();
 }
@@ -1528,11 +1529,11 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
     {
         std::istringstream iss(line);
         bgfx::TextureHandle diffuseTexture = BGFX_INVALID_HANDLE;
-        int id, parentID, lightType, crosshatchMode, animationEnabled;
+        int id, meshNo, parentID, lightType, crosshatchMode, animationEnabled;
         std::string type, name, textureName, noiseTextureName;
         float pos[3], rot[3], scale[3], color[4], lightDirection[3], intensity, range, coneAngle, lightColor[4], inkColor[4], epsilonValue, strokeMultiplier, lineAngle1, lineAngle2, patternScale, lineThickness, transparencyValue, layerPatternScale, layerStrokeMult, layerAngle, layerLineThickness, centerX, centerZ, radius, rotationSpeed, instanceAngle, basePosition[3], amplitude[3], frequency[3], phase[3];
 
-        iss >> id >> type >> name
+		iss >> id >> type >> name >> meshNo
             >> pos[0] >> pos[1] >> pos[2]
             >> rot[0] >> rot[1] >> rot[2]
             >> scale[0] >> scale[1] >> scale[2]
@@ -1563,9 +1564,8 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
             ibh = it->second.second;
         }
         else {
-            size_t pos = type.find('_');
-            std::string meshType = type.substr(0, pos);
-            int meshNumber = std::stoi(type.substr(pos + 1));
+            std::string meshType = type;
+            int meshNumber = meshNo;
             auto i = importedObjMap.find(meshType);
             if (i != importedObjMap.end())
             {
@@ -1582,6 +1582,7 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
 
         // Create instance
         Instance* instance = new Instance(id, name, type, pos[0], pos[1], pos[2], vbh, ibh);
+		instance->meshNumber = meshNo;
         instance->rotation[0] = rot[0]; instance->rotation[1] = rot[1]; instance->rotation[2] = rot[2];
         instance->scale[0] = scale[0]; instance->scale[1] = scale[1]; instance->scale[2] = scale[2];
         instance->objectColor[0] = color[0]; instance->objectColor[1] = color[1];
@@ -3094,9 +3095,9 @@ int main(void)
                                 createMeshBuffers(importedMeshes[i].meshData, vbh_imported, ibh_imported);
 
                                 Instance* childInst = new Instance(instanceCounter++, fileName + "_" + std::to_string(i),
-                                    fileName + "_" + std::to_string(i), 0.0f, 0.0f, 0.0f,
+                                    fileName, 0.0f, 0.0f, 0.0f,
                                     vbh_imported, ibh_imported);
-
+								childInst->meshNumber = i;
                                 // Decompose the imported mesh's transform.
                                 aiVector3D scaling, position;
                                 aiQuaternion rotation;
@@ -3410,9 +3411,9 @@ int main(void)
                                 createMeshBuffers(importedMeshes[i].meshData, vbh_imported, ibh_imported);
 
                                 Instance* childInst = new Instance(instanceCounter++, fileName + "_" + std::to_string(i),
-                                    fileName + "_" + std::to_string(i), 0.0f, 0.0f, 0.0f,
+                                    fileName, 0.0f, 0.0f, 0.0f,
                                     vbh_imported, ibh_imported);
-
+                                childInst->meshNumber = i;
                                 // Decompose the imported mesh's transform.
                                 aiVector3D scaling, position;
                                 aiQuaternion rotation;
