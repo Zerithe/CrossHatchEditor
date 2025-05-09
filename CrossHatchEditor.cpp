@@ -15,6 +15,9 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <memory>
+#include <stack>
+
 #ifdef _WIN32
 #include <windows.h>
 #include <commdlg.h>
@@ -267,6 +270,82 @@ struct Vec3 {
     float x, y, z;
 };
 
+// Undo/Redo System
+
+static float prevPosition[3];
+static float prevRotation[3];
+static float prevScale[3];
+
+struct IAction {
+    virtual ~IAction() {}
+    virtual void undo() = 0;
+    virtual void redo() = 0;
+};
+
+struct TransformAction : public IAction {
+    Instance* instance;
+    float oldPosition[3];
+    float newPosition[3];
+    float oldRotation[3];
+    float newRotation[3];
+    float oldScale[3];
+    float newScale[3];
+    TransformAction(Instance* inst, const float* oldPos, const float* newPos,
+        const float* oldRot, const float* newRot,
+        const float* oldScl, const float* newScl)
+        : instance(inst) {
+        memcpy(oldPosition, oldPos, sizeof(oldPosition));
+        memcpy(newPosition, newPos, sizeof(newPosition));
+        memcpy(oldRotation, oldRot, sizeof(oldRotation));
+        memcpy(newRotation, newRot, sizeof(newRotation));
+        memcpy(oldScale, oldScl, sizeof(oldScale));
+        memcpy(newScale, newScl, sizeof(newScale));
+    }
+    void undo() override {
+        memcpy(instance->position, oldPosition, sizeof(oldPosition));
+        memcpy(instance->rotation, oldRotation, sizeof(oldRotation));
+        memcpy(instance->scale, oldScale, sizeof(oldScale));
+    }
+    void redo() override {
+        memcpy(instance->position, newPosition, sizeof(newPosition));
+        memcpy(instance->rotation, newRotation, sizeof(newRotation));
+        memcpy(instance->scale, newScale, sizeof(newScale));
+    }
+};
+
+struct UndoRedoManager {
+    std::vector<IAction*> undoStack;
+    std::vector<IAction*> redoStack;
+
+    void executeAction(std::unique_ptr<IAction> action) {
+        action->redo();
+        undoStack.push_back(action.release());
+        redoStack.clear(); // Clear redo stack on new action
+    }
+
+    void undo() {
+        if (!undoStack.empty()) {
+            auto action = std::move(undoStack.back());
+            undoStack.pop_back();
+            action->undo();
+            redoStack.push_back(std::move(action));
+        }
+    }
+
+    void redo() {
+        if (!redoStack.empty()) {
+            auto action = std::move(redoStack.back());
+            redoStack.pop_back();
+            action->redo();
+            undoStack.push_back(std::move(action));
+        }
+    }
+};
+
+static UndoRedoManager undoRedoManager;
+
+//-------------------------------------
+
 void BuildWorldMatrix(const Instance* inst, float* outMatrix) {
     float local[16];
     float translation[3] = { inst->position[0], inst->position[1], inst->position[2] };
@@ -443,6 +522,15 @@ void DrawGizmoForSelected(Instance* selectedInstance, float originX, float origi
             selectedInstance->scale[0] = scale[0];
             selectedInstance->scale[1] = scale[1];
             selectedInstance->scale[2] = scale[2];
+
+
+            undoRedoManager.executeAction(std::make_unique<TransformAction>(
+                selectedInstance, prevPosition, selectedInstance->position, prevRotation,
+                selectedInstance->rotation, prevScale, selectedInstance->scale));
+
+            memcpy(prevPosition, selectedInstance->position, sizeof(prevPosition));
+            memcpy(prevRotation, selectedInstance->rotation, sizeof(prevRotation));
+            memcpy(prevScale, selectedInstance->scale, sizeof(prevScale));
         }
     }
 }
@@ -3497,6 +3585,12 @@ int main(void)
                 //default gizmo draw
                 DrawGizmoForSelected(selectedInstance, 0.0f, 0.0f, view, proj);
 
+                /*if (selectedInstance != nullptr) {
+                    memcpy(prevPosition, selectedInstance->position, sizeof(prevPosition));
+					memcpy(prevRotation, selectedInstance->rotation, sizeof(prevRotation));
+					memcpy(prevScale, selectedInstance->scale, sizeof(prevScale));
+				}*/
+
                 ImGui::SetNextItemOpen(true, ImGuiCond_Once);//collapsing header set to open initially
                 if (ImGui::CollapsingHeader("Transform Controls/Gizmo"))
                 {
@@ -3517,13 +3611,15 @@ int main(void)
                     bx::toDeg(selectedInstance->rotation[2]),
                     };
 
-                    ImGui::DragFloat3("Translation", selectedInstance->position, 0.1f);
-                    if (ImGui::DragFloat3("Rotation (degrees)", rotDeg, 1.0f)) {
+                    bool modified = false;
+
+                    modified |= ImGui::DragFloat3("Translation", selectedInstance->position, 0.1f);
+                    if (modified |= ImGui::DragFloat3("Rotation (degrees)", rotDeg, 1.0f)) {
                         selectedInstance->rotation[0] = bx::toRad(rotDeg[0]);
                         selectedInstance->rotation[1] = bx::toRad(rotDeg[1]);
                         selectedInstance->rotation[2] = bx::toRad(rotDeg[2]);
                     }
-                    ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
+                    modified |= ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
 
                     if (currentGizmoOperation != ImGuizmo::SCALE) {
                         if (ImGui::RadioButton("World", currentGizmoMode == ImGuizmo::WORLD))
@@ -3532,6 +3628,17 @@ int main(void)
                         if (ImGui::RadioButton("Local", currentGizmoMode == ImGuizmo::LOCAL))
                             currentGizmoMode = ImGuizmo::LOCAL;
                     }
+
+                    if (modified) {
+                        undoRedoManager.executeAction(std::make_unique<TransformAction>(
+							selectedInstance, prevPosition, selectedInstance->position, prevRotation, 
+                            selectedInstance->rotation, prevScale, selectedInstance->scale));
+
+						memcpy(prevPosition, selectedInstance->position, sizeof(prevPosition));
+						memcpy(prevRotation, selectedInstance->rotation, sizeof(prevRotation));
+						memcpy(prevScale, selectedInstance->scale, sizeof(prevScale));
+                    }
+
                     ImGui::Separator();
                     ImGui::Text("Snapping Options:");
                     ImGui::BulletText("Hold CTRL while rotating to snap to 90°");
@@ -4181,6 +4288,19 @@ int main(void)
             if (InputManager::isKeyToggled(GLFW_KEY_F3))
             {
                 takeScreenshotAsPng(BGFX_INVALID_HANDLE, screenshotName);
+            }
+            if (InputManager::isCtrlHeld()) {
+                if (InputManager::isKeyToggled(GLFW_KEY_Z)) {
+                    std::cout << "undo called" << std::endl;
+                    undoRedoManager.undo();
+                }
+                if (InputManager::isKeyToggled(GLFW_KEY_Y)) {
+					std::cout << "redo called" << std::endl;
+                    undoRedoManager.redo();
+                }
+                if (InputManager::isKeyToggled(GLFW_KEY_H)) {
+                    std::cout << "control is working" << std::endl;
+                }
             }
         }
 

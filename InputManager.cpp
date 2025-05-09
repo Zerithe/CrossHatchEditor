@@ -149,3 +149,8 @@ double InputManager::getMouseY() {
 	glfwGetCursorPos(m_window, &xpos, &ypos);
 	return ypos;
 }
+
+bool InputManager::isCtrlHeld()
+{
+	return glfwGetKey(m_window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(m_window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS;
+}

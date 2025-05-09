@@ -24,6 +24,8 @@ public:
 
 	static bool isMiddleMousePressed(); 
 
+	static bool isCtrlHeld();
+
 private:
 	InputManager() = default;
 	~InputManager() = default;
