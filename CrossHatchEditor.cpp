@@ -1179,6 +1179,88 @@ void ShowInstanceTree(Instance* instance, Instance*& selectedInstance, std::vect
     }
 }
 
+// Helper function to quote strings for output
+std::string quote_if_needed(const std::string& s) {
+    // Simple check for spaces, or always quote strings
+    // For more robust quoting, you might check for other special characters too
+    // or just always quote.
+    if (s.find(' ') != std::string::npos || s.find('\t') != std::string::npos || s.find('"') != std::string::npos) {
+        std::string quoted_s = "\"";
+        for (char c : s) {
+            if (c == '"') {
+                quoted_s += "\\\""; // Escape existing quotes
+            }
+            else if (c == '\\') {
+                quoted_s += "\\\\"; // Escape backslashes
+            }
+            else {
+                quoted_s += c;
+            }
+        }
+        quoted_s += "\"";
+        return quoted_s;
+    }
+    return s;
+}
+
+// Helper function to read a potentially quoted string from an istringstream
+std::string read_quoted_string(std::istringstream& iss) {
+    std::string token;
+    iss >> token; // Read the first part
+
+    if (!token.empty() && token.front() == '"') {
+        std::string result = token.substr(1); // Remove leading quote
+        bool in_escape = false;
+        // If the token didn't end with a quote (and it wasn't an escaped quote)
+        while (result.empty() || result.back() != '"' || (result.length() > 1 && result[result.length() - 2] == '\\' && !in_escape)) {
+            if (iss.eof()) { // Reached end of stream unexpectedly
+                // Handle error: unclosed quote
+                throw std::runtime_error("Unclosed quote in input stream");
+            }
+            std::string next_part;
+            iss >> next_part;
+            if (!result.empty()) result += " "; // Add back the space delimiter
+            result += next_part;
+        }
+
+        // Remove trailing quote if it's not escaped
+        if (!result.empty() && result.back() == '"') {
+            // Check if it's an escaped quote (e.g., "abc\\\"")
+            int trailing_backslashes = 0;
+            for (auto it = result.rbegin() + 1; it != result.rend() && *it == '\\'; ++it) {
+                trailing_backslashes++;
+            }
+            if (trailing_backslashes % 2 == 0) { // Not an escaped quote
+                result.pop_back();
+            }
+        }
+
+
+        // Unescape characters
+        std::string unescaped_result;
+        unescaped_result.reserve(result.length());
+        for (size_t i = 0; i < result.length(); ++i) {
+            if (result[i] == '\\' && i + 1 < result.length()) {
+                if (result[i + 1] == '"' || result[i + 1] == '\\') {
+                    unescaped_result += result[i + 1];
+                    i++; // Skip the escaped character
+                }
+                else {
+                    unescaped_result += result[i]; // Not a recognized escape sequence, keep the backslash
+                }
+            }
+            else {
+                unescaped_result += result[i];
+            }
+        }
+        return unescaped_result;
+
+    }
+    else {
+        // Not a quoted string, or an empty string if that's how you write it
+        return token;
+    }
+}
 
 void saveInstance(std::ofstream& file, const Instance* instance,
     const std::vector<TextureOption>& availableTextures, int parentID = -1)
@@ -1203,12 +1285,12 @@ void saveInstance(std::ofstream& file, const Instance* instance,
         }
     }
 
-    file << instance->id << " " << instance->type << " " << instance->name << " " << instance->meshNumber << " "
+    file << instance->id << " " << quote_if_needed(instance->type) << " " << quote_if_needed(instance->name) << " " << instance->meshNumber << " "
         << instance->position[0] << " " << instance->position[1] << " " << instance->position[2] << " "
         << instance->rotation[0] << " " << instance->rotation[1] << " " << instance->rotation[2] << " "
         << instance->scale[0] << " " << instance->scale[1] << " " << instance->scale[2] << " "
         << instance->objectColor[0] << " " << instance->objectColor[1] << " " << instance->objectColor[2] << " " << instance->objectColor[3] << " "
-        << textureName << " " << noiseTextureName << " " << parentID << " " << static_cast<int>(instance->lightProps.type) << " " << instance->lightProps.direction[0] << " "
+        << quote_if_needed(textureName) << " " << quote_if_needed(noiseTextureName) << " " << parentID << " " << static_cast<int>(instance->lightProps.type) << " " << instance->lightProps.direction[0] << " "
         << instance->lightProps.direction[1] << " " << instance->lightProps.direction[2] << " " << instance->lightProps.intensity << " "
         << instance->lightProps.range << " " << instance->lightProps.coneAngle << " " << instance->lightProps.color[0] << " "
         << instance->lightProps.color[1] << " " << instance->lightProps.color[2] << " " << instance->lightProps.color[3] << " "
@@ -1240,7 +1322,7 @@ void SaveImportedObjMap(const std::unordered_map<std::string, std::string>& map,
     // Write each mapping as: key [whitespace] value
     for (const auto& entry : map)
     {
-        ofs << entry.first << " " << entry.second << "\n";
+        ofs << quote_if_needed(entry.first) << " " << quote_if_needed(entry.second) << "\n";
     }
     ofs.close();
 }
@@ -1253,10 +1335,19 @@ std::unordered_map<std::string, std::string> LoadImportedObjMap(const std::strin
         std::cerr << "Failed to open file for reading: " << filePath << std::endl;
         return map;
     }
-    std::string key, path;
-    while (ifs >> key >> path)
+    std::string line;
+    while (std::getline(ifs, line))
     {
-        map[key] = path;
+        std::istringstream iss(line);
+        std::string key, path;
+		key = read_quoted_string(iss);
+		path = read_quoted_string(iss);
+		if (key.empty() || path.empty())
+		{
+			std::cerr << "Invalid line in file: " << line << std::endl;
+			continue; // Skip invalid lines
+		}
+		map[key] = path;
     }
     ifs.close();
     return map;
@@ -1533,12 +1624,17 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
         std::string type, name, textureName, noiseTextureName;
         float pos[3], rot[3], scale[3], color[4], lightDirection[3], intensity, range, coneAngle, lightColor[4], inkColor[4], epsilonValue, strokeMultiplier, lineAngle1, lineAngle2, patternScale, lineThickness, transparencyValue, layerPatternScale, layerStrokeMult, layerAngle, layerLineThickness, centerX, centerZ, radius, rotationSpeed, instanceAngle, basePosition[3], amplitude[3], frequency[3], phase[3];
 
-		iss >> id >> type >> name >> meshNo
+        iss >> id;
+        type = read_quoted_string(iss);
+        name = read_quoted_string(iss);
+        iss >> meshNo
             >> pos[0] >> pos[1] >> pos[2]
             >> rot[0] >> rot[1] >> rot[2]
             >> scale[0] >> scale[1] >> scale[2]
-            >> color[0] >> color[1] >> color[2] >> color[3]
-            >> textureName >> noiseTextureName >> parentID >> lightType
+            >> color[0] >> color[1] >> color[2] >> color[3];
+        textureName = read_quoted_string(iss);
+        noiseTextureName = read_quoted_string(iss);
+        iss >> parentID >> lightType
             >> lightDirection[0] >> lightDirection[1] >> lightDirection[2]
             >> intensity >> range >> coneAngle
             >> lightColor[0] >> lightColor[1] >> lightColor[2] >> lightColor[3]
