@@ -3403,7 +3403,7 @@ int main(void)
                         if (ImGui::MenuItem("Comic Bubble Text"))
                         {
                             // Spawn a new instance with type "text" using the text quad buffers.
-                            spawnInstanceAtCenter("comicBubble", "text", vbh_textQuad, ibh_textQuad, instances);
+                            spawnInstanceAtCenter("comicBubble", "comictext", vbh_textQuad, ibh_textQuad, instances);
                             Instance* textInst = instances.back();
                             // Set a default text string.
                             textInst->textContent = "New Comic Bubble";
@@ -3415,42 +3415,42 @@ int main(void)
                         ImGui::Separator();
                         if (ImGui::MenuItem("Comic Bubble Object 1 - Right"))
                         {
-                            spawnInstanceAtCenter("comicbubbleobject1", "comicbubble", vbh_comicbubble1, ibh_comicbubble1, instances);
+                            spawnInstanceAtCenter("comicbubbleobject1", "comicbubble1", vbh_comicbubble1, ibh_comicbubble1, instances);
                             std::cout << "Comic Bubble Object 1 - Right spawned" << std::endl;
                         }
                         if (ImGui::MenuItem("Comic Bubble Object 2 - Right"))
                         {
-                            spawnInstanceAtCenter("comicbubbleobject2", "comicbubble", vbh_comicbubble2, ibh_comicbubble2, instances);
+                            spawnInstanceAtCenter("comicbubbleobject2", "comicbubble2", vbh_comicbubble2, ibh_comicbubble2, instances);
                             std::cout << "Comic Bubble Object 2 - Right spawned" << std::endl;
                         }
                         if (ImGui::MenuItem("Comic Bubble Object 3 - Right"))
                         {
-                            spawnInstanceAtCenter("comicbubbleobject3", "comicbubble", vbh_comicbubble3, ibh_comicbubble3, instances);
+                            spawnInstanceAtCenter("comicbubbleobject3", "comicbubble3", vbh_comicbubble3, ibh_comicbubble3, instances);
                             std::cout << "Comic Bubble Object 3 - Right spawned" << std::endl;
                         }
                         if (ImGui::MenuItem("Comic Bubble Object 4 - Left"))
                         {
-                            spawnInstanceAtCenter("comicbubbleobject4", "comicbubble", vbh_comicbubble4, ibh_comicbubble4, instances);
+                            spawnInstanceAtCenter("comicbubbleobject4", "comicbubble4", vbh_comicbubble4, ibh_comicbubble4, instances);
                             std::cout << "Comic Bubble Object 4 - Left spawned" << std::endl;
                         }
                         if (ImGui::MenuItem("Comic Bubble Object 5 - Left"))
                         {
-                            spawnInstanceAtCenter("comicbubbleobject5", "comicbubble", vbh_comicbubble5, ibh_comicbubble5, instances);
+                            spawnInstanceAtCenter("comicbubbleobject5", "comicbubble5", vbh_comicbubble5, ibh_comicbubble5, instances);
                             std::cout << "Comic Bubble Object 5 - Left spawned" << std::endl;
                         }
                         if (ImGui::MenuItem("Comic Bubble Object 6 - Left"))
                         {
-                            spawnInstanceAtCenter("comicbubbleobject6", "comicbubble", vbh_comicbubble6, ibh_comicbubble6, instances);
+                            spawnInstanceAtCenter("comicbubbleobject6", "comicbubble6", vbh_comicbubble6, ibh_comicbubble6, instances);
                             std::cout << "Comic Bubble Object 6 - Left spawned" << std::endl;
                         }
                         if (ImGui::MenuItem("Comic Bubble Object 7 - Middle"))
                         {
-                            spawnInstanceAtCenter("comicbubbleobject7", "comicbubble", vbh_comicbubble7, ibh_comicbubble7, instances);
+                            spawnInstanceAtCenter("comicbubbleobject7", "comicbubble7", vbh_comicbubble7, ibh_comicbubble7, instances);
                             std::cout << "Comic Bubble Object 7 - Middle spawned" << std::endl;
                         }
                         if (ImGui::MenuItem("Comic Bubble Object 8 - Middle"))
                         {
-                            spawnInstanceAtCenter("comicbubbleobject8", "comicbubble", vbh_comicbubble8, ibh_comicbubble8, instances);
+                            spawnInstanceAtCenter("comicbubbleobject8", "comicbubble8", vbh_comicbubble8, ibh_comicbubble8, instances);
                             std::cout << "Comic Bubble Object 8 - Middle spawned" << std::endl;
                         }
                         ImGui::EndMenu();
