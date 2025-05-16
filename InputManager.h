@@ -25,6 +25,8 @@ public:
 	static bool isMiddleMousePressed(); 
 
 	static bool isCtrlHeld();
+	static bool isMouseHeld();
+	static bool isMouseReleased();
 
 private:
 	InputManager() = default;
@@ -40,4 +42,5 @@ private:
 	static std::unordered_map<int, bool> keyStates;
 
 	static bool m_middleMousePressed;
+	static bool m_mouseLeftWasPressed;
 };

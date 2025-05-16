@@ -8,6 +8,8 @@ double InputManager::m_mouseY = 0.0;
 bool InputManager::m_FirstMouse = true;
 bool InputManager::skipPickingPass = false;
 std::unordered_map<int, bool> InputManager::keyStates;
+bool InputManager::m_mouseLeftWasPressed = false;
+
 
 bool InputManager::m_middleMousePressed = false;
 void InputManager::initialize(GLFWwindow* window)
@@ -79,7 +81,15 @@ void InputManager::update(Camera& camera, float deltaTime)
         glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     }
 
- 
+	bool currentLeftPressed = glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+
+	if (m_mouseLeftWasPressed && !currentLeftPressed) {
+		// Released this frame — store it in a flag if needed
+		// (optional) set a one-frame release flag if you want to consume it elsewhere
+		bool released = true;
+	}
+
+	m_mouseLeftWasPressed = currentLeftPressed;
 
     
 }
@@ -153,4 +163,17 @@ double InputManager::getMouseY() {
 bool InputManager::isCtrlHeld()
 {
 	return glfwGetKey(m_window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(m_window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS;
+}
+
+bool InputManager::isMouseHeld()
+{
+	return glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+}
+
+bool InputManager::isMouseReleased()
+{
+	bool currentPressed = glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+	bool released = m_mouseLeftWasPressed && !currentPressed;
+	m_mouseLeftWasPressed = currentPressed; // update for next frame
+	return released;
 }

@@ -405,6 +405,11 @@ void DecomposeMatrixToInstance_ImGuizmo(const float* matrix, Instance* inst)
     inst->scale[2] = scl[2];
 }
 
+static bool gizmoWasActive = false;
+static float startPosition[3];
+static float startRotation[3];
+static float startScale[3];
+
 void DrawGizmoForSelected(Instance* selectedInstance, float originX, float originY, const float* view, const float* proj)
 {
     if (!selectedInstance)
@@ -444,6 +449,15 @@ void DrawGizmoForSelected(Instance* selectedInstance, float originX, float origi
             currentGizmoOperation == ImGuizmo::ROTATE ? snapRotation :
             snapScale) : nullptr
     );
+
+    bool gizmoIsActive = ImGuizmo::IsUsing();
+
+    if (gizmoIsActive && !gizmoWasActive) {
+        // Gizmo manipulation just started — store the original state
+        memcpy(startPosition, selectedInstance->position, sizeof(startPosition));
+        memcpy(startRotation, selectedInstance->rotation, sizeof(startRotation));
+        memcpy(startScale, selectedInstance->scale, sizeof(startScale));
+    }
 
     // 5) If changed, convert world matrix back to local space
     if (changed)
@@ -524,14 +538,21 @@ void DrawGizmoForSelected(Instance* selectedInstance, float originX, float origi
             selectedInstance->scale[2] = scale[2];
 
 
-            undoRedoManager.executeAction(std::make_unique<TransformAction>(
-                selectedInstance, prevPosition, selectedInstance->position, prevRotation,
-                selectedInstance->rotation, prevScale, selectedInstance->scale));
+            if (!gizmoIsActive && gizmoWasActive) {
+                // Gizmo was released — now push to undo stack
+                undoRedoManager.executeAction(std::make_unique<TransformAction>(
+                    selectedInstance,
+                    startPosition, selectedInstance->position,
+                    startRotation, selectedInstance->rotation,
+                    startScale, selectedInstance->scale
+                ));
 
-            memcpy(prevPosition, selectedInstance->position, sizeof(prevPosition));
-            memcpy(prevRotation, selectedInstance->rotation, sizeof(prevRotation));
-            memcpy(prevScale, selectedInstance->scale, sizeof(prevScale));
+                memcpy(prevPosition, selectedInstance->position, sizeof(prevPosition));
+                memcpy(prevRotation, selectedInstance->rotation, sizeof(prevRotation));
+                memcpy(prevScale, selectedInstance->scale, sizeof(prevScale));
+            }
         }
+        gizmoWasActive = gizmoIsActive;
     }
 }
 //transfer to ObjLoader.cpp
@@ -3612,13 +3633,16 @@ int main(void)
                     };
 
                     bool modified = false;
+                    bool committed = false;
 
                     modified |= ImGui::DragFloat3("Translation", selectedInstance->position, 0.1f);
+
                     if (modified |= ImGui::DragFloat3("Rotation (degrees)", rotDeg, 1.0f)) {
                         selectedInstance->rotation[0] = bx::toRad(rotDeg[0]);
                         selectedInstance->rotation[1] = bx::toRad(rotDeg[1]);
                         selectedInstance->rotation[2] = bx::toRad(rotDeg[2]);
                     }
+
                     modified |= ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
 
                     if (currentGizmoOperation != ImGuizmo::SCALE) {
@@ -3629,7 +3653,16 @@ int main(void)
                             currentGizmoMode = ImGuizmo::LOCAL;
                     }
 
-                    if (modified) {
+                    if (InputManager::isMouseHeld()) {
+						std::cout << "Mouse held" << std::endl;
+                        if (InputManager::isMouseReleased()) {
+                            committed = true;
+							std::cout << "Mouse released" << std::endl;
+                        }
+                    }
+
+                    if (modified && committed) {
+                        std::cout << "instance saved" << std::endl;
                         undoRedoManager.executeAction(std::make_unique<TransformAction>(
 							selectedInstance, prevPosition, selectedInstance->position, prevRotation, 
                             selectedInstance->rotation, prevScale, selectedInstance->scale));
