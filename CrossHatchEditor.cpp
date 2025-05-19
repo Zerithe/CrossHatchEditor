@@ -138,6 +138,22 @@ std::vector<TextureOption> availableNoiseTextures;
 int currentNoiseIndex = 0; // which noise texture is selected by the user
 int globalCurrentNoiseIndex = 0; // which noise texture is selected by the user
 
+// -----------------------------
+// Global declarations for shadows
+// -----------------------------
+static uint16_t s_shadowMapSize = 512;
+static bgfx::TextureHandle s_shadowMapTex = BGFX_INVALID_HANDLE;
+static bgfx::FrameBufferHandle s_shadowMapFB = BGFX_INVALID_HANDLE;
+static bgfx::UniformHandle s_shadowMapUniform = BGFX_INVALID_HANDLE; // To bind the shadow map in scene shaders.
+static bgfx::UniformHandle u_lightMtx = BGFX_INVALID_HANDLE;        // Light transformation matrix
+
+// Shader program handles for shadow pass and scene pass.
+static bgfx::ProgramHandle shadowProgram = BGFX_INVALID_HANDLE;
+//static bgfx::ProgramHandle sceneProgram = BGFX_INVALID_HANDLE;
+
+// A flag to control whether we use native shadow samplers or fallback.
+static bool g_shadowSamplerSupported = false;
+
 struct MaterialParams
 {
     float tiling[2];     // (tilingU, tilingV)
@@ -2693,8 +2709,8 @@ int main(void)
     bgfx::ProgramHandle textProgram = bgfx::createProgram(vsh_text, fsh_text, true);
 
     // Load shaders and create program once
-    bgfx::ShaderHandle vsh = loadShader("shaders\\v_out21.bin");
-    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out27.bin");
+    bgfx::ShaderHandle vsh = loadShader("shaders\\v_out1_shadow.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out1_shadow.bin");
 
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
 
@@ -2702,6 +2718,63 @@ int main(void)
     bgfx::ShaderHandle debugVsh = loadShader("shaders\\v_lightdebug_out1.bin");
     bgfx::ShaderHandle debugFsh = loadShader("shaders\\f_lightdebug_out1.bin");
     bgfx::ProgramHandle lightDebugProgram = bgfx::createProgram(debugVsh, debugFsh, true);
+
+    // Check renderer capabilities.
+    const bgfx::Caps* caps = bgfx::getCaps();
+    g_shadowSamplerSupported = (0 != (caps->supported & BGFX_CAPS_TEXTURE_COMPARE_LEQUAL));
+
+    // Create shadow map texture and framebuffer.
+    if (g_shadowSamplerSupported)
+    {
+        // For native shadow sampler: create a depth texture with compare mode.
+        s_shadowMapTex = bgfx::createTexture2D(
+            s_shadowMapSize,
+            s_shadowMapSize,
+            false,
+            1,
+            bgfx::TextureFormat::D16,
+            BGFX_TEXTURE_RT | BGFX_SAMPLER_COMPARE_LEQUAL
+        );
+    }
+    else
+    {
+        // For fallback packed depth, create a color texture (RGBA8)
+        s_shadowMapTex = bgfx::createTexture2D(
+            s_shadowMapSize,
+            s_shadowMapSize,
+            false,
+            1,
+            bgfx::TextureFormat::BGRA8,
+            BGFX_TEXTURE_RT
+        );
+    }
+    s_shadowMapFB = bgfx::createFrameBuffer(1, &s_shadowMapTex, true);
+
+    // Create uniforms for shadow map and light matrix.
+    s_shadowMapUniform = bgfx::createUniform("s_shadowMap", bgfx::UniformType::Sampler);
+    u_lightMtx = bgfx::createUniform("u_lightMtx", bgfx::UniformType::Mat4);
+
+    // Load shadow shaders based on capability.
+    bgfx::ShaderHandle vsShadow;
+    bgfx::ShaderHandle fsShadow;
+    //bgfx::ShaderHandle vsScene;
+    //bgfx::ShaderHandle fsScene;
+    if (g_shadowSamplerSupported)
+    {
+        vsShadow = loadShader("shaders\\vs_shadow.bin");
+        fsShadow = loadShader("shaders\\fs_shadow.bin");
+        //vsScene = loadShader("shaders/vs_scene_mesh.bin");
+        //fsScene = loadShader("shaders/fs_scene_mesh.bin");
+    }
+    else
+    {
+        vsShadow = loadShader("shaders\\vs_shadow_pd.bin");
+        fsShadow = loadShader("shaders\\fs_shadow_pd.bin");
+        //vsScene = loadShader("shaders/vs_scene_mesh.bin");
+        //fsScene = loadShader("shaders/fs_scene_mesh_pd.bin");
+    }
+    shadowProgram = bgfx::createProgram(vsShadow, fsShadow, true);
+    //sceneProgram = bgfx::createProgram(vsScene, fsScene, true);
     
     //spawn plane
     spawnInstance(camera, "plane", "plane", vbh_plane, ibh_plane, instances);
@@ -4305,7 +4378,87 @@ int main(void)
                 bgfx::setViewTransform(0, view, proj);
             }
         }
-        
+
+        // --- Shadow Pass: Render the shadow map from the primary directional light's view ---
+// Find a primary directional light among your instances.
+        Instance* primaryLight = nullptr;
+        for (const auto& inst : instances) {
+            if (inst->isLight && inst->lightProps.type == LightType::Directional) {
+                primaryLight = inst;
+                break;
+            }
+            // Fallback: if none found, use a default directional light.
+        }
+        float lightDir[3] = { 0.0f, -1.0f, -1.0f };
+        if (primaryLight) {
+            lightDir[0] = primaryLight->lightProps.direction[0];
+            lightDir[1] = primaryLight->lightProps.direction[1];
+            lightDir[2] = primaryLight->lightProps.direction[2];
+            float len = sqrt(lightDir[0] * lightDir[0] + lightDir[1] * lightDir[1] + lightDir[2] * lightDir[2]);
+            lightDir[0] /= len; lightDir[1] /= len; lightDir[2] /= len;
+        }
+        // For directional lights, we set an "eye" position far away.
+        float lightDistance = 50.0f;
+        float lightPos[3] = { -lightDir[0] * lightDistance, -lightDir[1] * lightDistance, -lightDir[2] * lightDistance };
+        float at[3] = { 0.0f, 0.0f, 0.0f };
+
+        float lightView[16];
+        bx::Vec3 eyeVec(lightPos[0], lightPos[1], lightPos[2]);
+        bx::Vec3 atVec(at[0], at[1], at[2]);
+        bx::Vec3 upVec(0.0f, 1.0f, 0.0f);
+
+        bx::mtxLookAt(lightView, eyeVec, atVec, upVec);
+        //bx::mtxLookAt(lightView, lightPos, at);
+
+        float area = 30.0f;
+        float lightProj[16];
+        //added 0.0f
+        bx::mtxOrtho(lightProj, -area, area, -area, area, -100.0f, 100.0f, 0.001f, bgfx::getCaps()->homogeneousDepth);
+
+        // Crop matrix to map clip-space [-1,1] to texture space [0,1]:
+        float mtxCrop[16] = {
+             0.5f, 0.0f, 0.0f, 0.0f,
+             0.0f, 0.5f, 0.0f, 0.0f,
+             0.0f, 0.0f, 0.5f, 0.0f,
+             0.5f, 0.5f, 0.5f, 1.0f,
+        };
+
+        float lightMtx[16];
+        float tmp[16];
+        bx::mtxMul(tmp, lightProj, lightView);
+        bx::mtxMul(lightMtx, mtxCrop, tmp);
+        // Update the u_lightMtx uniform for your scene shaders.
+        bgfx::setUniform(u_lightMtx, lightMtx);
+
+        // Set up a dedicated view ID for the shadow pass.
+        const uint32_t SHADOW_VIEW_ID = 100;
+        bgfx::setViewRect(SHADOW_VIEW_ID, 0, 0, s_shadowMapSize, s_shadowMapSize);
+        bgfx::setViewFrameBuffer(SHADOW_VIEW_ID, s_shadowMapFB);
+        bgfx::setViewTransform(SHADOW_VIEW_ID, lightView, lightProj);
+        bgfx::setViewClear(SHADOW_VIEW_ID, BGFX_CLEAR_DEPTH, 0x000000ff, 1.0f, 0);
+
+        // Render each instance into the shadow map.
+        for (const auto& instance : instances)
+        {
+            // Skip instances without valid geometry.
+            if (!bgfx::isValid(instance->vertexBuffer) || !bgfx::isValid(instance->indexBuffer))
+            {
+                continue;
+            }
+
+            float model[16];
+            bx::mtxSRT(model,
+                instance->scale[0], instance->scale[1], instance->scale[2],
+                instance->rotation[0], instance->rotation[1], instance->rotation[2],
+                instance->position[0], instance->position[1], instance->position[2]);
+            bgfx::setTransform(model);
+            // Set minimal state: write to depth only.
+            bgfx::setState(BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS);
+            bgfx::setVertexBuffer(0, instance->vertexBuffer);
+            bgfx::setIndexBuffer(instance->indexBuffer);
+            bgfx::submit(SHADOW_VIEW_ID, shadowProgram);
+        }
+
         //if (InputManager::isKeyToggled(GLFW_KEY_BACKSPACE) && !instances.empty())
         //{
         //    Instance* inst = instances.back();
@@ -4432,6 +4585,10 @@ int main(void)
                         instance->lightAnim.amplitude[i] * sin(time * instance->lightAnim.frequency[i] + instance->lightAnim.phase[i]);
                 }
             }
+
+            // In your normal scene pass (view ID 0), before submitting geometry:
+            bgfx::setTexture(2, s_shadowMapUniform, s_shadowMapTex);
+            // Your scene shader will use u_lightMtx and sample s_shadowMap.
 
             drawInstance(instance, defaultProgram, lightDebugProgram, textProgram, comicProgram, u_comicColor, u_noiseTex, u_diffuseTex, u_objectColor, u_tint, u_inkColor, u_e, u_params, u_extraParams, u_paramsLayer, defaultWhiteTexture, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
         }
