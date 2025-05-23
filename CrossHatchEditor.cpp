@@ -129,15 +129,6 @@ static bgfx::UniformHandle u_id = BGFX_INVALID_HANDLE;
 // Program handle for the picking pass.
 static bgfx::ProgramHandle pickingProgram = BGFX_INVALID_HANDLE;
 
-struct TextureOption {
-    std::string name;
-    bgfx::TextureHandle handle;
-};
-
-std::vector<TextureOption> availableNoiseTextures;
-int currentNoiseIndex = 0; // which noise texture is selected by the user
-int globalCurrentNoiseIndex = 0; // which noise texture is selected by the user
-
 // -----------------------------
 // Global declarations for shadows
 // -----------------------------
@@ -149,10 +140,19 @@ static bgfx::UniformHandle u_lightMtx = BGFX_INVALID_HANDLE;        // Light tra
 
 // Shader program handles for shadow pass and scene pass.
 static bgfx::ProgramHandle shadowProgram = BGFX_INVALID_HANDLE;
-//static bgfx::ProgramHandle sceneProgram = BGFX_INVALID_HANDLE;
+static bgfx::ProgramHandle sceneProgram = BGFX_INVALID_HANDLE;
 
 // A flag to control whether we use native shadow samplers or fallback.
 static bool g_shadowSamplerSupported = false;
+
+struct TextureOption {
+    std::string name;
+    bgfx::TextureHandle handle;
+};
+
+std::vector<TextureOption> availableNoiseTextures;
+int currentNoiseIndex = 0; // which noise texture is selected by the user
+int globalCurrentNoiseIndex = 0; // which noise texture is selected by the user
 
 struct MaterialParams
 {
@@ -2445,6 +2445,63 @@ int main(void)
     u_uvTransform = bgfx::createUniform("u_uvTransform", bgfx::UniformType::Vec4);
     u_albedoFactor = bgfx::createUniform("u_albedoFactor", bgfx::UniformType::Vec4);
 
+    // Check renderer capabilities.
+    const bgfx::Caps* caps = bgfx::getCaps();
+    g_shadowSamplerSupported = (0 != (caps->supported & BGFX_CAPS_TEXTURE_COMPARE_LEQUAL));
+
+    // Create shadow map texture and framebuffer.
+    if (g_shadowSamplerSupported)
+    {
+        // For native shadow sampler: create a depth texture with compare mode.
+        s_shadowMapTex = bgfx::createTexture2D(
+            s_shadowMapSize,
+            s_shadowMapSize,
+            false,
+            1,
+            bgfx::TextureFormat::D16,
+            BGFX_TEXTURE_RT | BGFX_SAMPLER_COMPARE_LEQUAL
+        );
+    }
+    else
+    {
+        // For fallback packed depth, create a color texture (RGBA8)
+        s_shadowMapTex = bgfx::createTexture2D(
+            s_shadowMapSize,
+            s_shadowMapSize,
+            false,
+            1,
+            bgfx::TextureFormat::BGRA8,
+            BGFX_TEXTURE_RT
+        );
+    }
+    s_shadowMapFB = bgfx::createFrameBuffer(1, &s_shadowMapTex, true);
+
+    // Create uniforms for shadow map and light matrix.
+    s_shadowMapUniform = bgfx::createUniform("s_shadowMap", bgfx::UniformType::Sampler);
+    u_lightMtx = bgfx::createUniform("u_lightMtx", bgfx::UniformType::Mat4);
+
+    // Load shadow shaders based on capability.
+    bgfx::ShaderHandle vsShadow;
+    bgfx::ShaderHandle fsShadow;
+    //bgfx::ShaderHandle vsScene;
+    //bgfx::ShaderHandle fsScene;
+    if (g_shadowSamplerSupported)
+    {
+        vsShadow = loadShader("shaders/vs_shadow.bin");
+        fsShadow = loadShader("shaders/fs_shadow.bin");
+        //vsScene = loadShader("shaders/vs_scene_mesh.bin");
+        //fsScene = loadShader("shaders/fs_scene_mesh.bin");
+    }
+    else
+    {
+        vsShadow = loadShader("shaders/vs_shadow_pd.bin");
+        fsShadow = loadShader("shaders/fs_shadow_pd.bin");
+        //vsScene = loadShader("shaders/vs_scene_mesh.bin");
+        //fsScene = loadShader("shaders/fs_scene_mesh_pd.bin");
+    }
+    shadowProgram = bgfx::createProgram(vsShadow, fsShadow, true);
+    //sceneProgram = bgfx::createProgram(vsScene, fsScene, true);    
+
     // For comic border and bubble change of colors
     bgfx::UniformHandle u_comicColor = bgfx::createUniform("u_comicColor", bgfx::UniformType::Vec4);
 
@@ -2718,63 +2775,6 @@ int main(void)
     bgfx::ShaderHandle debugVsh = loadShader("shaders\\v_lightdebug_out1.bin");
     bgfx::ShaderHandle debugFsh = loadShader("shaders\\f_lightdebug_out1.bin");
     bgfx::ProgramHandle lightDebugProgram = bgfx::createProgram(debugVsh, debugFsh, true);
-
-    // Check renderer capabilities.
-    const bgfx::Caps* caps = bgfx::getCaps();
-    g_shadowSamplerSupported = (0 != (caps->supported & BGFX_CAPS_TEXTURE_COMPARE_LEQUAL));
-
-    // Create shadow map texture and framebuffer.
-    if (g_shadowSamplerSupported)
-    {
-        // For native shadow sampler: create a depth texture with compare mode.
-        s_shadowMapTex = bgfx::createTexture2D(
-            s_shadowMapSize,
-            s_shadowMapSize,
-            false,
-            1,
-            bgfx::TextureFormat::D16,
-            BGFX_TEXTURE_RT | BGFX_SAMPLER_COMPARE_LEQUAL
-        );
-    }
-    else
-    {
-        // For fallback packed depth, create a color texture (RGBA8)
-        s_shadowMapTex = bgfx::createTexture2D(
-            s_shadowMapSize,
-            s_shadowMapSize,
-            false,
-            1,
-            bgfx::TextureFormat::BGRA8,
-            BGFX_TEXTURE_RT
-        );
-    }
-    s_shadowMapFB = bgfx::createFrameBuffer(1, &s_shadowMapTex, true);
-
-    // Create uniforms for shadow map and light matrix.
-    s_shadowMapUniform = bgfx::createUniform("s_shadowMap", bgfx::UniformType::Sampler);
-    u_lightMtx = bgfx::createUniform("u_lightMtx", bgfx::UniformType::Mat4);
-
-    // Load shadow shaders based on capability.
-    bgfx::ShaderHandle vsShadow;
-    bgfx::ShaderHandle fsShadow;
-    //bgfx::ShaderHandle vsScene;
-    //bgfx::ShaderHandle fsScene;
-    if (g_shadowSamplerSupported)
-    {
-        vsShadow = loadShader("shaders\\vs_shadow.bin");
-        fsShadow = loadShader("shaders\\fs_shadow.bin");
-        //vsScene = loadShader("shaders/vs_scene_mesh.bin");
-        //fsScene = loadShader("shaders/fs_scene_mesh.bin");
-    }
-    else
-    {
-        vsShadow = loadShader("shaders\\vs_shadow_pd.bin");
-        fsShadow = loadShader("shaders\\fs_shadow_pd.bin");
-        //vsScene = loadShader("shaders/vs_scene_mesh.bin");
-        //fsScene = loadShader("shaders/fs_scene_mesh_pd.bin");
-    }
-    shadowProgram = bgfx::createProgram(vsShadow, fsShadow, true);
-    //sceneProgram = bgfx::createProgram(vsScene, fsScene, true);
     
     //spawn plane
     spawnInstance(camera, "plane", "plane", vbh_plane, ibh_plane, instances);
@@ -4380,7 +4380,7 @@ int main(void)
         }
 
         // --- Shadow Pass: Render the shadow map from the primary directional light's view ---
-// Find a primary directional light among your instances.
+        // Find a primary directional light among your instances.
         Instance* primaryLight = nullptr;
         for (const auto& inst : instances) {
             if (inst->isLight && inst->lightProps.type == LightType::Directional) {
