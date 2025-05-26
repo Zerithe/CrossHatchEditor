@@ -82,6 +82,10 @@ static bool s_showStats = false;
 bgfx::UniformHandle u_lightDir;
 bgfx::UniformHandle u_lightColor;
 bgfx::UniformHandle u_viewPos;
+
+//static bgfx::UniformHandle u_modelCustom;
+//static bgfx::UniformHandle u_viewProjCustom;
+
 //bgfx::UniformHandle u_scale;
 // Define the picking render target dimensions.
 #define PICKING_DIM 128
@@ -2427,6 +2431,9 @@ int main(void)
 
     u_viewPos = bgfx::createUniform("u_viewPos", bgfx::UniformType::Vec4);
 
+	//u_modelCustom = bgfx::createUniform("u_modelCustom", bgfx::UniformType::Mat4);
+	//u_viewProjCustom = bgfx::createUniform("u_viewProjCustom", bgfx::UniformType::Mat4);
+
     bgfx::UniformHandle u_inkColor = bgfx::createUniform("u_inkColor", bgfx::UniformType::Vec4);
     bgfx::UniformHandle u_cameraPos = bgfx::createUniform("u_cameraPos", bgfx::UniformType::Vec4);
     bgfx::UniformHandle u_e = bgfx::createUniform("u_e", bgfx::UniformType::Vec4);
@@ -2766,8 +2773,8 @@ int main(void)
     bgfx::ProgramHandle textProgram = bgfx::createProgram(vsh_text, fsh_text, true);
 
     // Load shaders and create program once
-    bgfx::ShaderHandle vsh = loadShader("shaders\\v_out1_shadow.bin");
-    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out1_shadow.bin");
+    bgfx::ShaderHandle vsh = loadShader("shaders\\v_out1_shadow_test.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out1_shadow_test.bin");
 
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
 
@@ -4562,6 +4569,19 @@ int main(void)
                 instance->position[0], instance->position[1], instance->position[2]);
 
             bgfx::setTransform(model);
+            
+			/*float modelView[16];
+            float modelViewProj[16];
+
+			bx::mtxMul(modelView, view, model);
+			bx::mtxMul(modelViewProj, proj, modelView);*/
+
+
+
+            //bgfx::setUniform(u_modelCustom, model);
+            //bgfx::setUniform(u_viewProjCustom, modelViewProj);
+            bgfx::setUniform(u_lightMtx, lightMtx);
+
 
             // 1) Build the uvTransform (tilingU, tilingV, offsetU, offsetV).
             float uvTransform[4] =
@@ -4572,7 +4592,7 @@ int main(void)
                 instance->material.offset[1]
             };
             bgfx::setUniform(u_uvTransform, uvTransform);
-
+            
             // 2) Albedo factor
             //    (r, g, b, a)
             bgfx::setUniform(u_albedoFactor, instance->material.albedo);
@@ -4644,6 +4664,10 @@ int main(void)
     bgfx::destroy(ibh_innerCube);
     bgfx::destroy(defaultProgram);
     bgfx::destroy(lightDebugProgram);
+	bgfx::destroy(shadowProgram);
+	bgfx::destroy(textProgram);
+	bgfx::destroy(comicProgram);
+
     ImGui_ImplGlfw_Shutdown();
 
     bgfx::shutdown();
