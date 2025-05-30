@@ -925,7 +925,7 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, 
 
     // Set the object override color uniform.
     bgfx::setUniform(u_objectColor, effectiveColor);
-
+    bgfx::setUniform(u_albedoFactor, instance->material.albedo);
     const float tintBasic[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
     const float tintHighlighted[4] = { 0.3f, 0.3f, 2.0f, 0.1f };
     if (selectedInstance == instance && highlightVisible) {
@@ -3244,10 +3244,10 @@ int main(void)
                                 childInst->diffuseTexture = importedMeshes[i].diffuseTexture;
                                 // --- NEW: Apply diffuse color if present and no texture ---
                                 if (importedMeshes[i].hasDiffuseColor && !bgfx::isValid(childInst->diffuseTexture)) {
-                                    childInst->material.albedo[0] = importedMeshes[i].diffuseColor[0];
-                                    childInst->material.albedo[1] = importedMeshes[i].diffuseColor[1];
-                                    childInst->material.albedo[2] = importedMeshes[i].diffuseColor[2];
-                                    childInst->material.albedo[3] = importedMeshes[i].diffuseColor[3];
+                                    childInst->objectColor[0] = importedMeshes[i].diffuseColor[0];
+                                    childInst->objectColor[1] = importedMeshes[i].diffuseColor[1];
+                                    childInst->objectColor[2] = importedMeshes[i].diffuseColor[2];
+                                    childInst->objectColor[3] = importedMeshes[i].diffuseColor[3];
                                     std::cout << "[INFO] Applied MTL diffuse color to: " << childInst->name << std::endl;
                                 }
                                 // Add this mesh as a child of the empty parent.
@@ -3567,10 +3567,10 @@ int main(void)
                                 childInst->diffuseTexture = importedMeshes[i].diffuseTexture;
                                 // --- NEW: Apply diffuse color if present and no texture ---
                                 if (importedMeshes[i].hasDiffuseColor && !bgfx::isValid(childInst->diffuseTexture)) {
-                                    childInst->material.albedo[0] = importedMeshes[i].diffuseColor[0];
-                                    childInst->material.albedo[1] = importedMeshes[i].diffuseColor[1];
-                                    childInst->material.albedo[2] = importedMeshes[i].diffuseColor[2];
-                                    childInst->material.albedo[3] = importedMeshes[i].diffuseColor[3];
+                                    childInst->objectColor[0] = importedMeshes[i].diffuseColor[0];
+                                    childInst->objectColor[1] = importedMeshes[i].diffuseColor[1];
+                                    childInst->objectColor[2] = importedMeshes[i].diffuseColor[2];
+                                    childInst->objectColor[3] = importedMeshes[i].diffuseColor[3];
                                     std::cout << "[INFO] Applied MTL diffuse color to: " << childInst->name << std::endl;
                                 }
                                 // Add this mesh as a child of the empty parent.
