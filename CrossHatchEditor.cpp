@@ -925,7 +925,7 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, 
 
     // Set the object override color uniform.
     bgfx::setUniform(u_objectColor, effectiveColor);
-
+    bgfx::setUniform(u_albedoFactor, instance->material.albedo);
     const float tintBasic[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
     const float tintHighlighted[4] = { 0.3f, 0.3f, 2.0f, 0.1f };
     if (selectedInstance == instance && highlightVisible) {
@@ -1401,6 +1401,13 @@ struct ImportedMesh {
     MeshData meshData;
     aiMatrix4x4 transform; // Global transform (accumulated from the scene hierarchy)
     bgfx::TextureHandle diffuseTexture; // Diffuse texture for this mesh, if available.
+    float diffuseColor[4]; // To store Kd from MTL
+    bool hasDiffuseColor;  // Flag to indicate if diffuseColor was loaded
+
+    ImportedMesh() : diffuseTexture(BGFX_INVALID_HANDLE), hasDiffuseColor(false) {
+        // Initialize diffuseColor to white (or any default)
+        diffuseColor[0] = 1.0f; diffuseColor[1] = 1.0f; diffuseColor[2] = 1.0f; diffuseColor[3] = 1.0f;
+    }
 };
 
 // Recursive function to traverse the scene graph.
@@ -1477,6 +1484,7 @@ void processNode(const aiScene* scene, aiNode* node, const aiMatrix4x4& parentTr
         impMesh.meshData = meshData;
         impMesh.transform = globalTransform;
         impMesh.diffuseTexture = BGFX_INVALID_HANDLE;
+        impMesh.hasDiffuseColor = false;          // Initialize
 
         // --- New: Retrieve diffuse texture from the material ---
         // Attempt to load a texture from the material.
@@ -1513,10 +1521,34 @@ void processNode(const aiScene* scene, aiNode* node, const aiMatrix4x4& parentTr
                     std::cout << "[DEBUG] FAILED to load texture: " << normalizedTexPath << std::endl;
                 }
             }
-            else {
-                std::cout << "[DEBUG] No baseColor or diffuse texture found for material index "
-                    << mesh->mMaterialIndex << std::endl;
+            // If no diffuse texture was loaded, try to get the diffuse color (Kd from MTL)
+            if (!bgfx::isValid(impMesh.diffuseTexture)) {
+                aiColor4D diffuse; // Use aiColor4D to potentially get alpha.
+                if (material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse) == AI_SUCCESS) {
+                    impMesh.diffuseColor[0] = diffuse.r;
+                    impMesh.diffuseColor[1] = diffuse.g;
+                    impMesh.diffuseColor[2] = diffuse.b;
+
+                    // Try to get opacity (d or Tr from MTL, Assimp provides it via AI_MATKEY_OPACITY)
+                    float opacity = 1.0f;
+                    if (material->Get(AI_MATKEY_OPACITY, opacity) == AI_SUCCESS) {
+                        impMesh.diffuseColor[3] = opacity;
+                    }
+                    else {
+                        impMesh.diffuseColor[3] = diffuse.a; // Fallback to alpha from aiColor4D, often 1.0 for Kd
+                    }
+                    impMesh.hasDiffuseColor = true;
+                    std::cout << "[DEBUG] Found diffuse color for material index " << mesh->mMaterialIndex
+                        << ": (" << diffuse.r << ", " << diffuse.g << ", " << diffuse.b << ", " << impMesh.diffuseColor[3] << ")" << std::endl;
+                }
+                else {
+                    std::cout << "[DEBUG] No diffuse texture or diffuse color found for material index "
+                        << mesh->mMaterialIndex << std::endl;
+                }
             }
+        }
+        else {
+            std::cout << "[DEBUG] No materials in scene or mesh material index is invalid." << std::endl;
         }
 
         importedMeshes.push_back(impMesh);
@@ -3210,7 +3242,14 @@ int main(void)
 
                                 // *** NEW: Assign the diffuse texture from the imported mesh ***
                                 childInst->diffuseTexture = importedMeshes[i].diffuseTexture;
-
+                                // --- NEW: Apply diffuse color if present and no texture ---
+                                if (importedMeshes[i].hasDiffuseColor && !bgfx::isValid(childInst->diffuseTexture)) {
+                                    childInst->objectColor[0] = importedMeshes[i].diffuseColor[0];
+                                    childInst->objectColor[1] = importedMeshes[i].diffuseColor[1];
+                                    childInst->objectColor[2] = importedMeshes[i].diffuseColor[2];
+                                    childInst->objectColor[3] = importedMeshes[i].diffuseColor[3];
+                                    std::cout << "[INFO] Applied MTL diffuse color to: " << childInst->name << std::endl;
+                                }
                                 // Add this mesh as a child of the empty parent.
                                 parentInstance->addChild(childInst);
                             }
@@ -3526,7 +3565,14 @@ int main(void)
 
                                 // *** NEW: Assign the diffuse texture from the imported mesh ***
                                 childInst->diffuseTexture = importedMeshes[i].diffuseTexture;
-
+                                // --- NEW: Apply diffuse color if present and no texture ---
+                                if (importedMeshes[i].hasDiffuseColor && !bgfx::isValid(childInst->diffuseTexture)) {
+                                    childInst->objectColor[0] = importedMeshes[i].diffuseColor[0];
+                                    childInst->objectColor[1] = importedMeshes[i].diffuseColor[1];
+                                    childInst->objectColor[2] = importedMeshes[i].diffuseColor[2];
+                                    childInst->objectColor[3] = importedMeshes[i].diffuseColor[3];
+                                    std::cout << "[INFO] Applied MTL diffuse color to: " << childInst->name << std::endl;
+                                }
                                 // Add this mesh as a child of the empty parent.
                                 parentInstance->addChild(childInst);
                             }
