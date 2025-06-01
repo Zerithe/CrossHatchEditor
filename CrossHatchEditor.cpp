@@ -97,15 +97,15 @@ static float lineAngle1 = TAU / 8.0f;           // Outer Hatch Angle or Line Ang
 static float lineAngle2 = TAU / 16.0f;          // Line Angle 2
 
 // These static variables will hold the extra parameter values.
-static float patternScale = 3.0f;               // Outer Hatch Scale or Pattern Scale
+static float patternScale = 0.15f;               // Outer Hatch Scale or Pattern Scale
 static float lineThickness = 0.3f;              // Outer Hatch Weight or Line Thickness
 
 // You can leave the remaining components as 0 (or later repurpose them)
 static float transparencyValue = 1.0f;          // Hatch Opacity or Transparency
-static int crosshatchMode = 2;                  // 0 = hatch ver 1.0, 1 = hatch ver 1.1, 2 = hatch ver 1.2, 3 = basic shader
+static int crosshatchMode = 3;                  // 0 = hatch ver 1.0, 1 = hatch ver 1.1, 2 = hatch ver 1.2, 3 = hatch ver 1.3, 4 = basic shader
 
 // These static variables will hold the values for u_paramsLayer
-static float layerPatternScale = 1.0f;          // Inner Hatch Scale or Layer Pattern Scale
+static float layerPatternScale = 0.15f;          // Inner Hatch Scale or Layer Pattern Scale
 static float layerStrokeMult = 0.250f;           // Inner Hatch Density or Layer Stroke Multiplier
 static float layerAngle = 2.983f;               // Inner Hatch Angle or Layer Angle
 static float layerLineThickness = 10.0f;        // Inner Hatch Weight or Layer Line Thickness
@@ -201,15 +201,15 @@ struct Instance
     float lineAngle2 = TAU / 16.0f;         // Line Angle 2
 
     // These variables will hold the extra parameter values.
-    float patternScale = 3.0f;              // Outer Hatch Scale or Pattern Scale
+    float patternScale = 0.15f;              // Outer Hatch Scale or Pattern Scale
     float lineThickness = 0.3f;             // Outer Hatch Weight or Line Thickness
 
     // You can leave the remaining components as 0 (or later repurpose them)
     float transparencyValue = 1.0f;         // Hatch Opacity or Transparency
-    int crosshatchMode = 2;                 // 0 = hatch ver 1.0, 1 = hatch ver 1.1, 2 = hatch ver 1.2, 3 = basic shader
+    int crosshatchMode = 3;                 // 0 = hatch ver 1.0, 1 = hatch ver 1.1, 2 = hatch ver 1.2, 3 = hatch ver 1.3, 4 = basic shader
 
     // These variables will hold the values for u_paramsLayer
-    float layerPatternScale = 1.0f;         // Inner Hatch Scale or Layer Pattern Scale
+    float layerPatternScale = 0.15f;         // Inner Hatch Scale or Layer Pattern Scale
     float layerStrokeMult = 0.250f;         // Inner Hatch Density or Layer Stroke Multiplier
     float layerAngle = 2.983f;              // Inner Hatch Angle or Layer Angle
     float layerLineThickness = 10.0f;       // Inner Hatch Weight or Layer Line Thickness
@@ -2822,7 +2822,7 @@ int main(void)
 
     // Load shaders and create program once
     bgfx::ShaderHandle vsh = loadShader("shaders\\v_out21.bin");
-    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out27.bin");
+    bgfx::ShaderHandle fsh = loadShader("shaders\\f_out28.bin");
 
     bgfx::ProgramHandle defaultProgram = bgfx::createProgram(vsh, fsh, true);
 
@@ -3998,7 +3998,7 @@ int main(void)
             ImGui::Begin("Crosshatch Shader Settings");
             ImGui::Checkbox("Use Global Crosshatch Shader Settings", &useGlobalCrosshatchSettings);
             if (useGlobalCrosshatchSettings) {
-                const char* modeItems[] = { "Crosshatch Ver 1.0", "Crosshatch Ver 1.1", "Crosshatch Ver 1.2", "Simple Lighting" };
+                const char* modeItems[] = { "Crosshatch Ver 1.0", "Crosshatch Ver 1.1", "Crosshatch Ver 1.2", "Crosshatch Ver 1.3", "Simple Lighting" };
                 ImGui::Combo("Shader Mode", &crosshatchMode, modeItems, IM_ARRAYSIZE(modeItems));
                 ImGui::Spacing(); ImGui::Spacing();
                 // --- Show controls depending on the mode ---
@@ -4066,10 +4066,36 @@ int main(void)
                 }
                 else if (crosshatchMode == 3)
                 {
+                    ImGui::Text("Crosshatch Ver 1.3 Settings:");
+                    ImGui::ColorEdit4("Hatch Color", inkColor);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Line Smoothness", &epsilonValue, 0.001f, 0.0f, 0.1f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Density", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Angle", &lineAngle1, 0.1f, 0.0f, TAU);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Weight", &lineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    // Inner layer settings:
+                    ImGui::DragFloat("Inner Hatch Scale", &layerPatternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Inner Hatch Density", &layerStrokeMult, 0.1f, 0.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Inner Hatch Angle", &layerAngle, 0.1f, 0.0f, TAU);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Inner Hatch Weight", &layerLineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Opacity", &transparencyValue, 0.01f, 0.0f, 1.0f);
+                }
+                else if (crosshatchMode == 4)
+                {
                     ImGui::Text("Simple Lighting (No Crosshatch)");
                 }
                 // New: noise texture selection
-                if (!availableNoiseTextures.empty() && crosshatchMode != 3)
+                if (!availableNoiseTextures.empty() && crosshatchMode != 4)
                 {
                     // Automatically update currentNoiseIndex based on the instance's noise texture.
                     bool found = false;
@@ -4119,7 +4145,7 @@ int main(void)
                 }
             }
             else if (selectedInstance && selectedInstance->isLight == false) {
-                const char* modeItems[] = { "Crosshatch Ver 1.0", "Crosshatch Ver 1.1", "Crosshatch Ver 1.2", "Simple Lighting" };
+                const char* modeItems[] = { "Crosshatch Ver 1.0", "Crosshatch Ver 1.1", "Crosshatch Ver 1.2", "Crosshatch Ver 1.3", "Simple Lighting" };
                 ImGui::Combo("Shader Mode", &selectedInstance->crosshatchMode, modeItems, IM_ARRAYSIZE(modeItems));
                 ImGui::Spacing(); ImGui::Spacing();
                 // --- Show controls depending on the mode ---
@@ -4187,11 +4213,37 @@ int main(void)
                 }
                 else if (selectedInstance->crosshatchMode == 3)
                 {
+                    ImGui::Text("Crosshatch Ver 1.3 Settings:");
+                    ImGui::ColorEdit4("Hatch Color", selectedInstance->inkColor);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Line Smoothness", &selectedInstance->epsilonValue, 0.001f, 0.0f, 0.1f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Density", &selectedInstance->strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Angle", &selectedInstance->lineAngle1, 0.1f, 0.0f, TAU);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Scale", &selectedInstance->patternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Outer Hatch Weight", &selectedInstance->lineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    // Inner layer settings:
+                    ImGui::DragFloat("Inner Hatch Scale", &selectedInstance->layerPatternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Inner Hatch Density", &selectedInstance->layerStrokeMult, 0.1f, 0.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Inner Hatch Angle", &selectedInstance->layerAngle, 0.1f, 0.0f, TAU);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Inner Hatch Weight", &selectedInstance->layerLineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::SetNextItemWidth(100);
+                    ImGui::DragFloat("Hatch Opacity", &selectedInstance->transparencyValue, 0.01f, 0.0f, 1.0f);
+                }
+                else if (selectedInstance->crosshatchMode == 4)
+                {
                     ImGui::Text("Simple Lighting (No Crosshatch)");
                 }
 
                 // New: noise texture selection
-                if (!availableNoiseTextures.empty() && selectedInstance->crosshatchMode != 3)
+                if (!availableNoiseTextures.empty() && selectedInstance->crosshatchMode != 4)
                 {
                     // Automatically update currentNoiseIndex based on the instance's noise texture.
                     bool found = false;
