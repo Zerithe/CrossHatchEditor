@@ -4426,7 +4426,7 @@ int main(void)
         float lightMtx[16];
         float tmp[16];
         bx::mtxMul(tmp, lightProj, lightView);
-        bx::mtxMul(lightMtx, mtxCrop, tmp);
+        bx::mtxMul(lightMtx, tmp, mtxCrop);
         // Update the u_lightMtx uniform for your scene shaders.
         bgfx::setUniform(u_lightMtx, lightMtx);
 
