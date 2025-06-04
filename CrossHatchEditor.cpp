@@ -7,6 +7,8 @@
 #include <sstream>
 #include <fstream>
 #include <random>
+#include <chrono>
+#include <limits>
 #include "InputManager.h"
 #include "Camera.h"
 #include "PrimitiveObjects.h"
@@ -17,6 +19,7 @@
 #include <assimp/postprocess.h>
 #ifdef _WIN32
 #include <windows.h>
+#include <psapi.h>
 #include <commdlg.h>
 #endif
 #include <filesystem>
@@ -66,6 +69,19 @@ namespace fs = std::filesystem;
 #include "stb_image_write.h"
 
 #include "TextRenderer.h" // for text element
+
+using Clock = std::chrono::high_resolution_clock;
+using TimePoint = std::chrono::time_point<Clock>;
+
+TimePoint FPSlastFrameTime = Clock::now();
+std::vector<float> fpsSamples;
+
+bool FPSmeasured = false;
+static float minFps = std::numeric_limits<float>::max();
+static float maxFps = std::numeric_limits<float>::lowest();
+static float avgFps = 0.0f;
+int framsSamples = 0;
+const size_t maxSamples = 1000;
 
 std::vector<Camera> cameras;
 int currentCameraIndex = 0;
@@ -266,6 +282,15 @@ struct MeshData {
 struct Vec3 {
     float x, y, z;
 };
+
+size_t getMemoryUsageMB()
+{
+    PROCESS_MEMORY_COUNTERS pmc;
+    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+        return pmc.WorkingSetSize / (1024 * 1024);  // Return in MB
+    }
+    return 0;
+}
 
 void BuildWorldMatrix(const Instance* inst, float* outMatrix) {
     float local[16];
@@ -2513,6 +2538,7 @@ int main(void)
 
     glfwSetKeyCallback(window, glfw_keyCallback);
     InputManager::initialize(window);
+    glfwSwapInterval(0);
 
     //declare camera instance
 
@@ -2928,6 +2954,8 @@ int main(void)
     bool takingScreenshot = false;
 	static char screenshotName[256] = "screenshot";
     static bool openScreenshotPopup = false;
+
+    bool FPSmeasuring = false;
 
     //MAIN LOOP
     while (!glfwWindowShouldClose(window))
@@ -3943,10 +3971,32 @@ int main(void)
 
             /*-------------------------------------------------------------------------------------*/
 
+
+
             ImGui::Begin("Info", p_open, window_flags);
             ImGui::Text("Crosshatch Editor Demo Build");
             ImGui::Text("Press F1 to toggle bgfx stats");
-            ImGui::Text("FPS: %.1f ", ImGui::GetIO().Framerate);
+            ImGui::Text("FPS: %.2f", ImGui::GetIO().Framerate);
+			if (ImGui::Button(FPSmeasuring ? "Measuring..." : "Start FPS Measuring"))
+			{
+                if (!FPSmeasuring) {
+                    // Reset everything when starting
+                    FPSmeasuring = true;
+                    FPSmeasured = false;
+                    framsSamples = 0;
+                    fpsSamples.clear();
+                    avgFps = 0.0f;
+                    minFps = std::numeric_limits<float>::max();
+                    maxFps = std::numeric_limits<float>::lowest();
+                    FPSlastFrameTime = Clock::now();
+                }
+			}
+            if (FPSmeasured) {
+                ImGui::Text("Average FPS: %.2f", avgFps);
+                ImGui::Text("Min FPS: %.2f", minFps);
+                ImGui::Text("Max FPS: %.2f", maxFps);
+            }
+            ImGui::Text("Memory Usage: %zu MB", getMemoryUsageMB());
             ImGui::Text("Frame Time: %.3f ms", 1000.0f / ImGui::GetIO().Framerate);
             ImGui::Separator();
             ImGui::Text("Rendered Instances: %d", instances.size());
@@ -4521,7 +4571,7 @@ int main(void)
         float numLightsArr[4] = { static_cast<float>(numLights), 0, 0, 0 };
         bgfx::setUniform(u_numLights, numLightsArr);
 
-        bgfx::reset(width, height, BGFX_RESET_VSYNC);
+        bgfx::reset(width, height, BGFX_RESET_NONE);
         bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
 
         float view[16];
@@ -4647,6 +4697,28 @@ int main(void)
 
         bgfx::frame();
 
+
+        if (FPSmeasuring) {
+            TimePoint now = Clock::now();
+            float deltaTime = std::chrono::duration<float>(now - FPSlastFrameTime).count();
+            FPSlastFrameTime = now;
+
+            float fps = 1.0f / deltaTime;
+            fpsSamples.push_back(fps);
+
+            if (fps < minFps) minFps = fps;
+            if (fps > maxFps) maxFps = fps;
+
+            framsSamples++;
+            if (framsSamples >= maxSamples) {
+                float sum = 0.0f;
+                for (float sample : fpsSamples) sum += sample;
+                avgFps = sum / fpsSamples.size();
+
+                FPSmeasuring = false;
+                FPSmeasured = true;
+            }
+        }
 
     }
     for (const auto& instance : instances)
