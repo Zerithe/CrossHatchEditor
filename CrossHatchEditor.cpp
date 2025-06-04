@@ -217,7 +217,7 @@ struct Instance
     float lineAngle2 = TAU / 16.0f;         // Line Angle 2
 
     // These variables will hold the extra parameter values.
-    float patternScale = 3.0f;              // Outer Hatch Scale or Pattern Scale
+    float patternScale = 0.15f;              // Outer Hatch Scale or Pattern Scale
     float lineThickness = 0.3f;             // Outer Hatch Weight or Line Thickness
 
     // You can leave the remaining components as 0 (or later repurpose them)
@@ -225,7 +225,7 @@ struct Instance
     int crosshatchMode = 2;                 // 0 = hatch ver 1.0, 1 = hatch ver 1.1, 2 = hatch ver 1.2, 3 = basic shader
 
     // These variables will hold the values for u_paramsLayer
-    float layerPatternScale = 1.0f;         // Inner Hatch Scale or Layer Pattern Scale
+    float layerPatternScale = 0.15f;         // Inner Hatch Scale or Layer Pattern Scale
     float layerStrokeMult = 0.250f;         // Inner Hatch Density or Layer Stroke Multiplier
     float layerAngle = 2.983f;              // Inner Hatch Angle or Layer Angle
     float layerLineThickness = 10.0f;       // Inner Hatch Weight or Layer Line Thickness
@@ -2452,6 +2452,7 @@ int main(void)
     // Create shadow map texture and framebuffer.
     if (g_shadowSamplerSupported)
     {
+        std::cout << "native shadow sampler!\n";
         // For native shadow sampler: create a depth texture with compare mode.
         s_shadowMapTex = bgfx::createTexture2D(
             s_shadowMapSize,
@@ -2465,6 +2466,7 @@ int main(void)
     else
     {
         // For fallback packed depth, create a color texture (RGBA8)
+        std::cout << "fallback packed depth!\n";
         s_shadowMapTex = bgfx::createTexture2D(
             s_shadowMapSize,
             s_shadowMapSize,
@@ -2483,24 +2485,17 @@ int main(void)
     // Load shadow shaders based on capability.
     bgfx::ShaderHandle vsShadow;
     bgfx::ShaderHandle fsShadow;
-    //bgfx::ShaderHandle vsScene;
-    //bgfx::ShaderHandle fsScene;
     if (g_shadowSamplerSupported)
     {
         vsShadow = loadShader("shaders/vs_shadow.bin");
         fsShadow = loadShader("shaders/fs_shadow.bin");
-        //vsScene = loadShader("shaders/vs_scene_mesh.bin");
-        //fsScene = loadShader("shaders/fs_scene_mesh.bin");
     }
     else
     {
         vsShadow = loadShader("shaders/vs_shadow_pd.bin");
         fsShadow = loadShader("shaders/fs_shadow_pd.bin");
-        //vsScene = loadShader("shaders/vs_scene_mesh.bin");
-        //fsScene = loadShader("shaders/fs_scene_mesh_pd.bin");
     }
     shadowProgram = bgfx::createProgram(vsShadow, fsShadow, true);
-    //sceneProgram = bgfx::createProgram(vsScene, fsScene, true);    
 
     // For comic border and bubble change of colors
     bgfx::UniformHandle u_comicColor = bgfx::createUniform("u_comicColor", bgfx::UniformType::Vec4);
@@ -4378,64 +4373,181 @@ int main(void)
                 bgfx::setViewTransform(0, view, proj);
             }
         }
-
+        
         // --- Shadow Pass: Render the shadow map from the primary directional light's view ---
-        // Find a primary directional light among your instances.
+        // (1) Determine Primary Light (Directional vs. Spot)
+        LightType primaryType = LightType::Directional;
         Instance* primaryLight = nullptr;
         for (const auto& inst : instances) {
-            if (inst->isLight && inst->lightProps.type == LightType::Directional) {
+            if (!inst->isLight) continue;
+            if (inst->lightProps.type == LightType::Directional ||
+                inst->lightProps.type == LightType::Spot)
+            {
                 primaryLight = inst;
+                primaryType = inst->lightProps.type;
                 break;
             }
-            // Fallback: if none found, use a default directional light.
         }
-        float lightDir[3] = { 0.0f, -1.0f, -1.0f };
-        if (primaryLight) {
-            lightDir[0] = primaryLight->lightProps.direction[0];
-            lightDir[1] = primaryLight->lightProps.direction[1];
-            lightDir[2] = primaryLight->lightProps.direction[2];
-            float len = sqrt(lightDir[0] * lightDir[0] + lightDir[1] * lightDir[1] + lightDir[2] * lightDir[2]);
-            lightDir[0] /= len; lightDir[1] /= len; lightDir[2] /= len;
-        }
-        // For directional lights, we set an "eye" position far away.
-        float lightDistance = 50.0f;
-        float lightPos[3] = { -lightDir[0] * lightDistance, -lightDir[1] * lightDistance, -lightDir[2] * lightDistance };
-        float at[3] = { 0.0f, 0.0f, 0.0f };
-
+        // ------------------------------------------------------------------------
+        // (2) Compute lightView + lightProj
         float lightView[16];
-        bx::Vec3 eyeVec(lightPos[0], lightPos[1], lightPos[2]);
-        bx::Vec3 atVec(at[0], at[1], at[2]);
-        bx::Vec3 upVec(0.0f, 1.0f, 0.0f);
-
-        bx::mtxLookAt(lightView, eyeVec, atVec, upVec);
-        //bx::mtxLookAt(lightView, lightPos, at);
-
-        float area = 30.0f;
         float lightProj[16];
-        //added 0.0f
-        bx::mtxOrtho(lightProj, -area, area, -area, area, -100.0f, 100.0f, 0.001f, bgfx::getCaps()->homogeneousDepth);
 
-        // Crop matrix to map clip-space [-1,1] to texture space [0,1]:
-        float mtxCrop[16] = {
-             0.5f, 0.0f, 0.0f, 0.0f,
-             0.0f, 0.5f, 0.0f, 0.0f,
-             0.0f, 0.0f, 0.5f, 0.0f,
-             0.5f, 0.5f, 0.5f, 1.0f,
+        if (primaryType == LightType::Directional) {
+            //
+            // A) Build the normalized direction (ld)
+            //
+            bx::Vec3 ld = primaryLight
+                ? bx::Vec3{
+                    primaryLight->lightProps.direction[0],
+                    primaryLight->lightProps.direction[1],
+                    primaryLight->lightProps.direction[2]
+            }
+            : bx::Vec3{ 0.0f, -1.0f, -1.0f };
+
+            float lenLd = bx::length(ld);
+            if (lenLd > 0.0f) {
+                ld = bx::normalize(ld);
+            }
+
+            //
+            // B) Place the light “high above” the scene in that direction:
+            //
+            float distance = 95.0f;
+            bx::Vec3 lightPos = bx::Vec3{
+                -ld.x * distance,
+                -ld.y * distance,
+                -ld.z * distance
+            };
+            bx::Vec3 lightPosTest = bx::Vec3{
+                    ld.x,
+                ld.y,
+                ld.z
+            };
+
+            //
+            // C) LookAt → world origin
+            //
+            bx::Vec3 at = { 0.0f, 0.0f, 0.0f };
+            bx::Vec3 up = { 0.0f, 1.0f, 0.0f };
+
+            // If ld is nearly parallel to up, pick a different up vector
+            if (fabs(bx::dot(ld, up)) > 0.99f) {
+                up = { 1.0f, 0.0f, 0.0f };
+            }
+
+            bx::mtxLookAt(lightView, lightPos, at, up);
+            //bx::mtxLookAt(lightView, eye, at);
+            //
+            // D) Decide orthographic extents (±area) that cover your world.
+            //
+            float area = 30.0f;
+            float nearZ = 1.0f;
+            float farZ = 100.0f;
+            bx::mtxOrtho(
+                lightProj,
+                -area, area,
+                -area, area,
+                nearZ, farZ,
+                0.0f,
+                bgfx::getCaps()->homogeneousDepth
+            );
+        }
+        else if (primaryType == LightType::Spot) {
+            //
+            // A) Light’s world position and direction
+            //
+            bx::Vec3 eye = {
+                primaryLight->position[0],
+                primaryLight->position[1],
+                primaryLight->position[2]
+            };
+
+            bx::Vec3 lightDir = {
+                primaryLight->lightProps.direction[0],
+                primaryLight->lightProps.direction[1],
+                primaryLight->lightProps.direction[2]
+            };
+
+            float lenDir = bx::length(lightDir);
+            if (lenDir > 0.0f) {
+                lightDir = bx::normalize(lightDir);
+            }
+
+            //
+            // B) Build view (LookAt)
+            //
+            bx::Vec3 target = {
+                eye.x + lightDir.x,
+                eye.y + lightDir.y,
+                eye.z + lightDir.z
+            };
+
+            bx::Vec3 up = { 0.0f, 1.0f, 0.0f };
+            // If the light direction is nearly parallel to up, pick a fallback up vector
+            if (fabs(bx::dot(lightDir, up)) > 0.99f) {
+                up = { 1.0f, 0.0f, 0.0f };
+            }
+
+            bx::mtxLookAt(lightView, eye, target, up);
+
+            //
+            // C) Build perspective projection from spot cone
+            //
+            float coneDeg = primaryLight->lightProps.coneAngle * 2.0f;
+            float fovRad = bx::toRad(coneDeg);
+            float aspect = 1.0f; // square shadow map
+            float nearZ = 1.0f;
+            float farZ = 100.0f; // far enough to include all scene geometry
+
+            bx::mtxProj(lightProj, fovRad, aspect, nearZ, farZ, false);
+        }
+
+
+        // ------------------------------------------------------------------------
+        // (3) Create “bias × proj × view” (u_lightMtx)
+        const float sy = caps->originBottomLeft ? 0.5f : -0.5f;
+        const float sz = caps->homogeneousDepth ? 0.5f : 1.0f;
+        const float tz = caps->homogeneousDepth ? 0.5f : 0.0f;
+        const float mtxCrop[16] =
+        {
+            0.5f, 0.0f, 0.0f, 0.0f,
+            0.0f,   sy, 0.0f, 0.0f,
+            0.0f, 0.0f, sz,   0.0f,
+            0.5f, 0.5f, tz,   1.0f,
         };
 
-        float lightMtx[16];
         float tmp[16];
-        bx::mtxMul(tmp, lightProj, lightView);
-        bx::mtxMul(lightMtx, mtxCrop, tmp);
-        // Update the u_lightMtx uniform for your scene shaders.
-        bgfx::setUniform(u_lightMtx, lightMtx);
+        float mtxShadow[16];
+        //bx::mtxMul(tmp, lightProj, lightView);
+        float lightMtx[16];
 
-        // Set up a dedicated view ID for the shadow pass.
+        bx::mtxMul(tmp, lightProj, mtxCrop);
+        bx::mtxMul(lightMtx, tmp, lightView);
+
+        bgfx::setUniform(u_lightMtx, lightMtx);
+        //bx::mtxMul(lightMtx, mtxShadow, model);
+        //bx::mtxMul(lightMtx, bias, tmp);
+        //bx::mtxMul(lightMtx, mtxCrop, tmp);
+        //bx::mtxMul(lightMtx, model, mtxShadow);
+        //bgfx::setUniform(u_lightMtx, lightMtx);
+        // Update uniform (once per frame is enough)
+        //bx::mtxMul(lightMtx, lightProj, lightView);
+        //bx::mtxMul(lightMtx, bias, mtxShadow);
+        //bgfx::setUniform(u_lightMtx, lightMtx);
+
+        // ------------------------------------------------------------------------
+        // (4) Shadow-Pass into s_shadowMapFB (view ID = 100)
         const uint32_t SHADOW_VIEW_ID = 100;
-        bgfx::setViewRect(SHADOW_VIEW_ID, 0, 0, s_shadowMapSize, s_shadowMapSize);
         bgfx::setViewFrameBuffer(SHADOW_VIEW_ID, s_shadowMapFB);
+        bgfx::setViewRect(SHADOW_VIEW_ID, 0, 0, s_shadowMapSize, s_shadowMapSize);
         bgfx::setViewTransform(SHADOW_VIEW_ID, lightView, lightProj);
-        bgfx::setViewClear(SHADOW_VIEW_ID, BGFX_CLEAR_DEPTH, 0x000000ff, 1.0f, 0);
+        bgfx::setViewClear(SHADOW_VIEW_ID,
+            BGFX_CLEAR_DEPTH
+            | (g_shadowSamplerSupported ? 0 : BGFX_CLEAR_COLOR),
+            0x303030ff,  // if color‐clear used for packed‐depth fallback, pick a neutral clear
+            1.0f,
+            0);
 
         // Render each instance into the shadow map.
         for (const auto& instance : instances)
@@ -4447,15 +4559,26 @@ int main(void)
             }
 
             float model[16];
+
             bx::mtxSRT(model,
                 instance->scale[0], instance->scale[1], instance->scale[2],
                 instance->rotation[0], instance->rotation[1], instance->rotation[2],
                 instance->position[0], instance->position[1], instance->position[2]);
             bgfx::setTransform(model);
-            // Set minimal state: write to depth only.
-            bgfx::setState(BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS);
+
+            // Depth-only (D16) or (D24) → BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS
+            // If packed‐depth fallback: you also need BGFX_STATE_WRITE_RGB to write depth into RGBA
+            uint64_t depthState = BGFX_STATE_WRITE_Z
+                | BGFX_STATE_DEPTH_TEST_LESS;
+
+            if (!g_shadowSamplerSupported) {
+                depthState |= BGFX_STATE_WRITE_RGB; // to encode depth into RGBA8
+            }
+            bgfx::setState(depthState);
+
             bgfx::setVertexBuffer(0, instance->vertexBuffer);
             bgfx::setIndexBuffer(instance->indexBuffer);
+
             bgfx::submit(SHADOW_VIEW_ID, shadowProgram);
         }
 
@@ -4588,7 +4711,6 @@ int main(void)
 
             // In your normal scene pass (view ID 0), before submitting geometry:
             bgfx::setTexture(2, s_shadowMapUniform, s_shadowMapTex);
-            // Your scene shader will use u_lightMtx and sample s_shadowMap.
 
             drawInstance(instance, defaultProgram, lightDebugProgram, textProgram, comicProgram, u_comicColor, u_noiseTex, u_diffuseTex, u_objectColor, u_tint, u_inkColor, u_e, u_params, u_extraParams, u_paramsLayer, defaultWhiteTexture, BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE, instance->objectColor); // your usual shader program
         }
