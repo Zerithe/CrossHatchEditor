@@ -3,7 +3,6 @@
 #include "Camera.h"
 #include <unordered_map>
 
-
 class InputManager
 {
 public:
@@ -22,7 +21,9 @@ public:
 	static bool getSkipPickingPass() { return skipPickingPass; }
 	static void toggleSkipPickingPass() { skipPickingPass = !skipPickingPass; }
 
-	static bool isMiddleMousePressed(); 
+	static bool isMiddleMousePressed();
+	static void setScrollCallback();
+	static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 
 private:
 	InputManager() = default;
@@ -38,4 +39,10 @@ private:
 	static std::unordered_map<int, bool> keyStates;
 
 	static bool m_middleMousePressed;
+	static float m_scrollDelta;
+
+	static bx::Vec3 m_cameraTarget;  
+	static float m_cameraDistance;
+	static bool m_isOrbiting;
+	static bool m_isPanning;
 };
