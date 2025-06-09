@@ -1,6 +1,7 @@
 #include "InputManager.h"
 #include "ObjLoader.h"
 #include <iostream>
+#include <imgui.h>
 
 GLFWwindow* InputManager::m_window = nullptr;
 double InputManager::m_mouseX = 0.0;
@@ -40,14 +41,21 @@ void InputManager::setScrollCallback()
 
 void InputManager::scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 {
-    m_scrollDelta = static_cast<float>(yoffset);
+    ImGuiIO& io = ImGui::GetIO();
+    io.AddMouseWheelEvent((float)xoffset, (float)yoffset);
+
+    if (!io.WantCaptureMouse) {
+        m_scrollDelta = static_cast<float>(yoffset);
+    }
+    else {
+        m_scrollDelta = 0.0f;
+    }
 }
 
 void InputManager::update(Camera& camera, float deltaTime)
 {
     const float cameraSpeed = camera.movementSpeed * deltaTime;
     double x, y;
-
 
     // Check middle mouse button state
     bool wasMiddleMousePressed = m_rightClickMousePressed;
@@ -80,7 +88,6 @@ void InputManager::update(Camera& camera, float deltaTime)
         getMouseMovement(&x, &y);
 
         if (m_isPanning) {
-            // Blender-style panning: Shift + Middle Mouse
             const float panSpeed = 0.003f * m_cameraDistance;
             bx::Vec3 panRight = bx::mul(camera.right, bx::Vec3(x * panSpeed, x * panSpeed, x * panSpeed));
             bx::Vec3 panUp = bx::mul(camera.up, bx::Vec3(-y * panSpeed, -y * panSpeed, -y * panSpeed));
@@ -91,18 +98,15 @@ void InputManager::update(Camera& camera, float deltaTime)
             m_cameraTarget = bx::add(m_cameraTarget, panUp);
         }
         else if (m_isOrbiting) {
-            // Blender-style orbiting: Middle Mouse
             const float orbitSpeed = 0.2f;
             camera.yaw -= x * orbitSpeed;
             camera.pitch += y * orbitSpeed;
 
-            // Constrain pitch
             if (camera.pitch > 89.0f && camera.constrainPitch)
                 camera.pitch = 89.0f;
             if (camera.pitch < -89.0f && camera.constrainPitch)
                 camera.pitch = -89.0f;
 
-            // Calculate new camera position orbiting around target
             float yawRad = bx::toRad(camera.yaw);
             float pitchRad = bx::toRad(camera.pitch);
 
@@ -127,16 +131,16 @@ void InputManager::update(Camera& camera, float deltaTime)
         glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     }
 
-    // Middle Mouse Zooming
+    // Scroll Wheel Zooming
     if (m_scrollDelta != 0.0f) {
-        const float zoomSpeed = 0.05f; // Smaller constant value for smoother zoom
-        float zoomFactor = 1.0f - (m_scrollDelta * zoomSpeed);
+        const float zoomSpeed = 2.0f;
+        float zoomAmount = m_scrollDelta * zoomSpeed;
 
-        if (zoomFactor > 0.1f && zoomFactor < 10.0f) {
-            m_cameraDistance *= zoomFactor;
+        bx::Vec3 movement = bx::mul(camera.front, bx::Vec3(zoomAmount, zoomAmount, zoomAmount));
+        camera.position = bx::add(camera.position, movement);
 
-            bx::Vec3 direction = bx::normalize(bx::sub(camera.position, m_cameraTarget));
-            camera.position = bx::add(m_cameraTarget, bx::mul(direction, bx::Vec3(m_cameraDistance, m_cameraDistance, m_cameraDistance)));
+        if (!m_rightClickMousePressed) {
+            m_cameraTarget = bx::mad(camera.front, bx::Vec3(m_cameraDistance, m_cameraDistance, m_cameraDistance), camera.position);
         }
 
         m_scrollDelta = 0.0f;
