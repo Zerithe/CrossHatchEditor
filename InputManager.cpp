@@ -9,7 +9,7 @@ bool InputManager::m_FirstMouse = true;
 bool InputManager::skipPickingPass = false;
 std::unordered_map<int, bool> InputManager::keyStates;
 
-bool InputManager::m_middleMousePressed = false;
+bool InputManager::m_rightClickMousePressed = false;
 float InputManager::m_scrollDelta = 0.0f;
 bx::Vec3 InputManager::m_cameraTarget = bx::Vec3(0.0f, 0.0f, 0.0f);
 float InputManager::m_cameraDistance = 10.0f;
@@ -30,7 +30,7 @@ void InputManager::destroy()
 
 bool InputManager::isMiddleMousePressed()
 {
-    return m_middleMousePressed;
+    return m_rightClickMousePressed;
 }
 
 void InputManager::setScrollCallback()
@@ -50,12 +50,12 @@ void InputManager::update(Camera& camera, float deltaTime)
 
 
     // Check middle mouse button state
-    bool wasMiddleMousePressed = m_middleMousePressed;
-    m_middleMousePressed = glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS;
+    bool wasMiddleMousePressed = m_rightClickMousePressed;
+    m_rightClickMousePressed = glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
     bool shiftPressed = isKeyPressed(GLFW_KEY_LEFT_SHIFT) || isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
 
     // Initialize mouse position when starting to drag
-    if (m_middleMousePressed && !wasMiddleMousePressed) {
+    if (m_rightClickMousePressed && !wasMiddleMousePressed) {
         m_FirstMouse = true;
         glfwGetCursorPos(m_window, &m_mouseX, &m_mouseY);
 
@@ -75,7 +75,7 @@ void InputManager::update(Camera& camera, float deltaTime)
     }
 
     // Handle middle mouse
-    if (m_middleMousePressed)
+    if (m_rightClickMousePressed)
     {
         getMouseMovement(&x, &y);
 
@@ -143,15 +143,15 @@ void InputManager::update(Camera& camera, float deltaTime)
     }
 
     // Optional WASD Controls
-    if (!m_middleMousePressed) {
+    if (!m_rightClickMousePressed) {
         if (isKeyPressed(GLFW_KEY_W))
             camera.position = bx::mad(camera.front, bx::Vec3(cameraSpeed, cameraSpeed, cameraSpeed), camera.position);
         if (isKeyPressed(GLFW_KEY_S))
             camera.position = bx::mad(camera.front, bx::Vec3(-cameraSpeed, -cameraSpeed, -cameraSpeed), camera.position);
         if (isKeyPressed(GLFW_KEY_D))
-            camera.position = bx::mad(camera.right, bx::Vec3(cameraSpeed, cameraSpeed, cameraSpeed), camera.position);
-        if (isKeyPressed(GLFW_KEY_A))
             camera.position = bx::mad(camera.right, bx::Vec3(-cameraSpeed, -cameraSpeed, -cameraSpeed), camera.position);
+        if (isKeyPressed(GLFW_KEY_A))
+            camera.position = bx::mad(camera.right, bx::Vec3(cameraSpeed, cameraSpeed, cameraSpeed), camera.position);
         if (isKeyPressed(GLFW_KEY_SPACE))
             camera.position = bx::mad(camera.up, bx::Vec3(cameraSpeed, cameraSpeed, cameraSpeed), camera.position);
         if (isKeyPressed(GLFW_KEY_LEFT_CONTROL))

@@ -38,7 +38,7 @@ private:
 	static bool skipPickingPass;
 	static std::unordered_map<int, bool> keyStates;
 
-	static bool m_middleMousePressed;
+	static bool m_rightClickMousePressed;
 	static float m_scrollDelta;
 
 	static bx::Vec3 m_cameraTarget;  
