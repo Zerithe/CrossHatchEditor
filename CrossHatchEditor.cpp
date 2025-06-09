@@ -1741,7 +1741,7 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
 {
     selectedInstance = nullptr;
     std::string loadFilePath = openFileDialog(false);
-    std::string importedObjMapPath = fs::path(loadFilePath).stem().string() + "_imp_obj_map.txt";
+    std::string importedObjMapPath = fs::path(loadFilePath).parent_path().string() + "\\" + (fs::path(loadFilePath).stem().string() + "_imp_obj_map.txt");
     std::unordered_map<std::string, std::string> importedObjMap = LoadImportedObjMap(importedObjMapPath);
     if (loadFilePath.empty()) return importedObjMap;
 
