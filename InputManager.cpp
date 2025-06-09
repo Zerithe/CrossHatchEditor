@@ -82,8 +82,8 @@ void InputManager::update(Camera& camera, float deltaTime)
         if (m_isPanning) {
             // Blender-style panning: Shift + Middle Mouse
             const float panSpeed = 0.003f * m_cameraDistance;
-            bx::Vec3 panRight = bx::mul(camera.right, bx::Vec3(-x * panSpeed, -x * panSpeed, -x * panSpeed));
-            bx::Vec3 panUp = bx::mul(camera.up, bx::Vec3(y * panSpeed, y * panSpeed, y * panSpeed));
+            bx::Vec3 panRight = bx::mul(camera.right, bx::Vec3(x * panSpeed, x * panSpeed, x * panSpeed));
+            bx::Vec3 panUp = bx::mul(camera.up, bx::Vec3(-y * panSpeed, -y * panSpeed, -y * panSpeed));
 
             camera.position = bx::add(camera.position, panRight);
             camera.position = bx::add(camera.position, panUp);
