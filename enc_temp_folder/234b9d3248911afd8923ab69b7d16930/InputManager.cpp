@@ -41,9 +41,11 @@ void InputManager::setScrollCallback()
 
 void InputManager::scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 {
+    // First pass the scroll event to ImGui
     ImGuiIO& io = ImGui::GetIO();
     io.AddMouseWheelEvent((float)xoffset, (float)yoffset);
 
+    // Only store the delta if ImGui didn't use it
     if (!io.WantCaptureMouse) {
         m_scrollDelta = static_cast<float>(yoffset);
     }
@@ -88,6 +90,7 @@ void InputManager::update(Camera& camera, float deltaTime)
         getMouseMovement(&x, &y);
 
         if (m_isPanning) {
+            // Blender-style panning: Shift + Middle Mouse
             const float panSpeed = 0.003f * m_cameraDistance;
             bx::Vec3 panRight = bx::mul(camera.right, bx::Vec3(x * panSpeed, x * panSpeed, x * panSpeed));
             bx::Vec3 panUp = bx::mul(camera.up, bx::Vec3(-y * panSpeed, -y * panSpeed, -y * panSpeed));
@@ -98,15 +101,18 @@ void InputManager::update(Camera& camera, float deltaTime)
             m_cameraTarget = bx::add(m_cameraTarget, panUp);
         }
         else if (m_isOrbiting) {
+            // Blender-style orbiting: Middle Mouse
             const float orbitSpeed = 0.2f;
             camera.yaw -= x * orbitSpeed;
             camera.pitch += y * orbitSpeed;
 
+            // Constrain pitch
             if (camera.pitch > 89.0f && camera.constrainPitch)
                 camera.pitch = 89.0f;
             if (camera.pitch < -89.0f && camera.constrainPitch)
                 camera.pitch = -89.0f;
 
+            // Calculate new camera position orbiting around target
             float yawRad = bx::toRad(camera.yaw);
             float pitchRad = bx::toRad(camera.pitch);
 
@@ -136,9 +142,11 @@ void InputManager::update(Camera& camera, float deltaTime)
         const float zoomSpeed = 2.0f;
         float zoomAmount = m_scrollDelta * zoomSpeed;
 
+        // Move camera forward/backward along its front vector
         bx::Vec3 movement = bx::mul(camera.front, bx::Vec3(zoomAmount, zoomAmount, zoomAmount));
         camera.position = bx::add(camera.position, movement);
 
+        // Update camera target to maintain orbiting behavior when using right-click
         if (!m_rightClickMousePressed) {
             m_cameraTarget = bx::mad(camera.front, bx::Vec3(m_cameraDistance, m_cameraDistance, m_cameraDistance), camera.position);
         }
