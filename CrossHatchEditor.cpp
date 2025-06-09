@@ -4076,15 +4076,11 @@ int main(void)
             ImGui::Begin("Controls", p_open, window_flags);
             ImGui::Text("Controls:");
             ImGui::Text("WASD - Move Camera");
-            ImGui::Text("Mouse - Look Around");
-            ImGui::Text("Shift - Move Down");
+            ImGui::Text("Right Click - Rotate Camera");
+            ImGui::Text("Shift + Right Click - Pan Camera");
+            ImGui::Text("Ctrl - Move Down");
             ImGui::Text("Space - Move Up");
             ImGui::Text("Left Click - Select Object");
-            ImGui::Text("Right Click - Detach Mouse from Camera");
-            ImGui::Text("C - Randomize Light Color");
-            ImGui::Text("X - Reset Light Color");
-            ImGui::Text("V - Randomize Light Direction");
-            ImGui::Text("Z - Reset Light Direction");
             ImGui::Text("F1 - Toggle bgfx stats");
             ImGui::Text("F2 - Disable/Enable UI");
             ImGui::Text("F3 - Take Screenshot");
