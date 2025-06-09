@@ -3132,7 +3132,7 @@ int main(void)
                 if (ImGui::Button("Gallery", ImVec2(200, 50))) {
                     // Handle Gallery
                     // Open the specified GDrive link (replace with your actual URL).
-                    system("start https://drive.google.com/drive/folders/1_sF1BD_5K6OAVqnR3yfMiIUNMpkeBsL7?usp=sharing");
+                    system("start https://drive.google.com/drive/folders/19LPNoBsqBaJ-65lz1_8yW91JatjxCsfm?usp=sharing");
                 }
                 ImGui::SameLine(0.0f, 10.0f);
                 if (ImGui::Button("Credits", ImVec2(200, 50))) {
