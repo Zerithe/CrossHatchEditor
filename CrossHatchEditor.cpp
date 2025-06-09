@@ -225,7 +225,7 @@ struct Instance
     std::string textContent;
 
     Instance(int instanceId, const std::string& instanceName, const std::string& instanceType, float x, float y, float z, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh)
-        : id(instanceId), name(instanceName), type(instanceType), vertexBuffer(vbh), indexBuffer(ibh), textContent("")
+        : id(instanceId), name(instanceName), type(instanceType), vertexBuffer(vbh), indexBuffer(ibh), textContent("A")
     {
         position[0] = x;
         position[1] = y;
@@ -625,6 +625,112 @@ MeshData loadMesh(const std::string& filePath) {
                 indices.push_back(static_cast<uint32_t>(baseIndex + face.mIndices[j]));
             }
         }
+
+        // Compute normals if the mesh does not have them
+        if (!mesh->HasNormals()) {
+            computeNormals(vertices, indices);
+        }
+    }
+
+    // Compute the global center.
+    float centerX = (globalMinX + globalMaxX) * 0.5f;
+    float centerY = (globalMinY + globalMaxY) * 0.5f;
+    float centerZ = (globalMinZ + globalMaxZ) * 0.5f;
+
+    // Second pass: recenter all vertices by subtracting the global center.
+    for (auto& v : vertices) {
+        v.x -= centerX;
+        v.y -= centerY;
+        v.z -= centerZ;
+    }
+
+    return { vertices, indices };
+}
+
+MeshData loadMesh2(const std::string& filePath) {
+    Assimp::Importer importer;
+    const aiScene* scene = importer.ReadFile(filePath, aiProcess_Triangulate | aiProcess_FlipUVs);
+
+    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
+        std::cerr << "Error: Assimp - " << importer.GetErrorString() << std::endl;
+        return {};
+    }
+
+    std::vector<PosColorVertex> vertices;
+    std::vector<uint32_t> indices;
+
+    // used for making origin of imported objects at 0 0 0 to center gizmo
+    // works for both single mesh and multi mesh objects
+    // Global bounding box for the entire model.
+    float globalMinX = FLT_MAX, globalMinY = FLT_MAX, globalMinZ = FLT_MAX;
+    float globalMaxX = -FLT_MAX, globalMaxY = -FLT_MAX, globalMaxZ = -FLT_MAX;
+
+    // Iterate through all meshes in the scene
+    for (unsigned int meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex) {
+        aiMesh* mesh = scene->mMeshes[meshIndex];
+        size_t baseIndex = vertices.size();
+        std::unordered_map<std::string, uint16_t> uniqueVertices;
+
+        for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
+            PosColorVertex vertex;
+            vertex.x = mesh->mVertices[i].x; //original: mesh->mVertices[i].x | flipped: -mesh->mVertices[i].x 
+            vertex.y = mesh->mVertices[i].y;
+            vertex.z = mesh->mVertices[i].z;
+
+            // Update global bounding box.
+            if (vertex.x < globalMinX) globalMinX = vertex.x;
+            if (vertex.y < globalMinY) globalMinY = vertex.y;
+            if (vertex.z < globalMinZ) globalMinZ = vertex.z;
+            if (vertex.x > globalMaxX) globalMaxX = vertex.x;
+            if (vertex.y > globalMaxY) globalMaxY = vertex.y;
+            if (vertex.z > globalMaxZ) globalMaxZ = vertex.z;
+
+            // Retrieve normals if available
+            if (mesh->HasNormals()) {
+                vertex.nx = mesh->mNormals[i].x;
+                vertex.ny = mesh->mNormals[i].y;
+                vertex.nz = mesh->mNormals[i].z;
+            }
+            else {
+                vertex.nx = 0.0f;
+                vertex.ny = 0.0f;
+                vertex.nz = 0.0f; // Default to zero, will recompute later
+            }
+
+            // Retrieve texture coordinates (UVs) if available.
+            if (mesh->HasTextureCoords(0)) {
+                // Assimp stores texture coordinates in a 3D vector; we use only x and y.
+                vertex.u = mesh->mTextureCoords[0][i].x;
+                vertex.v = mesh->mTextureCoords[0][i].y;
+            }
+            else {
+                vertex.u = 0.0f;
+                vertex.v = 0.0f;
+            }
+
+            if (mesh->HasVertexColors(0)) {
+                vertex.abgr = ((uint8_t)(mesh->mColors[0][i].r * 255) << 24) |
+                    ((uint8_t)(mesh->mColors[0][i].g * 255) << 16) |
+                    ((uint8_t)(mesh->mColors[0][i].b * 255) << 8) |
+                    (uint8_t)(mesh->mColors[0][i].a * 255);
+            }
+            else {
+                vertex.abgr = 0xffffffff; // Default color
+            }
+
+            vertices.push_back(vertex);
+        }
+
+
+        // Reversed winding order
+        for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
+            aiFace face = mesh->mFaces[i];
+            // Reverse the winding order
+            for (int j = face.mNumIndices - 1; j >= 0; j--) {
+                indices.push_back(static_cast<uint32_t>(baseIndex + face.mIndices[j]));
+            }
+        }
+        
 
         // Compute normals if the mesh does not have them
         if (!mesh->HasNormals()) {
@@ -1303,7 +1409,7 @@ void saveInstance(std::ofstream& file, const Instance* instance,
         << instance->lightAnim.amplitude[0] << " " << instance->lightAnim.amplitude[1] << " " << instance->lightAnim.amplitude[2] << " " 
         << instance->lightAnim.frequency[0] << " " << instance->lightAnim.frequency[1] << " " << instance->lightAnim.frequency[2] << " "
         << instance->lightAnim.phase[0] << " " << instance->lightAnim.phase[1] << " " << instance->lightAnim.phase[2] << " "
-        << static_cast<int>(instance->lightAnim.enabled) << "\n"; // Save `type` and parentID
+        << static_cast<int>(instance->lightAnim.enabled) << " " << quote_if_needed(instance->textContent) << "\n"; // Save `type` and parentID
 
     // Recursively save children
     for (const Instance* child : instance->children)
@@ -1617,6 +1723,18 @@ void findMaxInstanceId(const Instance* instance, int& maxId) {
     }
 }
 
+// for comic bubble text
+void updateTextTexture(Instance* textInst) {
+    bgfx::TextureHandle newTex = createTextTexture(textInst->textContent);
+    if (bgfx::isValid(newTex)) {
+        // If an old texture exists, destroy it.
+        if (bgfx::isValid(textInst->diffuseTexture)) {
+            bgfx::destroy(textInst->diffuseTexture);
+        }
+        textInst->diffuseTexture = newTex;
+    }
+}
+
 std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Instance*>& instances,
     const std::vector<TextureOption>& availableTextures,
     const std::unordered_map<std::string, std::pair<bgfx::VertexBufferHandle, bgfx::IndexBufferHandle>>& bufferMap)
@@ -1653,7 +1771,7 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
         std::istringstream iss(line);
         bgfx::TextureHandle diffuseTexture = BGFX_INVALID_HANDLE;
         int id, meshNo, parentID, lightType, crosshatchMode, animationEnabled;
-        std::string type, name, textureName, noiseTextureName;
+        std::string type, name, textureName, noiseTextureName, textContent;
         float pos[3], rot[3], scale[3], color[4], lightDirection[3], intensity, range, coneAngle, lightColor[4], inkColor[4], epsilonValue, strokeMultiplier, lineAngle1, lineAngle2, patternScale, lineThickness, transparencyValue, layerPatternScale, layerStrokeMult, layerAngle, layerLineThickness, centerX, centerZ, radius, rotationSpeed, instanceAngle, basePosition[3], amplitude[3], frequency[3], phase[3];
 
         iss >> id;
@@ -1680,6 +1798,7 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
 			>> frequency[0] >> frequency[1] >> frequency[2]
             >> phase[0] >> phase[1] >> phase[2]
             >> animationEnabled;
+        textContent = read_quoted_string(iss);
 
         // Fetch correct buffers using `type`
         bgfx::VertexBufferHandle vbh = BGFX_INVALID_HANDLE;
@@ -1755,6 +1874,7 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
 		instance->lightAnim.frequency[0] = frequency[0]; instance->lightAnim.frequency[1] = frequency[1]; instance->lightAnim.frequency[2] = frequency[2];
 		instance->lightAnim.phase[0] = phase[0]; instance->lightAnim.phase[1] = phase[1]; instance->lightAnim.phase[2] = phase[2];
 		instance->lightAnim.enabled = static_cast<bool>(animationEnabled);
+        instance->textContent = textContent;
 
         // Assign texture
         if (textureName != "none")
@@ -1770,6 +1890,11 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
         }
         else {
 			instance->diffuseTexture = diffuseTexture;
+        }
+
+        if (instance->type == "text") {
+            // Immediately generate its text texture.
+            updateTextTexture(instance);
         }
 
 		// Assign noise texture
@@ -2137,18 +2262,6 @@ void takeScreenshotAsPng(bgfx::FrameBufferHandle fb, const std::string& baseName
         }).detach(); // Detach the thread so it runs independently
 }
 
-// for comic bubble text
-void updateTextTexture(Instance* textInst) {
-    bgfx::TextureHandle newTex = createTextTexture(textInst->textContent);
-    if (bgfx::isValid(newTex)) {
-        // If an old texture exists, destroy it.
-        if (bgfx::isValid(textInst->diffuseTexture)) {
-            bgfx::destroy(textInst->diffuseTexture);
-        }
-        textInst->diffuseTexture = newTex;
-    }
-}
-
 int main(void)
 {
     // Initialize GLFW
@@ -2170,7 +2283,7 @@ int main(void)
     bgfxinit.type = bgfx::RendererType::OpenGL;
     bgfxinit.resolution.width = WNDW_WIDTH;
     bgfxinit.resolution.height = WNDW_HEIGHT;
-    bgfxinit.resolution.reset = BGFX_RESET_VSYNC;
+    bgfxinit.resolution.reset = BGFX_RESET_NONE;
     bgfxinit.platformData.nwh = glfwGetWin32Window(window);
     if (!bgfx::init(bgfxinit)) {
         std::cerr << "Failed to initialize BGFX" << std::endl;
@@ -2384,7 +2497,7 @@ int main(void)
 	);
 
     //mesh generation
-    MeshData meshData = loadMesh("meshes/suzanne.obj");
+    MeshData meshData = loadMesh2("meshes/suzanne.obj");
     bgfx::VertexBufferHandle vbh_mesh;
     bgfx::IndexBufferHandle ibh_mesh;
     createMeshBuffers(meshData, vbh_mesh, ibh_mesh);
@@ -2492,7 +2605,7 @@ int main(void)
 	bufferMap["cone"] = { vbh_cone, ibh_cone };
 	bufferMap["arrow"] = { vbh_arrow, ibh_arrow };
     bufferMap["empty"] = { BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE };
-    bufferMap["comictext"] = { vbh_textQuad, ibh_textQuad };
+    bufferMap["text"] = { vbh_textQuad, ibh_textQuad };
     bufferMap["comicborder"] = { vbh_comicborder, ibh_comicborder };
     bufferMap["comicbubble1"] = { vbh_comicbubble1, ibh_comicbubble1 };
     bufferMap["comicbubble2"] = { vbh_comicbubble2, ibh_comicbubble2 };
@@ -3442,7 +3555,7 @@ int main(void)
                         if (ImGui::MenuItem("Comic Bubble Text"))
                         {
                             // Spawn a new instance with type "text" using the text quad buffers.
-                            spawnInstanceAtCenter("comicBubble", "comictext", vbh_textQuad, ibh_textQuad, instances);
+                            spawnInstanceAtCenter("comicBubble", "text", vbh_textQuad, ibh_textQuad, instances);
                             Instance* textInst = instances.back();
                             // Set a default text string.
                             textInst->textContent = "New Comic Bubble";
@@ -4521,7 +4634,7 @@ int main(void)
         float numLightsArr[4] = { static_cast<float>(numLights), 0, 0, 0 };
         bgfx::setUniform(u_numLights, numLightsArr);
 
-        bgfx::reset(width, height, BGFX_RESET_VSYNC);
+        bgfx::reset(width, height, BGFX_RESET_NONE);
         bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
 
         float view[16];
