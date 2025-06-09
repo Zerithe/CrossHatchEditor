@@ -125,7 +125,7 @@ void InputManager::update(Camera& camera, float deltaTime)
     }
     else
     {
-        // Reset states when middle mouse is released
+        // Reset states when right mouse button is released
         m_isOrbiting = false;
         m_isPanning = false;
         glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
