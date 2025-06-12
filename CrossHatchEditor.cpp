@@ -347,7 +347,7 @@ void DrawGizmoForSelected(Instance* selectedInstance, float originX, float origi
         selectedInstance->position[0], selectedInstance->position[1], selectedInstance->position[2]);
 
     // Check if CTRL is held down to enable snapping
-    bool useSnap = io.KeyCtrl;
+    bool useSnap = io.KeyAlt; //changed to alt
 
     // Define snap settings for different operations (x, y, z for each operation)
     float snapTranslation[3] = { 0.5f, 0.5f, 0.5f };  // Snap all axes to 0.5 units
@@ -2262,6 +2262,51 @@ void takeScreenshotAsPng(bgfx::FrameBufferHandle fb, const std::string& baseName
         }).detach(); // Detach the thread so it runs independently
 }
 
+void ResetCrosshatchSettings()
+{
+    if (crosshatchMode == 0 || crosshatchMode == 1 || crosshatchMode == 3) {
+        // default color (RGBA)
+        inkColor[0] = 0.0f; inkColor[1] = 0.0f;
+        inkColor[2] = 0.0f; inkColor[3] = 1.0f;
+
+        // default floats
+        epsilonValue = 0.02f;
+        strokeMultiplier = 1.0f;
+        lineAngle1 = TAU / 8.0f;
+        lineAngle2 = TAU / 16.0f;
+        patternScale = 0.15f;
+        lineThickness = 0.3f;
+        transparencyValue = 1.0f;
+
+        // inner-layer defaults
+        layerPatternScale = 0.15f;
+        layerStrokeMult = 0.250f;
+        layerAngle = 2.983f;
+        layerLineThickness = 10.0f;
+    }
+    else if (crosshatchMode == 2) {
+        // default color (RGBA)
+        inkColor[0] = 0.0f; inkColor[1] = 0.0f;
+        inkColor[2] = 0.0f; inkColor[3] = 1.0f;
+
+        // default floats
+        epsilonValue = 0.02f;
+        strokeMultiplier = 1.0f;
+        lineAngle1 = TAU / 8.0f;
+        lineAngle2 = TAU / 16.0f;
+        patternScale = 3.0f;
+        lineThickness = 0.3f;
+        transparencyValue = 1.0f;
+
+        // inner-layer defaults
+        layerPatternScale = 1.0f;
+        layerStrokeMult = 0.250f;
+        layerAngle = 2.983f;
+        layerLineThickness = 10.0f;
+    }
+
+}
+
 int main(void)
 {
     // Initialize GLFW
@@ -3789,15 +3834,15 @@ int main(void)
                     }
                     ImGui::Separator();
                     ImGui::Text("Snapping Options:");
-                    ImGui::BulletText("Hold CTRL while rotating to snap to 90°");
-                    ImGui::BulletText("Hold CTRL while translating for 0.5 unit snapping");
-                    ImGui::BulletText("Hold CTRL while scaling for 0.5 unit snapping");
+                    ImGui::BulletText("Hold ALT while rotating to snap to 90°");
+                    ImGui::BulletText("Hold ALT while translating for 0.5 unit snapping");
+                    ImGui::BulletText("Hold ALT while scaling for 0.5 unit snapping");
 
                     // Display current snap status
-                    bool isSnapping = ImGui::GetIO().KeyCtrl;
+                    bool isSnapping = ImGui::GetIO().KeyAlt; //changed to alt
                     ImGui::TextColored(
                         isSnapping ? ImVec4(0.2f, 0.8f, 0.2f, 1.0f) : ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
-                        isSnapping ? "Snapping ENABLED (CTRL held)" : "Snapping disabled (hold CTRL to enable)"
+                        isSnapping ? "Snapping ENABLED (ALT held)" : "Snapping disabled (hold ALT to enable)"
                     );
 
                     if (selectedInstance->isLight)
@@ -4203,6 +4248,15 @@ int main(void)
                 {
                     ImGui::Text("Simple Lighting (No Crosshatch)");
                 }
+                
+                if (crosshatchMode != 4) {
+                    ImGui::Spacing(); ImGui::Spacing();
+                    if (ImGui::Button("Reset Crosshatch Settings")) {
+                        ResetCrosshatchSettings();
+                    }
+                    ImGui::Spacing(); ImGui::Spacing();
+                }
+
                 // New: noise texture selection
                 if (!availableNoiseTextures.empty() && crosshatchMode != 4)
                 {
