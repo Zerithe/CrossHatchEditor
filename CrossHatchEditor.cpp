@@ -4571,7 +4571,7 @@ int main(void)
         float numLightsArr[4] = { static_cast<float>(numLights), 0, 0, 0 };
         bgfx::setUniform(u_numLights, numLightsArr);
 
-        bgfx::reset(width, height, BGFX_RESET_NONE);
+        bgfx::reset(width, height, BGFX_RESET_VSYNC);
         bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
 
         float view[16];
