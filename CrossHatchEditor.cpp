@@ -3792,7 +3792,7 @@ int main(void)
                 bx::mtxLookAt(view, cameras[currentCameraIndex].position, bx::add(cameras[currentCameraIndex].position, cameras[currentCameraIndex].front), cameras[currentCameraIndex].up);
 
                 float proj[16];
-                bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+                bx::mtxProj(proj, cameras[currentCameraIndex].fov, float(width) / float(height), cameras[currentCameraIndex].nearClip, cameras[currentCameraIndex].farClip, bgfx::getCaps()->homogeneousDepth);
 
                 //default gizmo draw
                 DrawGizmoForSelected(selectedInstance, 0.0f, 0.0f, view, proj);
