@@ -225,7 +225,7 @@ struct Instance
     std::string textContent;
 
     Instance(int instanceId, const std::string& instanceName, const std::string& instanceType, float x, float y, float z, bgfx::VertexBufferHandle vbh, bgfx::IndexBufferHandle ibh)
-        : id(instanceId), name(instanceName), type(instanceType), vertexBuffer(vbh), indexBuffer(ibh), textContent("")
+        : id(instanceId), name(instanceName), type(instanceType), vertexBuffer(vbh), indexBuffer(ibh), textContent("A")
     {
         position[0] = x;
         position[1] = y;
@@ -347,7 +347,7 @@ void DrawGizmoForSelected(Instance* selectedInstance, float originX, float origi
         selectedInstance->position[0], selectedInstance->position[1], selectedInstance->position[2]);
 
     // Check if CTRL is held down to enable snapping
-    bool useSnap = io.KeyCtrl;
+    bool useSnap = io.KeyAlt; //changed to alt
 
     // Define snap settings for different operations (x, y, z for each operation)
     float snapTranslation[3] = { 0.5f, 0.5f, 0.5f };  // Snap all axes to 0.5 units
@@ -519,6 +519,7 @@ std::string openFileDialog(bool save) {
     ofn.lpstrFile = filePath;
     ofn.nMaxFile = MAX_PATH;
     ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+    ofn.lpstrDefExt = "txt";
 
     if (save) {
         ofn.Flags |= OFN_OVERWRITEPROMPT;
@@ -625,6 +626,112 @@ MeshData loadMesh(const std::string& filePath) {
                 indices.push_back(static_cast<uint32_t>(baseIndex + face.mIndices[j]));
             }
         }
+
+        // Compute normals if the mesh does not have them
+        if (!mesh->HasNormals()) {
+            computeNormals(vertices, indices);
+        }
+    }
+
+    // Compute the global center.
+    float centerX = (globalMinX + globalMaxX) * 0.5f;
+    float centerY = (globalMinY + globalMaxY) * 0.5f;
+    float centerZ = (globalMinZ + globalMaxZ) * 0.5f;
+
+    // Second pass: recenter all vertices by subtracting the global center.
+    for (auto& v : vertices) {
+        v.x -= centerX;
+        v.y -= centerY;
+        v.z -= centerZ;
+    }
+
+    return { vertices, indices };
+}
+
+MeshData loadMesh2(const std::string& filePath) {
+    Assimp::Importer importer;
+    const aiScene* scene = importer.ReadFile(filePath, aiProcess_Triangulate | aiProcess_FlipUVs);
+
+    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
+        std::cerr << "Error: Assimp - " << importer.GetErrorString() << std::endl;
+        return {};
+    }
+
+    std::vector<PosColorVertex> vertices;
+    std::vector<uint32_t> indices;
+
+    // used for making origin of imported objects at 0 0 0 to center gizmo
+    // works for both single mesh and multi mesh objects
+    // Global bounding box for the entire model.
+    float globalMinX = FLT_MAX, globalMinY = FLT_MAX, globalMinZ = FLT_MAX;
+    float globalMaxX = -FLT_MAX, globalMaxY = -FLT_MAX, globalMaxZ = -FLT_MAX;
+
+    // Iterate through all meshes in the scene
+    for (unsigned int meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex) {
+        aiMesh* mesh = scene->mMeshes[meshIndex];
+        size_t baseIndex = vertices.size();
+        std::unordered_map<std::string, uint16_t> uniqueVertices;
+
+        for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
+            PosColorVertex vertex;
+            vertex.x = mesh->mVertices[i].x; //original: mesh->mVertices[i].x | flipped: -mesh->mVertices[i].x 
+            vertex.y = mesh->mVertices[i].y;
+            vertex.z = mesh->mVertices[i].z;
+
+            // Update global bounding box.
+            if (vertex.x < globalMinX) globalMinX = vertex.x;
+            if (vertex.y < globalMinY) globalMinY = vertex.y;
+            if (vertex.z < globalMinZ) globalMinZ = vertex.z;
+            if (vertex.x > globalMaxX) globalMaxX = vertex.x;
+            if (vertex.y > globalMaxY) globalMaxY = vertex.y;
+            if (vertex.z > globalMaxZ) globalMaxZ = vertex.z;
+
+            // Retrieve normals if available
+            if (mesh->HasNormals()) {
+                vertex.nx = mesh->mNormals[i].x;
+                vertex.ny = mesh->mNormals[i].y;
+                vertex.nz = mesh->mNormals[i].z;
+            }
+            else {
+                vertex.nx = 0.0f;
+                vertex.ny = 0.0f;
+                vertex.nz = 0.0f; // Default to zero, will recompute later
+            }
+
+            // Retrieve texture coordinates (UVs) if available.
+            if (mesh->HasTextureCoords(0)) {
+                // Assimp stores texture coordinates in a 3D vector; we use only x and y.
+                vertex.u = mesh->mTextureCoords[0][i].x;
+                vertex.v = mesh->mTextureCoords[0][i].y;
+            }
+            else {
+                vertex.u = 0.0f;
+                vertex.v = 0.0f;
+            }
+
+            if (mesh->HasVertexColors(0)) {
+                vertex.abgr = ((uint8_t)(mesh->mColors[0][i].r * 255) << 24) |
+                    ((uint8_t)(mesh->mColors[0][i].g * 255) << 16) |
+                    ((uint8_t)(mesh->mColors[0][i].b * 255) << 8) |
+                    (uint8_t)(mesh->mColors[0][i].a * 255);
+            }
+            else {
+                vertex.abgr = 0xffffffff; // Default color
+            }
+
+            vertices.push_back(vertex);
+        }
+
+
+        // Reversed winding order
+        for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
+            aiFace face = mesh->mFaces[i];
+            // Reverse the winding order
+            for (int j = face.mNumIndices - 1; j >= 0; j--) {
+                indices.push_back(static_cast<uint32_t>(baseIndex + face.mIndices[j]));
+            }
+        }
+        
 
         // Compute normals if the mesh does not have them
         if (!mesh->HasNormals()) {
@@ -1303,7 +1410,7 @@ void saveInstance(std::ofstream& file, const Instance* instance,
         << instance->lightAnim.amplitude[0] << " " << instance->lightAnim.amplitude[1] << " " << instance->lightAnim.amplitude[2] << " " 
         << instance->lightAnim.frequency[0] << " " << instance->lightAnim.frequency[1] << " " << instance->lightAnim.frequency[2] << " "
         << instance->lightAnim.phase[0] << " " << instance->lightAnim.phase[1] << " " << instance->lightAnim.phase[2] << " "
-        << static_cast<int>(instance->lightAnim.enabled) << "\n"; // Save `type` and parentID
+        << static_cast<int>(instance->lightAnim.enabled) << " " << quote_if_needed(instance->textContent) << "\n"; // Save `type` and parentID
 
     // Recursively save children
     for (const Instance* child : instance->children)
@@ -1617,13 +1724,25 @@ void findMaxInstanceId(const Instance* instance, int& maxId) {
     }
 }
 
+// for comic bubble text
+void updateTextTexture(Instance* textInst) {
+    bgfx::TextureHandle newTex = createTextTexture(textInst->textContent);
+    if (bgfx::isValid(newTex)) {
+        // If an old texture exists, destroy it.
+        if (bgfx::isValid(textInst->diffuseTexture)) {
+            bgfx::destroy(textInst->diffuseTexture);
+        }
+        textInst->diffuseTexture = newTex;
+    }
+}
+
 std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Instance*>& instances,
     const std::vector<TextureOption>& availableTextures,
     const std::unordered_map<std::string, std::pair<bgfx::VertexBufferHandle, bgfx::IndexBufferHandle>>& bufferMap)
 {
     selectedInstance = nullptr;
     std::string loadFilePath = openFileDialog(false);
-    std::string importedObjMapPath = fs::path(loadFilePath).stem().string() + "_imp_obj_map.txt";
+    std::string importedObjMapPath = fs::path(loadFilePath).parent_path().string() + "\\" + (fs::path(loadFilePath).stem().string() + "_imp_obj_map.txt");
     std::unordered_map<std::string, std::string> importedObjMap = LoadImportedObjMap(importedObjMapPath);
     if (loadFilePath.empty()) return importedObjMap;
 
@@ -1653,7 +1772,7 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
         std::istringstream iss(line);
         bgfx::TextureHandle diffuseTexture = BGFX_INVALID_HANDLE;
         int id, meshNo, parentID, lightType, crosshatchMode, animationEnabled;
-        std::string type, name, textureName, noiseTextureName;
+        std::string type, name, textureName, noiseTextureName, textContent;
         float pos[3], rot[3], scale[3], color[4], lightDirection[3], intensity, range, coneAngle, lightColor[4], inkColor[4], epsilonValue, strokeMultiplier, lineAngle1, lineAngle2, patternScale, lineThickness, transparencyValue, layerPatternScale, layerStrokeMult, layerAngle, layerLineThickness, centerX, centerZ, radius, rotationSpeed, instanceAngle, basePosition[3], amplitude[3], frequency[3], phase[3];
 
         iss >> id;
@@ -1680,6 +1799,7 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
 			>> frequency[0] >> frequency[1] >> frequency[2]
             >> phase[0] >> phase[1] >> phase[2]
             >> animationEnabled;
+        textContent = read_quoted_string(iss);
 
         // Fetch correct buffers using `type`
         bgfx::VertexBufferHandle vbh = BGFX_INVALID_HANDLE;
@@ -1755,6 +1875,7 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
 		instance->lightAnim.frequency[0] = frequency[0]; instance->lightAnim.frequency[1] = frequency[1]; instance->lightAnim.frequency[2] = frequency[2];
 		instance->lightAnim.phase[0] = phase[0]; instance->lightAnim.phase[1] = phase[1]; instance->lightAnim.phase[2] = phase[2];
 		instance->lightAnim.enabled = static_cast<bool>(animationEnabled);
+        instance->textContent = textContent;
 
         // Assign texture
         if (textureName != "none")
@@ -1770,6 +1891,11 @@ std::unordered_map<std::string, std::string> loadSceneFromFile(std::vector<Insta
         }
         else {
 			instance->diffuseTexture = diffuseTexture;
+        }
+
+        if (instance->type == "text") {
+            // Immediately generate its text texture.
+            updateTextTexture(instance);
         }
 
 		// Assign noise texture
@@ -2137,16 +2263,49 @@ void takeScreenshotAsPng(bgfx::FrameBufferHandle fb, const std::string& baseName
         }).detach(); // Detach the thread so it runs independently
 }
 
-// for comic bubble text
-void updateTextTexture(Instance* textInst) {
-    bgfx::TextureHandle newTex = createTextTexture(textInst->textContent);
-    if (bgfx::isValid(newTex)) {
-        // If an old texture exists, destroy it.
-        if (bgfx::isValid(textInst->diffuseTexture)) {
-            bgfx::destroy(textInst->diffuseTexture);
-        }
-        textInst->diffuseTexture = newTex;
+void ResetCrosshatchSettings()
+{
+    if (crosshatchMode == 0 || crosshatchMode == 1 || crosshatchMode == 3) {
+        // default color (RGBA)
+        inkColor[0] = 0.0f; inkColor[1] = 0.0f;
+        inkColor[2] = 0.0f; inkColor[3] = 1.0f;
+
+        // default floats
+        epsilonValue = 0.02f;
+        strokeMultiplier = 1.0f;
+        lineAngle1 = TAU / 8.0f;
+        lineAngle2 = TAU / 16.0f;
+        patternScale = 0.15f;
+        lineThickness = 0.3f;
+        transparencyValue = 1.0f;
+
+        // inner-layer defaults
+        layerPatternScale = 0.15f;
+        layerStrokeMult = 0.250f;
+        layerAngle = 2.983f;
+        layerLineThickness = 10.0f;
     }
+    else if (crosshatchMode == 2) {
+        // default color (RGBA)
+        inkColor[0] = 0.0f; inkColor[1] = 0.0f;
+        inkColor[2] = 0.0f; inkColor[3] = 1.0f;
+
+        // default floats
+        epsilonValue = 0.02f;
+        strokeMultiplier = 1.0f;
+        lineAngle1 = TAU / 8.0f;
+        lineAngle2 = TAU / 16.0f;
+        patternScale = 3.0f;
+        lineThickness = 0.3f;
+        transparencyValue = 1.0f;
+
+        // inner-layer defaults
+        layerPatternScale = 1.0f;
+        layerStrokeMult = 0.250f;
+        layerAngle = 2.983f;
+        layerLineThickness = 10.0f;
+    }
+
 }
 
 int main(void)
@@ -2170,7 +2329,7 @@ int main(void)
     bgfxinit.type = bgfx::RendererType::OpenGL;
     bgfxinit.resolution.width = WNDW_WIDTH;
     bgfxinit.resolution.height = WNDW_HEIGHT;
-    bgfxinit.resolution.reset = BGFX_RESET_VSYNC;
+    bgfxinit.resolution.reset = BGFX_RESET_NONE;
     bgfxinit.platformData.nwh = glfwGetWin32Window(window);
     if (!bgfx::init(bgfxinit)) {
         std::cerr << "Failed to initialize BGFX" << std::endl;
@@ -2384,7 +2543,7 @@ int main(void)
 	);
 
     //mesh generation
-    MeshData meshData = loadMesh("meshes/suzanne.obj");
+    MeshData meshData = loadMesh2("meshes/suzanne.obj");
     bgfx::VertexBufferHandle vbh_mesh;
     bgfx::IndexBufferHandle ibh_mesh;
     createMeshBuffers(meshData, vbh_mesh, ibh_mesh);
@@ -2492,7 +2651,7 @@ int main(void)
 	bufferMap["cone"] = { vbh_cone, ibh_cone };
 	bufferMap["arrow"] = { vbh_arrow, ibh_arrow };
     bufferMap["empty"] = { BGFX_INVALID_HANDLE, BGFX_INVALID_HANDLE };
-    bufferMap["comictext"] = { vbh_textQuad, ibh_textQuad };
+    bufferMap["text"] = { vbh_textQuad, ibh_textQuad };
     bufferMap["comicborder"] = { vbh_comicborder, ibh_comicborder };
     bufferMap["comicbubble1"] = { vbh_comicbubble1, ibh_comicbubble1 };
     bufferMap["comicbubble2"] = { vbh_comicbubble2, ibh_comicbubble2 };
@@ -2899,6 +3058,8 @@ int main(void)
     instances.back()->scale[0] *= 0.01f;
     instances.back()->scale[1] *= 0.01f;
     instances.back()->scale[2] *= 0.01f;
+
+    spawnLight(camera, vbh_sphere, ibh_sphere, vbh_cone, ibh_cone, instances);
     
     Logger::GetInstance();
 
@@ -3019,7 +3180,7 @@ int main(void)
                 if (ImGui::Button("Gallery", ImVec2(200, 50))) {
                     // Handle Gallery
                     // Open the specified GDrive link (replace with your actual URL).
-                    system("start https://drive.google.com/drive/folders/1_sF1BD_5K6OAVqnR3yfMiIUNMpkeBsL7?usp=sharing");
+                    system("start https://drive.google.com/drive/folders/19LPNoBsqBaJ-65lz1_8yW91JatjxCsfm?usp=sharing");
                 }
                 ImGui::SameLine(0.0f, 10.0f);
                 if (ImGui::Button("Credits", ImVec2(200, 50))) {
@@ -3442,7 +3603,7 @@ int main(void)
                         if (ImGui::MenuItem("Comic Bubble Text"))
                         {
                             // Spawn a new instance with type "text" using the text quad buffers.
-                            spawnInstanceAtCenter("comicBubble", "comictext", vbh_textQuad, ibh_textQuad, instances);
+                            spawnInstanceAtCenter("comicBubble", "text", vbh_textQuad, ibh_textQuad, instances);
                             Instance* textInst = instances.back();
                             // Set a default text string.
                             textInst->textContent = "New Comic Bubble";
@@ -3634,7 +3795,7 @@ int main(void)
                 bx::mtxLookAt(view, cameras[currentCameraIndex].position, bx::add(cameras[currentCameraIndex].position, cameras[currentCameraIndex].front), cameras[currentCameraIndex].up);
 
                 float proj[16];
-                bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+                bx::mtxProj(proj, cameras[currentCameraIndex].fov, float(width) / float(height), cameras[currentCameraIndex].nearClip, cameras[currentCameraIndex].farClip, bgfx::getCaps()->homogeneousDepth);
 
                 //default gizmo draw
                 DrawGizmoForSelected(selectedInstance, 0.0f, 0.0f, view, proj);
@@ -3646,12 +3807,16 @@ int main(void)
                     ImGui::Text("Selected: %s", selectedInstance->name.c_str());
                     if (ImGui::RadioButton("Translate", currentGizmoOperation == ImGuizmo::TRANSLATE))
                         currentGizmoOperation = ImGuizmo::TRANSLATE;
-                    ImGui::SameLine();
-                    if (ImGui::RadioButton("Rotate", currentGizmoOperation == ImGuizmo::ROTATE))
-                        currentGizmoOperation = ImGuizmo::ROTATE;
-                    ImGui::SameLine();
-                    if (ImGui::RadioButton("Scale", currentGizmoOperation == ImGuizmo::SCALE))
-                        currentGizmoOperation = ImGuizmo::SCALE;
+					if (!selectedInstance->isLight)
+					{
+                        ImGui::SameLine();
+                        if (ImGui::RadioButton("Rotate", currentGizmoOperation == ImGuizmo::ROTATE))
+                            currentGizmoOperation = ImGuizmo::ROTATE;
+                        ImGui::SameLine();
+                        if (ImGui::RadioButton("Scale", currentGizmoOperation == ImGuizmo::SCALE))
+                            currentGizmoOperation = ImGuizmo::SCALE;
+					}
+                    
 
                     float rotDeg[3] = {
                     bx::toDeg(selectedInstance->rotation[0]),
@@ -3660,12 +3825,14 @@ int main(void)
                     };
 
                     ImGui::DragFloat3("Translation", selectedInstance->position, 0.1f);
-                    if (ImGui::DragFloat3("Rotation (degrees)", rotDeg, 1.0f)) {
-                        selectedInstance->rotation[0] = bx::toRad(rotDeg[0]);
-                        selectedInstance->rotation[1] = bx::toRad(rotDeg[1]);
-                        selectedInstance->rotation[2] = bx::toRad(rotDeg[2]);
+                    if (!selectedInstance->isLight) {
+                        if (ImGui::DragFloat3("Rotation (degrees)", rotDeg, 1.0f)) {
+                            selectedInstance->rotation[0] = bx::toRad(rotDeg[0]);
+                            selectedInstance->rotation[1] = bx::toRad(rotDeg[1]);
+                            selectedInstance->rotation[2] = bx::toRad(rotDeg[2]);
+                        }
+                        ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
                     }
-                    ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
 
                     if (currentGizmoOperation != ImGuizmo::SCALE) {
                         if (ImGui::RadioButton("World", currentGizmoMode == ImGuizmo::WORLD))
@@ -3676,15 +3843,19 @@ int main(void)
                     }
                     ImGui::Separator();
                     ImGui::Text("Snapping Options:");
-                    ImGui::BulletText("Hold CTRL while rotating to snap to 90°");
-                    ImGui::BulletText("Hold CTRL while translating for 0.5 unit snapping");
-                    ImGui::BulletText("Hold CTRL while scaling for 0.5 unit snapping");
+                    if(!selectedInstance->isLight){
+                        ImGui::BulletText("Hold ALT while rotating to snap to 90°");
+                    }
+                    ImGui::BulletText("Hold ALT while translating for 0.5 unit snapping");
+                    if (!selectedInstance->isLight) {
+                        ImGui::BulletText("Hold ALT while scaling for 0.5 unit snapping");
+                    }
 
                     // Display current snap status
-                    bool isSnapping = ImGui::GetIO().KeyCtrl;
+                    bool isSnapping = ImGui::GetIO().KeyAlt; //changed to alt
                     ImGui::TextColored(
                         isSnapping ? ImVec4(0.2f, 0.8f, 0.2f, 1.0f) : ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
-                        isSnapping ? "Snapping ENABLED (CTRL held)" : "Snapping disabled (hold CTRL to enable)"
+                        isSnapping ? "Snapping ENABLED (ALT held)" : "Snapping disabled (hold ALT to enable)"
                     );
 
                     if (selectedInstance->isLight)
@@ -3963,15 +4134,11 @@ int main(void)
             ImGui::Begin("Controls", p_open, window_flags);
             ImGui::Text("Controls:");
             ImGui::Text("WASD - Move Camera");
-            ImGui::Text("Mouse - Look Around");
-            ImGui::Text("Shift - Move Down");
+            ImGui::Text("Right Click - Rotate Camera");
+            ImGui::Text("Shift + Right Click - Pan Camera");
+            ImGui::Text("Ctrl - Move Down");
             ImGui::Text("Space - Move Up");
             ImGui::Text("Left Click - Select Object");
-            ImGui::Text("Right Click - Detach Mouse from Camera");
-            ImGui::Text("C - Randomize Light Color");
-            ImGui::Text("X - Reset Light Color");
-            ImGui::Text("V - Randomize Light Direction");
-            ImGui::Text("Z - Reset Light Direction");
             ImGui::Text("F1 - Toggle bgfx stats");
             ImGui::Text("F2 - Disable/Enable UI");
             ImGui::Text("F3 - Take Screenshot");
@@ -4094,6 +4261,15 @@ int main(void)
                 {
                     ImGui::Text("Simple Lighting (No Crosshatch)");
                 }
+                
+                if (crosshatchMode != 4) {
+                    ImGui::Spacing(); ImGui::Spacing();
+                    if (ImGui::Button("Reset Crosshatch Settings")) {
+                        ResetCrosshatchSettings();
+                    }
+                    ImGui::Spacing(); ImGui::Spacing();
+                }
+
                 // New: noise texture selection
                 if (!availableNoiseTextures.empty() && crosshatchMode != 4)
                 {
@@ -4521,7 +4697,7 @@ int main(void)
         float numLightsArr[4] = { static_cast<float>(numLights), 0, 0, 0 };
         bgfx::setUniform(u_numLights, numLightsArr);
 
-        bgfx::reset(width, height, BGFX_RESET_VSYNC);
+        bgfx::reset(width, height, BGFX_RESET_NONE);
         bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
 
         float view[16];

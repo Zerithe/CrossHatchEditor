@@ -125,7 +125,7 @@ void InputManager::update(Camera& camera, float deltaTime)
     }
     else
     {
-        // Reset states when middle mouse is released
+        // Reset states when right mouse button is released
         m_isOrbiting = false;
         m_isPanning = false;
         glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
@@ -145,9 +145,9 @@ void InputManager::update(Camera& camera, float deltaTime)
 
         m_scrollDelta = 0.0f;
     }
-
+    ImGuiIO& io = ImGui::GetIO();
     // Optional WASD Controls
-    if (!m_rightClickMousePressed) {
+    if (!m_rightClickMousePressed && !io.WantCaptureKeyboard) {
         if (isKeyPressed(GLFW_KEY_W))
             camera.position = bx::mad(camera.front, bx::Vec3(cameraSpeed, cameraSpeed, cameraSpeed), camera.position);
         if (isKeyPressed(GLFW_KEY_S))
