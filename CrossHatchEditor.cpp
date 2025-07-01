@@ -3807,12 +3807,16 @@ int main(void)
                     ImGui::Text("Selected: %s", selectedInstance->name.c_str());
                     if (ImGui::RadioButton("Translate", currentGizmoOperation == ImGuizmo::TRANSLATE))
                         currentGizmoOperation = ImGuizmo::TRANSLATE;
-                    ImGui::SameLine();
-                    if (ImGui::RadioButton("Rotate", currentGizmoOperation == ImGuizmo::ROTATE))
-                        currentGizmoOperation = ImGuizmo::ROTATE;
-                    ImGui::SameLine();
-                    if (ImGui::RadioButton("Scale", currentGizmoOperation == ImGuizmo::SCALE))
-                        currentGizmoOperation = ImGuizmo::SCALE;
+					if (!selectedInstance->isLight)
+					{
+                        ImGui::SameLine();
+                        if (ImGui::RadioButton("Rotate", currentGizmoOperation == ImGuizmo::ROTATE))
+                            currentGizmoOperation = ImGuizmo::ROTATE;
+                        ImGui::SameLine();
+                        if (ImGui::RadioButton("Scale", currentGizmoOperation == ImGuizmo::SCALE))
+                            currentGizmoOperation = ImGuizmo::SCALE;
+					}
+                    
 
                     float rotDeg[3] = {
                     bx::toDeg(selectedInstance->rotation[0]),
@@ -3821,12 +3825,14 @@ int main(void)
                     };
 
                     ImGui::DragFloat3("Translation", selectedInstance->position, 0.1f);
-                    if (ImGui::DragFloat3("Rotation (degrees)", rotDeg, 1.0f)) {
-                        selectedInstance->rotation[0] = bx::toRad(rotDeg[0]);
-                        selectedInstance->rotation[1] = bx::toRad(rotDeg[1]);
-                        selectedInstance->rotation[2] = bx::toRad(rotDeg[2]);
+                    if (!selectedInstance->isLight) {
+                        if (ImGui::DragFloat3("Rotation (degrees)", rotDeg, 1.0f)) {
+                            selectedInstance->rotation[0] = bx::toRad(rotDeg[0]);
+                            selectedInstance->rotation[1] = bx::toRad(rotDeg[1]);
+                            selectedInstance->rotation[2] = bx::toRad(rotDeg[2]);
+                        }
+                        ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
                     }
-                    ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
 
                     if (currentGizmoOperation != ImGuizmo::SCALE) {
                         if (ImGui::RadioButton("World", currentGizmoMode == ImGuizmo::WORLD))
@@ -3837,9 +3843,13 @@ int main(void)
                     }
                     ImGui::Separator();
                     ImGui::Text("Snapping Options:");
-                    ImGui::BulletText("Hold ALT while rotating to snap to 90°");
+                    if(!selectedInstance->isLight){
+                        ImGui::BulletText("Hold ALT while rotating to snap to 90°");
+                    }
                     ImGui::BulletText("Hold ALT while translating for 0.5 unit snapping");
-                    ImGui::BulletText("Hold ALT while scaling for 0.5 unit snapping");
+                    if (!selectedInstance->isLight) {
+                        ImGui::BulletText("Hold ALT while scaling for 0.5 unit snapping");
+                    }
 
                     // Display current snap status
                     bool isSnapping = ImGui::GetIO().KeyAlt; //changed to alt
