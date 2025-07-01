@@ -3057,6 +3057,8 @@ int main(void)
     instances.back()->scale[0] *= 0.01f;
     instances.back()->scale[1] *= 0.01f;
     instances.back()->scale[2] *= 0.01f;
+
+    spawnLight(camera, vbh_sphere, ibh_sphere, vbh_cone, ibh_cone, instances);
     
     Logger::GetInstance();
 
