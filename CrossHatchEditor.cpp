@@ -519,6 +519,7 @@ std::string openFileDialog(bool save) {
     ofn.lpstrFile = filePath;
     ofn.nMaxFile = MAX_PATH;
     ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+    ofn.lpstrDefExt = "txt";
 
     if (save) {
         ofn.Flags |= OFN_OVERWRITEPROMPT;
