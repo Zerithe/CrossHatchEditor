@@ -788,6 +788,9 @@ static void glfw_keyCallback(GLFWwindow* window, int key, int scancode, int acti
 {
     if (key == GLFW_KEY_F1 && action == GLFW_RELEASE)
         s_showStats = !s_showStats;
+
+    // Forward the event to ImGui
+    ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
 }
 
 float getRandomFloat()
@@ -2353,6 +2356,8 @@ int main(void)
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_Implbgfx_Init(255);
 
+    glfwSetKeyCallback(window, glfw_keyCallback);
+
     /*ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));*/
@@ -2670,7 +2675,6 @@ int main(void)
     bgfx::setViewRect(0, 0, 0, WNDW_WIDTH, WNDW_HEIGHT);
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
 
-    glfwSetKeyCallback(window, glfw_keyCallback);
     InputManager::initialize(window);
 
     //declare camera instance
