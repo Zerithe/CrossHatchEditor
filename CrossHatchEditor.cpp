@@ -2332,7 +2332,7 @@ int main(void)
     bgfxinit.type = bgfx::RendererType::OpenGL;
     bgfxinit.resolution.width = WNDW_WIDTH;
     bgfxinit.resolution.height = WNDW_HEIGHT;
-    bgfxinit.resolution.reset = BGFX_RESET_NONE;
+    bgfxinit.resolution.reset = BGFX_RESET_VSYNC;
     bgfxinit.platformData.nwh = glfwGetWin32Window(window);
     if (!bgfx::init(bgfxinit)) {
         std::cerr << "Failed to initialize BGFX" << std::endl;
@@ -4180,15 +4180,15 @@ int main(void)
                     ImGui::SetNextItemWidth(100);
                     ImGui::DragFloat("Line Smoothness", &epsilonValue, 0.001f, 0.0f, 0.1f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Hatch Density", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                    ImGui::DragFloat("Hatch Density", &strokeMultiplier, 0.01f, 0.0f, 10.0f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Primary Hatch Angle", &lineAngle1, 0.1f, 0.0f, TAU);
+                    ImGui::DragFloat("Primary Hatch Angle", &lineAngle1, 0.01f, 0.0f, TAU);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Secondary Hatch Angle", &lineAngle2, 0.1f, 0.0f, TAU);
+                    ImGui::DragFloat("Secondary Hatch Angle", &lineAngle2, 0.01f, 0.0f, TAU);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Hatch Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::DragFloat("Hatch Scale", &patternScale, 0.01f, 0.1f, 10.0f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Line Weight", &lineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::DragFloat("Line Thickness", &lineThickness, 0.01f, -10.0f, 10.0f);
                     ImGui::SetNextItemWidth(100);
                     ImGui::DragFloat("Hatch Opacity", &transparencyValue, 0.01f, 0.0f, 1.0f);
                 }
@@ -4199,13 +4199,13 @@ int main(void)
                     ImGui::SetNextItemWidth(100);
                     ImGui::DragFloat("Line Smoothness", &epsilonValue, 0.001f, 0.0f, 0.1f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Hatch Density", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                    ImGui::DragFloat("Hatch Density", &strokeMultiplier, 0.01f, 0.0f, 15.0f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Hatch Angle", &lineAngle1, 0.1f, 0.0f, TAU);
+                    ImGui::DragFloat("Hatch Angle", &lineAngle1, 0.01f, 0.0f, TAU);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Hatch Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::DragFloat("Hatch Scale", &patternScale, 0.01f, 0.0f, 15.0f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Line Weight", &lineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::DragFloat("Line Thickness", &lineThickness, 0.01f, -15.0f, 15.0f);
                     ImGui::SetNextItemWidth(100);
                     ImGui::DragFloat("Hatch Opacity", &transparencyValue, 0.01f, 0.0f, 1.0f);
                 }
@@ -4216,22 +4216,22 @@ int main(void)
                     ImGui::SetNextItemWidth(100);
                     ImGui::DragFloat("Outer Line Smoothness", &epsilonValue, 0.001f, 0.0f, 0.1f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Outer Hatch Density", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                    ImGui::DragFloat("Outer Hatch Density", &strokeMultiplier, 0.01f, 0.0f, 15.0f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Outer Hatch Angle", &lineAngle1, 0.1f, 0.0f, TAU);
+                    ImGui::DragFloat("Outer Hatch Angle", &lineAngle1, 0.01f, 0.0f, TAU);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Outer Hatch Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::DragFloat("Outer Hatch Scale", &patternScale, 0.01f, 0.0f, 15.0f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Outer Hatch Weight", &lineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::DragFloat("Outer Hatch Thickness", &lineThickness, 0.01f, -15.0f, 15.0f);
                     ImGui::SetNextItemWidth(100);
                     // Inner layer settings:
-                    ImGui::DragFloat("Inner Hatch Scale", &layerPatternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::DragFloat("Inner Hatch Scale", &layerPatternScale, 0.01f, 0.0f, 15.0f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Inner Hatch Density", &layerStrokeMult, 0.1f, 0.0f, 10.0f);
+                    ImGui::DragFloat("Inner Hatch Density", &layerStrokeMult, 0.01f, 0.0f, 15.0f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Inner Hatch Angle", &layerAngle, 0.1f, 0.0f, TAU);
+                    ImGui::DragFloat("Inner Hatch Angle", &layerAngle, 0.01f, 0.0f, TAU);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Inner Hatch Weight", &layerLineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::DragFloat("Inner Hatch Thickness", &layerLineThickness, 0.01f, -15.0f, 15.0f);
                     ImGui::SetNextItemWidth(100);
                     ImGui::DragFloat("Hatch Opacity", &transparencyValue, 0.01f, 0.0f, 1.0f);
                 }
@@ -4242,22 +4242,22 @@ int main(void)
                     ImGui::SetNextItemWidth(100);
                     ImGui::DragFloat("Outer Line Smoothness", &epsilonValue, 0.001f, 0.0f, 0.1f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Outer Hatch Density", &strokeMultiplier, 0.1f, 0.0f, 10.0f);
+                    ImGui::DragFloat("Outer Hatch Density", &strokeMultiplier, 0.01f, 0.0f, 15.0f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Outer Hatch Angle", &lineAngle1, 0.1f, 0.0f, TAU);
+                    ImGui::DragFloat("Outer Hatch Angle", &lineAngle1, 0.01f, 0.0f, TAU);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Outer Hatch Scale", &patternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::DragFloat("Outer Hatch Scale", &patternScale, 0.01f, 0.0f, 15.0f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Outer Hatch Weight", &lineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::DragFloat("Outer Hatch Thickness", &lineThickness, 0.01f, -15.0f, 15.0f);
                     ImGui::SetNextItemWidth(100);
                     // Inner layer settings:
-                    ImGui::DragFloat("Inner Hatch Scale", &layerPatternScale, 0.1f, 0.1f, 10.0f);
+                    ImGui::DragFloat("Inner Hatch Scale", &layerPatternScale, 0.01f, 0.0f, 15.0f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Inner Hatch Density", &layerStrokeMult, 0.1f, 0.0f, 10.0f);
+                    ImGui::DragFloat("Inner Hatch Density", &layerStrokeMult, 0.01f, 0.0f, 15.0f);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Inner Hatch Angle", &layerAngle, 0.1f, 0.0f, TAU);
+                    ImGui::DragFloat("Inner Hatch Angle", &layerAngle, 0.01f, 0.0f, TAU);
                     ImGui::SetNextItemWidth(100);
-                    ImGui::DragFloat("Inner Hatch Weight", &layerLineThickness, 0.1f, -10.0f, 10.0f);
+                    ImGui::DragFloat("Inner Hatch Thickness", &layerLineThickness, 0.01f, -15.0f, 15.0f);
                     ImGui::SetNextItemWidth(100);
                     ImGui::DragFloat("Hatch Opacity", &transparencyValue, 0.01f, 0.0f, 1.0f);
                 }
@@ -4701,7 +4701,7 @@ int main(void)
         float numLightsArr[4] = { static_cast<float>(numLights), 0, 0, 0 };
         bgfx::setUniform(u_numLights, numLightsArr);
 
-        bgfx::reset(width, height, BGFX_RESET_NONE);
+        bgfx::reset(width, height, BGFX_RESET_VSYNC);
         bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height));
 
         float view[16];
