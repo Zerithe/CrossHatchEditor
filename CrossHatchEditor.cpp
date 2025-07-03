@@ -258,6 +258,149 @@ struct Instance
 };
 static Instance* selectedInstance = nullptr;
 
+class ICommand {
+public:
+    virtual ~ICommand() = default;
+    virtual void execute() = 0;
+    virtual void undo() = 0;
+};
+
+class CommandManager {
+    std::vector<std::unique_ptr<ICommand>> undoStack, redoStack;
+public:
+    void executeCommand(std::unique_ptr<ICommand> cmd) {
+        cmd->execute();
+        undoStack.push_back(std::move(cmd));
+        redoStack.clear();
+    }
+    void undo() {
+        if (undoStack.empty()) return;
+        auto cmd = std::move(undoStack.back());
+        undoStack.pop_back();
+        cmd->undo();
+        redoStack.push_back(std::move(cmd));
+    }
+    void redo() {
+        if (redoStack.empty()) return;
+        auto cmd = std::move(redoStack.back());
+        redoStack.pop_back();
+        cmd->execute();
+        undoStack.push_back(std::move(cmd));
+    }
+    bool canUndo() const { return !undoStack.empty(); }
+    bool canRedo() const { return !redoStack.empty(); }
+};
+
+class MoveCommand : public ICommand {
+    Instance* inst;
+    float oldPos[3];
+    float newPos[3];
+public:
+    MoveCommand(Instance* i,
+        const float oldPosX,
+        const float oldPosY,
+        const float oldPosZ,
+        const float newPosX,
+        const float newPosY,
+        const float newPosZ) {
+        inst = i;
+        oldPos[0] = oldPosX;
+        oldPos[1] = oldPosY;
+        oldPos[2] = oldPosZ;
+        newPos[0] = newPosX;
+        newPos[1] = newPosY;
+        newPos[2] = newPosZ;
+    }
+    void execute() override {
+        inst->position[0] = newPos[0];
+        inst->position[1] = newPos[1];
+        inst->position[2] = newPos[2];
+        std::cout << "MoveCommand executed: " << inst->name << " to ("
+            << newPos[0] << ", " << newPos[1] << ", " << newPos[2] << ")\n";
+    }
+    void undo() override {
+        inst->position[0] = oldPos[0];
+        inst->position[1] = oldPos[1];
+        inst->position[2] = oldPos[2];
+        std::cout << "MoveCommand undone: " << inst->name << " to ("
+            << oldPos[0] << ", " << oldPos[1] << ", " << oldPos[2] << ")\n";
+    }
+};
+
+class RotateCommand : public ICommand {
+    Instance* inst;
+    float oldRot[3];
+    float newRot[3];
+public:
+    RotateCommand(Instance* i,
+        const float oldRotX,
+        const float oldRotY,
+        const float oldRotZ,
+        const float newRotX,
+        const float newRotY,
+        const float newRotZ) {
+        inst = i;
+        oldRot[0] = oldRotX;
+        oldRot[1] = oldRotY;
+        oldRot[2] = oldRotZ;
+        newRot[0] = newRotX;
+        newRot[1] = newRotY;
+        newRot[2] = newRotZ;
+    }
+    void execute() override {
+        inst->rotation[0] = newRot[0];
+        inst->rotation[1] = newRot[1];
+        inst->rotation[2] = newRot[2];
+        std::cout << "RotateCommand executed: " << inst->name << " to ("
+            << newRot[0] << ", " << newRot[1] << ", " << newRot[2] << ")\n";
+    }
+    void undo() override {
+        inst->rotation[0] = oldRot[0];
+        inst->rotation[1] = oldRot[1];
+        inst->rotation[2] = oldRot[2];
+        std::cout << "RotateCommand undone: " << inst->name << " to ("
+            << oldRot[0] << ", " << oldRot[1] << ", " << oldRot[2] << ")\n";
+    }
+};
+
+class ScaleCommand : public ICommand {
+    Instance* inst;
+    float oldScale[3];
+    float newScale[3];
+public:
+    ScaleCommand(Instance* i,
+        const float oldScaleX,
+        const float oldScaleY,
+        const float oldScaleZ,
+        const float newScaleX,
+        const float newScaleY,
+        const float newScaleZ) {
+        inst = i;
+        oldScale[0] = oldScaleX;
+        oldScale[1] = oldScaleY;
+        oldScale[2] = oldScaleZ;
+        newScale[0] = newScaleX;
+        newScale[1] = newScaleY;
+        newScale[2] = newScaleZ;
+    }
+    void execute() override {
+        inst->scale[0] = newScale[0];
+        inst->scale[1] = newScale[1];
+        inst->scale[2] = newScale[2];
+        std::cout << "ScaleCommand executed: " << inst->name << " to ("
+            << newScale[0] << ", " << newScale[1] << ", " << newScale[2] << ")\n";
+    }
+    void undo() override {
+        inst->scale[0] = oldScale[0];
+        inst->scale[1] = oldScale[1];
+        inst->scale[2] = oldScale[2];
+        std::cout << "ScaleCommand undone: " << inst->name << " to ("
+            << oldScale[0] << ", " << oldScale[1] << ", " << oldScale[2] << ")\n";
+    }
+};
+
+CommandManager gCmdManager;
+
 struct MeshData {
     std::vector<PosColorVertex> vertices;
     std::vector<uint32_t> indices;
@@ -328,6 +471,11 @@ void DecomposeMatrixToInstance_ImGuizmo(const float* matrix, Instance* inst)
 
 void DrawGizmoForSelected(Instance* selectedInstance, float originX, float originY, const float* view, const float* proj)
 {
+    // Static state for this function:
+    static bool wasUsing = false;
+	static float oldPos[3] = { 0.0f, 0.0f, 0.0f };
+	static float oldRot[3] = { 0.0f, 0.0f, 0.0f };
+	static float oldScale[3] = { 0.0f, 0.0f, 0.0f };
     if (!selectedInstance)
         return;
 
@@ -365,7 +513,77 @@ void DrawGizmoForSelected(Instance* selectedInstance, float originX, float origi
             currentGizmoOperation == ImGuizmo::ROTATE ? snapRotation :
             snapScale) : nullptr
     );
+    bool isUsing = ImGuizmo::IsUsing();
 
+    if (isUsing && !wasUsing) {
+        if (currentGizmoOperation == ImGuizmo::TRANSLATE) {
+            // Store the old position before any changes
+            oldPos[0] = selectedInstance->position[0];
+            oldPos[1] = selectedInstance->position[1];
+            oldPos[2] = selectedInstance->position[2];
+        }
+		else if (currentGizmoOperation == ImGuizmo::ROTATE) {
+			// Store the old rotation before any changes
+			oldRot[0] = selectedInstance->rotation[0];
+            oldRot[1] = selectedInstance->rotation[1];
+            oldRot[2] = selectedInstance->rotation[2];
+		}
+        else {
+            // Store the old scale before any changes
+            oldScale[0] = selectedInstance->scale[0];
+            oldScale[1] = selectedInstance->scale[1];
+            oldScale[2] = selectedInstance->scale[2];
+        }
+    }
+
+    // 4) Drag end?
+    if (!isUsing && wasUsing) {
+        bool moved = false;
+		bool rotated = false;
+		bool scaled = false;
+        if (currentGizmoOperation == ImGuizmo::TRANSLATE) {
+            if (oldPos[0] != selectedInstance->position[0] ||
+                oldPos[1] != selectedInstance->position[1] ||
+                oldPos[2] != selectedInstance->position[2]) {
+                moved = true;
+            }
+        }
+        if (currentGizmoOperation == ImGuizmo::ROTATE) {
+            if (oldRot[0] != selectedInstance->rotation[0] ||
+                oldRot[1] != selectedInstance->rotation[1] ||
+                oldRot[2] != selectedInstance->rotation[2]) {
+                rotated = true;
+            }
+        }
+        if (currentGizmoOperation == ImGuizmo::SCALE) {
+            if (oldScale[0] != selectedInstance->scale[0] ||
+                oldScale[1] != selectedInstance->scale[1] ||
+                oldScale[2] != selectedInstance->scale[2]) {
+                scaled = true;
+            }
+        }
+        // Only push a command if something actually moved
+        if (moved) {
+            gCmdManager.executeCommand(
+                std::make_unique<MoveCommand>(selectedInstance, oldPos[0], oldPos[1], oldPos[2], selectedInstance->position[0], selectedInstance->position[1], selectedInstance->position[2])
+            );
+        }
+
+		if (rotated) {
+			gCmdManager.executeCommand(
+				std::make_unique<RotateCommand>(selectedInstance, oldRot[0], oldRot[1], oldRot[2], selectedInstance->rotation[0], selectedInstance->rotation[1], selectedInstance->rotation[2])
+			);
+		}
+        
+        if (scaled) {
+            gCmdManager.executeCommand(
+                std::make_unique<ScaleCommand>(selectedInstance, oldScale[0], oldScale[1], oldScale[2], selectedInstance->scale[0], selectedInstance->scale[1], selectedInstance->scale[2])
+            );
+        }
+    }
+
+    // 5) Update for next frame
+    wasUsing = isUsing;
     // 5) If changed, convert world matrix back to local space
     if (changed)
     {
@@ -389,10 +607,9 @@ void DrawGizmoForSelected(Instance* selectedInstance, float originX, float origi
             float scale[3];
             ImGuizmo::DecomposeMatrixToComponents(newLocalMatrix, translation, rotationDeg, scale);
 
-            // Apply the local transform values
             selectedInstance->position[0] = translation[0];
-            selectedInstance->position[1] = translation[1];
-            selectedInstance->position[2] = translation[2];
+			selectedInstance->position[1] = translation[1];
+			selectedInstance->position[2] = translation[2];
 
             // Convert degrees to radians and apply snapping if CTRL is held
             for (int i = 0; i < 3; i++) {
@@ -421,7 +638,6 @@ void DrawGizmoForSelected(Instance* selectedInstance, float originX, float origi
             float scale[3];
             ImGuizmo::DecomposeMatrixToComponents(matrix, translation, rotationDeg, scale);
 
-            // Apply values
             selectedInstance->position[0] = translation[0];
             selectedInstance->position[1] = translation[1];
             selectedInstance->position[2] = translation[2];
@@ -786,7 +1002,17 @@ void createMeshBuffers(const MeshData& meshData, bgfx::VertexBufferHandle& vbh, 
 }
 static void glfw_keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-    if (key == GLFW_KEY_F1 && action == GLFW_RELEASE)
+    if (key == GLFW_KEY_Z
+        && (mods & GLFW_MOD_CONTROL)
+        && action == GLFW_RELEASE) {
+        gCmdManager.undo();
+    }
+    else if (key == GLFW_KEY_Y
+        && (mods & GLFW_MOD_CONTROL)
+        && action == GLFW_RELEASE) {
+        gCmdManager.redo();
+    }
+    else if (key == GLFW_KEY_F1 && action == GLFW_RELEASE)
         s_showStats = !s_showStats;
 
     // Forward the event to ImGui
@@ -3752,14 +3978,10 @@ int main(void)
                 }
                 if (ImGui::BeginMenu("Edit"))
                 {
-                    if (ImGui::MenuItem("Undo", "WIP"))
-                    {
-                        //undo
-                    }
-                    if (ImGui::MenuItem("Redo", "WIP"))
-                    {
-                        //redo
-                    }
+                    if (ImGui::MenuItem("Undo", "Ctrl+Z", false, gCmdManager.canUndo()))
+                        gCmdManager.undo();
+                    if (ImGui::MenuItem("Redo", "Ctrl+Y", false, gCmdManager.canRedo()))
+                        gCmdManager.redo();
                     if (ImGui::MenuItem("Delete Last Instance"))
                     {
                         Instance* inst = instances.back();
