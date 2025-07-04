@@ -60,7 +60,7 @@ void InputManager::update(Camera& camera, float deltaTime)
     // Check middle mouse button state
     bool wasMiddleMousePressed = m_rightClickMousePressed;
     m_rightClickMousePressed = glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
-    bool shiftPressed = isKeyPressed(GLFW_KEY_LEFT_SHIFT) || isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+    bool ctrlPressed = isKeyPressed(GLFW_KEY_LEFT_CONTROL) || isKeyPressed(GLFW_KEY_RIGHT_CONTROL);
 
     // Initialize mouse position when starting to drag
     if (m_rightClickMousePressed && !wasMiddleMousePressed) {
@@ -72,7 +72,7 @@ void InputManager::update(Camera& camera, float deltaTime)
         bx::Vec3 toTarget = bx::sub(m_cameraTarget, camera.position);
         m_cameraDistance = bx::length(toTarget);
 
-        if (shiftPressed) {
+        if (ctrlPressed) {
             m_isPanning = true;
             m_isOrbiting = false;
         }
@@ -158,7 +158,7 @@ void InputManager::update(Camera& camera, float deltaTime)
             camera.position = bx::mad(camera.right, bx::Vec3(cameraSpeed, cameraSpeed, cameraSpeed), camera.position);
         if (isKeyPressed(GLFW_KEY_SPACE))
             camera.position = bx::mad(camera.up, bx::Vec3(cameraSpeed, cameraSpeed, cameraSpeed), camera.position);
-        if (isKeyPressed(GLFW_KEY_LEFT_CONTROL))
+        if (isKeyPressed(GLFW_KEY_LEFT_SHIFT))
             camera.position = bx::mad(camera.up, bx::Vec3(-cameraSpeed, -cameraSpeed, -cameraSpeed), camera.position);
     }
 }
