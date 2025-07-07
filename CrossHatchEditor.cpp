@@ -3338,6 +3338,18 @@ int main(void)
         ImGui_ImplGlfw_NewFrame();
         ImGui_Implbgfx_NewFrame();
         ImGui::NewFrame();
+        if (selectedInstance && !ImGui::GetIO().WantCaptureKeyboard)
+        {
+            if (ImGui::IsKeyPressed(ImGuiKey_1)) {
+                currentGizmoOperation = ImGuizmo::TRANSLATE;
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_2) && !selectedInstance->isLight) {
+                currentGizmoOperation = ImGuizmo::ROTATE;
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_3) && !selectedInstance->isLight) {
+                currentGizmoOperation = ImGuizmo::SCALE;
+            }
+        }
         if (showMainMenu)
         {
             // Update the video frame each frame.
