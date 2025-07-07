@@ -97,7 +97,7 @@ static float lineAngle1 = TAU / 8.0f;           // Outer Hatch Angle or Line Ang
 static float lineAngle2 = TAU / 16.0f;          // Line Angle 2
 
 // These static variables will hold the extra parameter values.
-static float patternScale = 0.15f;               // Outer Hatch Scale or Pattern Scale
+static float patternScale = 0.4f;               // Outer Hatch Scale or Pattern Scale
 static float lineThickness = 0.3f;              // Outer Hatch Weight or Line Thickness
 
 // You can leave the remaining components as 0 (or later repurpose them)
@@ -105,7 +105,7 @@ static float transparencyValue = 1.0f;          // Hatch Opacity or Transparency
 static int crosshatchMode = 3;                  // 0 = hatch ver 1.0, 1 = hatch ver 1.1, 2 = hatch ver 1.2, 3 = hatch ver 1.3, 4 = basic shader
 
 // These static variables will hold the values for u_paramsLayer
-static float layerPatternScale = 0.15f;          // Inner Hatch Scale or Layer Pattern Scale
+static float layerPatternScale = 0.5f;          // Inner Hatch Scale or Layer Pattern Scale
 static float layerStrokeMult = 0.250f;           // Inner Hatch Density or Layer Stroke Multiplier
 static float layerAngle = 2.983f;               // Inner Hatch Angle or Layer Angle
 static float layerLineThickness = 10.0f;        // Inner Hatch Weight or Layer Line Thickness
@@ -2504,12 +2504,12 @@ void ResetCrosshatchSettings()
         strokeMultiplier = 1.0f;
         lineAngle1 = TAU / 8.0f;
         lineAngle2 = TAU / 16.0f;
-        patternScale = 0.15f;
+        patternScale = 0.4f;
         lineThickness = 0.3f;
         transparencyValue = 1.0f;
 
         // inner-layer defaults
-        layerPatternScale = 0.15f;
+        layerPatternScale = 0.5f;
         layerStrokeMult = 0.250f;
         layerAngle = 2.983f;
         layerLineThickness = 10.0f;
