@@ -2579,6 +2579,7 @@ int main(void)
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+    io.Fonts->AddFontFromFileTTF("fonts/Inter.ttf", 18.0f);
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_Implbgfx_Init(255);
 
@@ -3300,6 +3301,9 @@ int main(void)
     menu_flags |= ImGuiWindowFlags_MenuBar |
         ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoBackground;
+    /*menu_flags |= ImGuiWindowFlags_MenuBar |
+        ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoBackground;*/
 
     uint16_t screenshotWidth = 1920;
     uint16_t screenshotHeight = 1080;
