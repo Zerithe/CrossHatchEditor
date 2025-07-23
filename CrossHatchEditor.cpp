@@ -2482,6 +2482,34 @@ void createNewCamera() {
     cameras.push_back(newCam);
 }
 
+namespace Gallery {
+    static bool galleryOpen = false;
+    static bool fullscreenOpen = false;
+    static int selectedImage = -1;
+    static std::vector<bgfx::TextureHandle> textures;
+    static std::vector<ImVec2> imgSizes;
+
+    // Call once at startup
+    void LoadGallery(const std::string& folderPath) {
+        textures.clear();
+        imgSizes.clear();
+        for (auto& entry : std::filesystem::directory_iterator(folderPath)) {
+            if (!entry.is_regular_file()) continue;
+            auto path = entry.path().string();
+            int w, h, channels;
+            unsigned char* data = stbi_load(path.c_str(), &w, &h, &channels, 4);
+            if (!data) continue;
+            const bgfx::Memory* mem = bgfx::copy(data, w * h * 4);
+            stbi_image_free(data);
+            auto tex = bgfx::createTexture2D((uint16_t)w, (uint16_t)h, false, 1,
+                bgfx::TextureFormat::RGBA8, 0, mem);
+            if (bgfx::isValid(tex)) {
+                textures.push_back(tex);
+                imgSizes.push_back(ImVec2((float)w, (float)h));
+            }
+        }
+    }
+}
 void takeScreenshotAsPng(bgfx::FrameBufferHandle fb, const std::string& baseName) {
     std::filesystem::create_directory("screenshots");
 
@@ -2528,6 +2556,7 @@ void takeScreenshotAsPng(bgfx::FrameBufferHandle fb, const std::string& baseName
         }
 
         stbi_image_free(data);
+        Gallery::LoadGallery("./screenshots");
         }).detach(); // Detach the thread so it runs independently
 }
 
@@ -2576,34 +2605,6 @@ void ResetCrosshatchSettings()
 
 }
 
-namespace Gallery {
-    static bool galleryOpen = false;
-    static bool fullscreenOpen = false;
-    static int selectedImage = -1;
-    static std::vector<bgfx::TextureHandle> textures;
-    static std::vector<ImVec2> imgSizes;
-
-    // Call once at startup
-    void LoadGallery(const std::string& folderPath) {
-        textures.clear();
-        imgSizes.clear();
-        for (auto& entry : std::filesystem::directory_iterator(folderPath)) {
-            if (!entry.is_regular_file()) continue;
-            auto path = entry.path().string();
-            int w, h, channels;
-            unsigned char* data = stbi_load(path.c_str(), &w, &h, &channels, 4);
-            if (!data) continue;
-            const bgfx::Memory* mem = bgfx::copy(data, w * h * 4);
-            stbi_image_free(data);
-            auto tex = bgfx::createTexture2D((uint16_t)w, (uint16_t)h, false, 1,
-                bgfx::TextureFormat::RGBA8, 0, mem);
-            if (bgfx::isValid(tex)) {
-                textures.push_back(tex);
-                imgSizes.push_back(ImVec2((float)w, (float)h));
-            }
-        }
-    }
-}
 int main(void)
 {
     // Initialize GLFW
@@ -2652,7 +2653,7 @@ int main(void)
 
     glfwSetKeyCallback(window, glfw_keyCallback);
 
-    Gallery::LoadGallery("./assets/GalleryImages");
+    Gallery::LoadGallery("./screenshots");
 
     /*ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
