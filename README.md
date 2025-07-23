@@ -39,6 +39,10 @@ Our application can perform real-time rendering with the stylized shaders, and c
 <img src="https://lh3.googleusercontent.com/d/1f1YmFVKUfXxWtaNeDfiWOUKAZF3JPIi7" alt="AnitoCrosshatchGallery5" width="700">
 <img src="https://lh3.googleusercontent.com/d/1ygrKi-orm5MzOszY1C52RS0wwYTWH79c" alt="AnitoCrosshatchGallery6" width="700">
 
+## INSTALLER
+
+Coming soom ;)
+
 ## REQUIREMENTS
 - Windows 10 and above
 - Visual Studio 2022 or later
@@ -98,6 +102,7 @@ git clone https://github.com/CedricGuillemet/ImGuizmo
 
 - Download FFmpeg from https://github.com/GyanD/codexffmpeg/releases/download/7.1.1/ffmpeg-7.1.1-full_build.zip
 - Unzip the file and place it in the root directory of the project.
+- rename the folder to <b>"ffmpeg"</b> so that the path is `AnitoCrosshatch/ffmpeg`."
 
 ## BUILDING THE PROJECT
 
