@@ -100,7 +100,7 @@ git clone https://github.com/CedricGuillemet/ImGuizmo
 
 ### FFmpeg
 
-- Download FFmpeg from https://github.com/GyanD/codexffmpeg/releases/download/7.1.1/ffmpeg-7.1.1-full_build.zip
+- Download FFmpeg from https://github.com/GyanD/codexffmpeg/releases/download/7.1.1/ffmpeg-7.1.1-full_build-shared.7z
 - Unzip the file and place it in the root directory of the project.
 - rename the folder to <b>"ffmpeg"</b> so that the path is `AnitoCrosshatch/ffmpeg`."
 
