@@ -315,15 +315,15 @@ public:
         inst->position[0] = newPos[0];
         inst->position[1] = newPos[1];
         inst->position[2] = newPos[2];
-        std::cout << "MoveCommand executed: " << inst->name << " to ("
-            << newPos[0] << ", " << newPos[1] << ", " << newPos[2] << ")\n";
+        /*std::cout << "MoveCommand executed: " << inst->name << " to ("
+            << newPos[0] << ", " << newPos[1] << ", " << newPos[2] << ")\n";*/
     }
     void undo() override {
         inst->position[0] = oldPos[0];
         inst->position[1] = oldPos[1];
         inst->position[2] = oldPos[2];
-        std::cout << "MoveCommand undone: " << inst->name << " to ("
-            << oldPos[0] << ", " << oldPos[1] << ", " << oldPos[2] << ")\n";
+        /*std::cout << "MoveCommand undone: " << inst->name << " to ("
+            << oldPos[0] << ", " << oldPos[1] << ", " << oldPos[2] << ")\n";*/
     }
 };
 
@@ -351,15 +351,15 @@ public:
         inst->rotation[0] = newRot[0];
         inst->rotation[1] = newRot[1];
         inst->rotation[2] = newRot[2];
-        std::cout << "RotateCommand executed: " << inst->name << " to ("
-            << newRot[0] << ", " << newRot[1] << ", " << newRot[2] << ")\n";
+        /*std::cout << "RotateCommand executed: " << inst->name << " to ("
+            << newRot[0] << ", " << newRot[1] << ", " << newRot[2] << ")\n";*/
     }
     void undo() override {
         inst->rotation[0] = oldRot[0];
         inst->rotation[1] = oldRot[1];
         inst->rotation[2] = oldRot[2];
-        std::cout << "RotateCommand undone: " << inst->name << " to ("
-            << oldRot[0] << ", " << oldRot[1] << ", " << oldRot[2] << ")\n";
+        /*std::cout << "RotateCommand undone: " << inst->name << " to ("
+            << oldRot[0] << ", " << oldRot[1] << ", " << oldRot[2] << ")\n";*/
     }
 };
 
@@ -387,15 +387,15 @@ public:
         inst->scale[0] = newScale[0];
         inst->scale[1] = newScale[1];
         inst->scale[2] = newScale[2];
-        std::cout << "ScaleCommand executed: " << inst->name << " to ("
-            << newScale[0] << ", " << newScale[1] << ", " << newScale[2] << ")\n";
+        /*std::cout << "ScaleCommand executed: " << inst->name << " to ("
+            << newScale[0] << ", " << newScale[1] << ", " << newScale[2] << ")\n";*/
     }
     void undo() override {
         inst->scale[0] = oldScale[0];
         inst->scale[1] = oldScale[1];
         inst->scale[2] = oldScale[2];
-        std::cout << "ScaleCommand undone: " << inst->name << " to ("
-            << oldScale[0] << ", " << oldScale[1] << ", " << oldScale[2] << ")\n";
+        /*std::cout << "ScaleCommand undone: " << inst->name << " to ("
+            << oldScale[0] << ", " << oldScale[1] << ", " << oldScale[2] << ")\n";*/
     }
 };
 
@@ -4066,14 +4066,14 @@ int main(void)
                     bx::toDeg(selectedInstance->rotation[2]),
                     };
 
-                    ImGui::DragFloat3("Translation", selectedInstance->position, 0.1f);
+                    ImGui::DragFloat3("Translation", selectedInstance->position, 0.01f);
                     if (!selectedInstance->isLight) {
-                        if (ImGui::DragFloat3("Rotation (degrees)", rotDeg, 1.0f)) {
+                        if (ImGui::DragFloat3("Rotation (degrees)", rotDeg, 0.1f)) {
                             selectedInstance->rotation[0] = bx::toRad(rotDeg[0]);
                             selectedInstance->rotation[1] = bx::toRad(rotDeg[1]);
                             selectedInstance->rotation[2] = bx::toRad(rotDeg[2]);
                         }
-                        ImGui::DragFloat3("Scale", selectedInstance->scale, 0.1f);
+                        ImGui::DragFloat3("Scale", selectedInstance->scale, 0.01f);
                     }
 
                     if (currentGizmoOperation != ImGuizmo::SCALE) {
@@ -4135,10 +4135,10 @@ int main(void)
                                 selectedInstance->lightProps.type == LightType::Spot)
                             {
                                 ImGui::DragFloat3("Light Position", selectedInstance->position, 0.1f);
-                                ImGui::DragFloat("Range", &selectedInstance->lightProps.range, 0.1f, 0.0f, 100.0f);
+                                ImGui::DragFloat("Range", &selectedInstance->lightProps.range, 0.1f, 0.0f, 1000.0f);
                             }
                             ImGui::ColorEdit4("Light Color", selectedInstance->lightProps.color);
-                            ImGui::DragFloat("Intensity", &selectedInstance->lightProps.intensity, 0.1f, 0.0f, 10.0f);
+                            ImGui::DragFloat("Intensity", &selectedInstance->lightProps.intensity, 0.01f, 0.0f, 10.0f);
                             if (selectedInstance->lightProps.type == LightType::Spot)
                             {
                                 ImGui::DragFloat("Cone Angle", &selectedInstance->lightProps.coneAngle, 0.1f, 0.0f, 3.14f);
@@ -4377,10 +4377,14 @@ int main(void)
             ImGui::Text("Controls:");
             ImGui::Text("WASD - Move Camera");
             ImGui::Text("Right Click - Rotate Camera");
-            ImGui::Text("Shift + Right Click - Pan Camera");
-            ImGui::Text("Ctrl - Move Down");
+            ImGui::Text("Ctrl + Right Click - Pan Camera");
+            ImGui::Text("Shift - Move Down");
             ImGui::Text("Space - Move Up");
+            ImGui::Text("1 - Switch Gizmo to Translate");
+            ImGui::Text("2 - Switch Gizmo to Rotate");
+            ImGui::Text("3 - Switch Gizmo to Scale");
             ImGui::Text("Left Click - Select Object");
+            ImGui::Text("Double Left Click - Teleport to Object");
             ImGui::Text("F1 - Toggle bgfx stats");
             ImGui::Text("F2 - Disable/Enable UI");
             ImGui::Text("F3 - Take Screenshot");
@@ -4396,11 +4400,11 @@ int main(void)
                 ImGui::CloseCurrentPopup();
                 openScreenshotPopup = false;
             }
-            ImGui::SameLine();
-            if (ImGui::Button("Cancel")) {
-                ImGui::CloseCurrentPopup();
-                openScreenshotPopup = false;
-            }
+            ImGui::Text("To Take a screenshot");
+            ImGui::Text("enter the filename that you want");
+            ImGui::Text("then turn off the UI using F2");
+            ImGui::Text("and press the screenshot button F3.");
+
             ImGui::End();
 
 
