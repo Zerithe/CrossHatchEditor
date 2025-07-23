@@ -2576,6 +2576,34 @@ void ResetCrosshatchSettings()
 
 }
 
+namespace Gallery {
+    static bool galleryOpen = false;
+    static bool fullscreenOpen = false;
+    static int selectedImage = -1;
+    static std::vector<bgfx::TextureHandle> textures;
+    static std::vector<ImVec2> imgSizes;
+
+    // Call once at startup
+    void LoadGallery(const std::string& folderPath) {
+        textures.clear();
+        imgSizes.clear();
+        for (auto& entry : std::filesystem::directory_iterator(folderPath)) {
+            if (!entry.is_regular_file()) continue;
+            auto path = entry.path().string();
+            int w, h, channels;
+            unsigned char* data = stbi_load(path.c_str(), &w, &h, &channels, 4);
+            if (!data) continue;
+            const bgfx::Memory* mem = bgfx::copy(data, w * h * 4);
+            stbi_image_free(data);
+            auto tex = bgfx::createTexture2D((uint16_t)w, (uint16_t)h, false, 1,
+                bgfx::TextureFormat::RGBA8, 0, mem);
+            if (bgfx::isValid(tex)) {
+                textures.push_back(tex);
+                imgSizes.push_back(ImVec2((float)w, (float)h));
+            }
+        }
+    }
+}
 int main(void)
 {
     // Initialize GLFW
@@ -2623,6 +2651,8 @@ int main(void)
     ImGui_Implbgfx_Init(255);
 
     glfwSetKeyCallback(window, glfw_keyCallback);
+
+    Gallery::LoadGallery("./assets/GalleryImages");
 
     /*ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
@@ -3377,6 +3407,7 @@ int main(void)
         }
         static bool showMainMenu = true;
         static bool showCreditsPage = false;
+        static bool showGallery = false;
 
         ImGui_ImplGlfw_NewFrame();
         ImGui_Implbgfx_NewFrame();
@@ -3460,12 +3491,17 @@ int main(void)
                 if (ImGui::Button("Start", ImVec2(200, 50))) {
                     showMainMenu = false;
                     showCreditsPage = false;
+					showGallery = false;
                 }
                 ImGui::SameLine(0.0f, 10.0f);
                 if (ImGui::Button("Gallery", ImVec2(200, 50))) {
                     // Handle Gallery
                     // Open the specified GDrive link (replace with your actual URL).
-                    system("start https://drive.google.com/drive/folders/19LPNoBsqBaJ-65lz1_8yW91JatjxCsfm?usp=sharing");
+                    //system("start https://drive.google.com/drive/folders/19LPNoBsqBaJ-65lz1_8yW91JatjxCsfm?usp=sharing");
+					showMainMenu = false; // hide main menu
+					showCreditsPage = false; // hide credits page
+					showGallery = true; // show gallery
+					
                 }
                 ImGui::SameLine(0.0f, 10.0f);
                 if (ImGui::Button("Credits", ImVec2(200, 50))) {
@@ -3547,6 +3583,80 @@ int main(void)
 
             ImGui::PopStyleVar(2);
             ImGui::PopStyleColor();
+        }
+        else if (showGallery) {
+            ImGui::SetNextWindowPos(ImVec2(0, 0));
+            ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+            ImGui::Begin("Gallery", &showGallery, ImGuiWindowFlags_AlwaysAutoResize);
+            if (ImGui::Button("Back")) {
+                showCreditsPage = false;
+                showGallery = false; // Close gallery
+                showMainMenu = true;
+            }
+            ImGui::BeginChild("Thumbnails", ImGui::GetIO().DisplaySize, true);
+            const float maxThumbHeight = 200.0f;
+            const float padding = 10.0f;
+            float x = 0.0f;
+            float maxWidth = ImGui::GetContentRegionAvail().x;
+            for (int i = 0; i < (int)Gallery::textures.size(); i++) {
+                ImVec2 original = Gallery::imgSizes[i];
+                float ratio = original.x / original.y;
+                ImVec2 thumbSize = ImVec2(maxThumbHeight * ratio, maxThumbHeight);
+
+                if (x + thumbSize.x > maxWidth) {
+                    x = 0.0f;
+                    ImGui::NewLine();
+                }
+
+                ImGui::PushID(i);
+                ImGui::Image((ImTextureID)(uintptr_t)Gallery::textures[i].idx, thumbSize);
+                if (ImGui::IsItemClicked()) {
+                    Gallery::selectedImage = i;
+                    Gallery::fullscreenOpen = true;
+					showGallery = false; // Hide gallery when image is selected
+                }
+                ImGui::PopID();
+                x += thumbSize.x + padding;
+                ImGui::SameLine();
+            }
+            ImGui::EndChild();
+            ImGui::End();
+        }
+        else if (Gallery::fullscreenOpen && Gallery::selectedImage >= 0) {
+            ImGuiIO& io = ImGui::GetIO();
+            ImVec2 viewport = io.DisplaySize;
+            ImVec2 imgSize = Gallery::imgSizes[Gallery::selectedImage];
+            // Compute scale to fit viewport
+            float scale = 1.0f;
+            if (imgSize.x > viewport.x || imgSize.y > viewport.y) {
+                float sx = viewport.x / imgSize.x;
+                float sy = viewport.y / imgSize.y;
+                scale = (sx < sy) ? sx : sy;
+            }
+            ImVec2 displaySize(imgSize.x * scale, imgSize.y * scale);
+            ImVec2 pos((viewport.x - displaySize.x) * 0.5f, (viewport.y - displaySize.y) * 0.5f);
+
+            // Draw full-screen black background
+            ImGui::SetNextWindowPos(ImVec2(0, 0));
+            ImGui::SetNextWindowSize(viewport);
+            ImGui::Begin("##BgFull", nullptr,
+                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBackground);
+            ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(0, 0), viewport, IM_COL32(0, 0, 0, 255));
+            ImGui::End();
+
+            // Draw centered image window
+            ImGui::SetNextWindowPos(pos);
+            ImGui::SetNextWindowSize(displaySize);
+            ImGui::Begin("##FullScreen", nullptr,
+                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs);
+            ImGui::Image((ImTextureID)(uintptr_t)Gallery::textures[Gallery::selectedImage].idx, displaySize);
+            ImGui::End();
+
+            // Click or ESC to close
+            if (ImGui::IsMouseClicked(0)) {
+                Gallery::fullscreenOpen = false;
+				showGallery = true; // Show gallery again
+            }
         }
         else if (!takingScreenshot)
         {
