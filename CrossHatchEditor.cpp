@@ -162,6 +162,7 @@ struct Instance
     float position[3];
     float rotation[3]; // Euler angles in radians (for X, Y, Z)
     float scale[3];    // Non-uniform scale for each axis
+    float worldPosition[3];
     bgfx::VertexBufferHandle vertexBuffer;
     bgfx::IndexBufferHandle indexBuffer;
     bool selected = false;
@@ -1222,7 +1223,7 @@ bool IsWhite(const float color[4], float epsilon = 0.001f)
         std::fabs(color[3] - 1.0f) < epsilon;
 }
 // Recursive draw function for hierarchy.
-void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, bgfx::ProgramHandle lightDebugProgram, bgfx::ProgramHandle textProgram, bgfx::ProgramHandle comicProgram, bgfx::UniformHandle u_comicColor, bgfx::UniformHandle u_noiseTex, bgfx::UniformHandle u_diffuseTex, bgfx::UniformHandle u_objectColor, bgfx::UniformHandle u_tint, bgfx::UniformHandle u_inkColor, bgfx::UniformHandle u_e, bgfx::UniformHandle u_params, bgfx::UniformHandle u_extraParams, bgfx::UniformHandle u_paramsLayer,
+void drawInstance(Instance* instance, bgfx::ProgramHandle defaultProgram, bgfx::ProgramHandle lightDebugProgram, bgfx::ProgramHandle textProgram, bgfx::ProgramHandle comicProgram, bgfx::UniformHandle u_comicColor, bgfx::UniformHandle u_noiseTex, bgfx::UniformHandle u_diffuseTex, bgfx::UniformHandle u_objectColor, bgfx::UniformHandle u_tint, bgfx::UniformHandle u_inkColor, bgfx::UniformHandle u_e, bgfx::UniformHandle u_params, bgfx::UniformHandle u_extraParams, bgfx::UniformHandle u_paramsLayer,
     bgfx::TextureHandle defaultWhiteTexture, bgfx::TextureHandle inheritedNoiseTex, bgfx::TextureHandle inheritedTexture, const float* parentColor = nullptr, const float* parentTransform = nullptr)
 {
     float local[16];
@@ -1237,6 +1238,9 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, 
     else
         std::memcpy(world, local, sizeof(world));
 
+    instance->worldPosition[0] = world[12];
+    instance->worldPosition[1] = world[13];
+    instance->worldPosition[2] = world[14];
     // Compute comic object color.
     float comicColor[4];
 
@@ -1392,7 +1396,7 @@ void drawInstance(const Instance* instance, bgfx::ProgramHandle defaultProgram, 
     }
 
     // Recursively draw children.
-    for (const Instance* child : instance->children)
+    for (Instance* child : instance->children)
     {
         drawInstance(child, defaultProgram, lightDebugProgram, textProgram, comicProgram, u_comicColor, u_noiseTex, u_diffuseTex, u_objectColor, u_tint, u_inkColor, u_e, u_params, u_extraParams, u_paramsLayer, defaultWhiteTexture, inheritedNoiseTex, newInheritedTexture, childParentColor, world);
     }
@@ -1428,6 +1432,41 @@ void ShowInstanceTree(Instance* instance, Instance*& selectedInstance, std::vect
             selectedInstance = nullptr;
         else
             selectedInstance = instance;
+    }
+
+    if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0))
+    {
+        // 1) Select the instance
+        selectedInstance = instance;
+
+        // 2) Pan/zoom camera to look at the instance
+        Camera& cam = cameras[currentCameraIndex];
+
+        // How far from the object you want to sit (tweak as needed)
+        const float desiredDistance = 5.0f;
+
+        // Compute new camera position: back off along the current forward vector
+        cam.position.x = instance->worldPosition[0] - cam.front.x * desiredDistance;
+        cam.position.y = instance->worldPosition[1] - cam.front.y * desiredDistance;
+        cam.position.z = instance->worldPosition[2] - cam.front.z * desiredDistance;
+
+        // Recompute the forward vector so the camera looks directly at the object
+        {
+            float dx = instance->worldPosition[0] - cam.position.x;
+            float dy = instance->worldPosition[1] - cam.position.y;
+            float dz = instance->worldPosition[2] - cam.position.z;
+            float len = std::sqrt(dx * dx + dy * dy + dz * dz);
+            if (len > 0.0001f)
+            {
+                cam.front.x = dx / len;
+                cam.front.y = dy / len;
+                cam.front.z = dz / len;
+            }
+        }
+
+        // If your Camera also tracks yaw/pitch, recompute those to match the new front vector:
+        cam.yaw = std::atan2(cam.front.z, cam.front.x) * (180.0f / 3.14159265f);
+        cam.pitch = std::asin(cam.front.y) * (180.0f / 3.14159265f);
     }
 
     // Add right-click context menu for renaming
