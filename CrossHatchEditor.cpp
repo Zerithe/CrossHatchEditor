@@ -2320,7 +2320,13 @@ void renderInstancePickingRecursive(const Instance* instance, const float* paren
     bgfx::setTransform(world);
 
     // Encode the instance's unique ID into a color.
-    float idColor[4] = { instance->id / 255.0f, 0.0f, 0.0f, 1.0f };
+    uint32_t id = instance->id;
+    float idColor[4] = {
+        ((id >> 16) & 0xFF) / 255.0f,
+        ((id >> 8) & 0xFF) / 255.0f,
+        (id & 0xFF) / 255.0f,
+        1.0f
+    };
     bgfx::setUniform(u_id, idColor);
 
     // Submit the geometry if valid.
@@ -5047,9 +5053,11 @@ int main(void)
                 // Read the pixel (RGBA8: 4 bytes per pixel)
                 int pixelIndex = (pickY * PICKING_DIM + pickX) * 4;
                 uint8_t r = s_pickingBlitData[pixelIndex + 0];
+                uint8_t g = s_pickingBlitData[pixelIndex + 1];
+                uint8_t b = s_pickingBlitData[pixelIndex + 2];
 
                 // Decode the ID from the red channel.
-                int pickedID = r;
+                uint32_t pickedID = (r << 16) | (g << 8) | b;
 
                 // Search through instances to find the one with this ID.
                 Instance* pickedInstance = findInstanceById(instances, pickedID);
