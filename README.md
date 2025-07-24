@@ -74,12 +74,15 @@ cmake -S. -Bcmake-build
 cmake --build cmake-build
 ```
 
-### imgui
-
+### imgui (Deprecated)
+<s>
 - inside the root directory input the following commands:
 ```
 git clone https://github.com/ocornut/imgui
 ```
+</s>
+<b>Current ImGui is not compatible with the project, we have saved the specific version in a drive link temporarily</b>
+<b>https://drive.google.com/file/d/1TZdXJ-motQRek31hDl7U2WD4qSkyYMCl/view?usp=sharing</b>
 
 ### assimp
 
