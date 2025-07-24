@@ -2666,7 +2666,7 @@ int main(void)
     // Load the picking shader program.
     // (Assumes you have compiled picking shaders "vs_picking_shaded.bin" and "fs_picking_id.bin")
     bgfx::ShaderHandle vsPick = loadShader("shaders\\vs_picking_shaded.bin");
-    bgfx::ShaderHandle fsPick = loadShader("shaders\\fs_picking_id2.bin");
+    bgfx::ShaderHandle fsPick = loadShader("shaders\\fs_picking_id.bin");
     pickingProgram = bgfx::createProgram(vsPick, fsPick, true);
 
     bgfx::VertexLayout layout;
