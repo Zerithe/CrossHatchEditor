@@ -6,7 +6,6 @@
 
 <b>Email: 
 
-crosshatchingthesis@gmail.com
 neil.delgallego@dlsu.edu.ph
 </b>
 
