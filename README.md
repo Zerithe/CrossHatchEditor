@@ -4,7 +4,11 @@
 <br>
 <img src="https://lh3.googleusercontent.com/d/1tqxoyqiiqj6jN5S9bheEnmuailcY-oWu" alt="AnitoCrosshatchLogo" width="400">
 
-<b>Email: crosshatchingthesis@gmail.com</b>
+<b>Email: 
+
+crosshatchingthesis@gmail.com
+neil.delgallego@dlsu.edu.ph
+</b>
 
 <b>Socials: 
 
