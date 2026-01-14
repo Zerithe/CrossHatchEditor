@@ -1371,6 +1371,8 @@ void drawInstance(Instance* instance, bgfx::ProgramHandle defaultProgram, bgfx::
             {
                 // Use default or debug shader
                 bgfx::setState(BGFX_STATE_DEFAULT);
+               /* bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z |
+                    BGFX_STATE_DEPTH_TEST_LESS);*/
 
                 bgfx::submit(0, (instance->type == "light") ? lightDebugProgram : defaultProgram);
             }
@@ -3080,6 +3082,11 @@ int main(void)
         noiseTex.name = "Noise11";
         noiseTex.handle = loadTextureDDS("noise textures\\noise11.dds");
         availableNoiseTextures.push_back(noiseTex);
+
+        noiseTex.name = "textTexture";
+		noiseTex.handle = loadTextureDDS("noise textures\\testtexture.dds");
+		availableNoiseTextures.push_back(noiseTex);
+
     }
 
     noiseTexture = availableNoiseTextures[0].handle;
